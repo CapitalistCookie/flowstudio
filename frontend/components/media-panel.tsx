@@ -690,13 +690,13 @@ function MediaTab({ mediaFiles, onFilesAdded, onRemoveFile, projectId }: MediaTa
                   {/* Upload progress overlay */}
                   {media.isUploading && (
                     <motion.div
-                      className="absolute inset-0 flex items-center justify-center bg-black/40"
+                      className="absolute inset-0 flex items-center justify-center bg-background/70 backdrop-blur-[1px]"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                     >
                       <div className="flex flex-col items-center gap-1">
-                        <Loader2 className="h-6 w-6 text-white animate-spin" />
-                        <span className="text-[10px] text-white">Uploading...</span>
+                        <Loader2 className="h-6 w-6 text-foreground animate-spin" />
+                        <span className="text-[10px] text-foreground">Uploading...</span>
                       </div>
                     </motion.div>
                   )}
@@ -705,11 +705,11 @@ function MediaTab({ mediaFiles, onFilesAdded, onRemoveFile, projectId }: MediaTa
                   {!media.isUploading && (
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                       <motion.div
-                        className="rounded-full bg-black/60 p-2"
+                        className="rounded-full bg-card/90 border border-border p-2"
                         initial={{ scale: 0.8 }}
                         whileHover={{ scale: 1.1 }}
                       >
-                        <Play className="h-4 w-4 text-white fill-white" />
+                        <Play className="h-4 w-4 text-foreground fill-foreground" />
                       </motion.div>
                     </div>
                   )}
@@ -775,21 +775,21 @@ function MediaTab({ mediaFiles, onFilesAdded, onRemoveFile, projectId }: MediaTa
                         e.stopPropagation()
                         onRemoveFile(media.id)
                       }}
-                      className="rounded-full bg-black/60 p-1 hover:bg-black/80 cursor-pointer"
+                      className="rounded-full bg-card/90 border border-border p-1 hover:bg-secondary cursor-pointer"
                       title="Remove"
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                     >
-                      <X className="h-3 w-3 text-white" />
+                      <X className="h-3 w-3 text-foreground" />
                     </motion.button>
                   </div>
 
                   {/* Info overlay */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-2">
-                    <div className="text-xs font-medium text-white truncate">
+                  <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-background/90 to-transparent p-2">
+                    <div className="text-xs font-medium text-foreground truncate">
                       {media.name}
                     </div>
-                    <div className="text-[10px] text-white/60">{media.duration}</div>
+                    <div className="text-[10px] text-muted-foreground">{media.duration}</div>
                   </div>
                 </motion.div>
               ))}
@@ -891,7 +891,7 @@ function MediaTab({ mediaFiles, onFilesAdded, onRemoveFile, projectId }: MediaTa
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
             onClick={() => setPreviewResult(null)}
           >
             <motion.div
@@ -920,7 +920,7 @@ function MediaTab({ mediaFiles, onFilesAdded, onRemoveFile, projectId }: MediaTa
               </div>
               
               {/* Video */}
-              <div className="relative aspect-video bg-black">
+              <div className="relative aspect-video bg-muted">
                 <video
                   ref={previewVideoRef}
                   src={previewResult.media.objectUrl || previewResult.media.storageUrl}

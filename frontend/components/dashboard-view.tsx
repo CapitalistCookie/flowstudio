@@ -38,8 +38,8 @@ export function DashboardView() {
       >
 
         {/* Logo Section */}
-        <div className="flex h-20 items-center px-6 overflow-hidden">
-          <FluxLogo size="md" hideText={false} />
+        <div className="flex h-24 items-center justify-center px-6 overflow-hidden">
+          <FluxLogo size="md" />
         </div>
 
         {/* Navigation */}

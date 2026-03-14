@@ -138,7 +138,7 @@ export async function updateProject(
     
     return { data: updatedProject, error: null }
   } catch (error: unknown) {
-    return { data: null, error }
+    return { data: null, error: error instanceof Error ? error : new Error(String(error)) }
   }
 }
 

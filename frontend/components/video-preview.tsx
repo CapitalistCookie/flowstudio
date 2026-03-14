@@ -1075,10 +1075,10 @@ export function VideoPreview() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Video Preview Area */}
-      <div className="flex flex-1 min-h-0 items-center justify-center bg-black/40 p-4">
+      <div className="flex flex-1 min-h-0 items-center justify-center bg-secondary/50 p-4">
         <div
           ref={previewContainerRef}
-          className={`relative overflow-hidden bg-black ${isFullscreen
+          className={`relative overflow-hidden bg-card ${isFullscreen
             ? "w-full h-full max-w-none"
             : "rounded-lg border border-border"
             }`}
@@ -1249,17 +1249,17 @@ export function VideoPreview() {
               {/* Fullscreen Controls Overlay */}
               {isFullscreen && (
                 <div
-                  className={`absolute inset-x-0 bottom-0 z-40 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-6 pb-6 pt-12 transition-opacity duration-300 ${showFullscreenControls ? "opacity-100" : "opacity-0"
+                  className={`absolute inset-x-0 bottom-0 z-40 bg-gradient-to-t from-background/95 via-background/65 to-transparent px-6 pb-6 pt-12 transition-opacity duration-300 ${showFullscreenControls ? "opacity-100" : "opacity-0"
                     }`}
                 >
                   <div className="flex flex-col gap-4">
                     {/* Scrubber */}
                     <div className="flex items-center gap-3">
-                      <div className="font-mono text-xs font-medium text-white/90 w-16">
+                      <div className="font-mono text-xs font-medium text-foreground/90 w-16">
                         {formatTime(displayTime)}
                       </div>
                       <div
-                        className="relative h-2 flex-1 cursor-pointer rounded-full bg-white/20 group hover:h-4 transition-all"
+                        className="relative h-2 flex-1 cursor-pointer rounded-full bg-foreground/20 group hover:h-4 transition-all"
                         onMouseDown={handleFullscreenScrub}
                       >
                         {/* Progress bar */}
@@ -1270,11 +1270,11 @@ export function VideoPreview() {
 
                         {/* Playhead handle */}
                         <div
-                          className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white scale-0 group-hover:scale-100 transition-transform shadow-md"
+                          className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-card border border-border scale-0 group-hover:scale-100 transition-transform shadow-md"
                           style={{ left: `${progressPercent}%` }}
                         />
                       </div>
-                      <div className="font-mono text-xs font-medium text-white/90 w-16 text-right">
+                      <div className="font-mono text-xs font-medium text-foreground/90 w-16 text-right">
                         {formatTime(Math.max(timelineEndTime, displayTime, 1))}
                       </div>
                     </div>
@@ -1284,7 +1284,7 @@ export function VideoPreview() {
                       <div className="flex items-center gap-4">
                         <button
                           onClick={handlePlayPause}
-                          className="rounded-full bg-white p-2.5 text-black hover:bg-white/90 transition-colors"
+                          className="rounded-full bg-card border border-border p-2.5 text-foreground hover:bg-secondary transition-colors"
                         >
                           {isPlaying ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 fill-current" />}
                         </button>
@@ -1292,13 +1292,13 @@ export function VideoPreview() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={handleSkipBack}
-                            className="rounded-full p-2 text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+                            className="rounded-full p-2 text-foreground/80 hover:bg-secondary hover:text-foreground transition-colors"
                           >
                             <SkipBack className="h-5 w-5" />
                           </button>
                           <button
                             onClick={handleSkipForward}
-                            className="rounded-full p-2 text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+                            className="rounded-full p-2 text-foreground/80 hover:bg-secondary hover:text-foreground transition-colors"
                           >
                             <SkipForward className="h-5 w-5" />
                           </button>
@@ -1307,7 +1307,7 @@ export function VideoPreview() {
 
                       <button
                         onClick={toggleFullscreen}
-                        className="rounded-full p-2 text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+                        className="rounded-full p-2 text-foreground/80 hover:bg-secondary hover:text-foreground transition-colors"
                       >
                         <Minimize className="h-5 w-5" />
                       </button>
@@ -1317,12 +1317,15 @@ export function VideoPreview() {
               )}
             </>
           ) : (
-            <div className="flex h-full items-center justify-center">
-              <div className="text-center">
-                <Film className="mx-auto mb-2 h-16 w-16 text-muted-foreground" />
-                <div className="text-sm text-muted-foreground">
+            <div className="flex h-full items-center justify-center px-6">
+              <div className="w-full max-w-md rounded-xl border border-border/70 bg-background/75 px-8 py-10 text-center shadow-sm backdrop-blur-sm">
+                <Film className="mx-auto mb-3 h-14 w-14 text-muted-foreground/80" />
+                <div className="text-sm font-medium text-foreground">
                   {hasClips ? "Move playhead over a clip" : "Drop media on timeline to preview"}
                 </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {hasClips ? "Use spacebar to play and scrub the timeline." : "Import clips in Media, then drag them into the timeline."}
+                </p>
               </div>
             </div>
           )}
