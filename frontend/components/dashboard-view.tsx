@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { WorkspaceSidebar } from "@/components/workspace-sidebar"
+import { LightCinematicTexture } from "@/components/light-cinematic-texture"
 import { useProjectStore } from "@/lib/stores/project-store"
 
 function parseDurationToSeconds(duration: string): number {
@@ -67,8 +68,7 @@ export function DashboardView() {
 
       {/* ── Main Content ── */}
       <main className="relative flex-1 overflow-y-auto bg-background/50">
-        {/* Subtle Background Glow for main content */}
-        <div className="absolute top-0 left-1/2 -z-10 h-[500px] w-full -translate-x-1/2 bg-[radial-gradient(circle_at_50%_0%,rgba(245,166,35,0.03),transparent_70%)]" />
+        <LightCinematicTexture className="z-0" />
 
         <div className="mx-auto max-w-6xl px-8 py-12 lg:px-16 flex flex-col min-h-full">
           

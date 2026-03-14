@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { useProjectStore } from "@/lib/stores/project-store"
 import { WorkspaceSidebar } from "@/components/workspace-sidebar"
+import { LightCinematicTexture } from "@/components/light-cinematic-texture"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import type { Project } from "@/lib/types"
 
@@ -73,7 +74,7 @@ export function ProjectsView() {
         <WorkspaceSidebar active="projects" />
 
         <main className="relative flex-1 overflow-auto bg-background/50">
-          <div className="absolute left-1/2 top-0 -z-10 h-[420px] w-full -translate-x-1/2 bg-[radial-gradient(circle_at_45%_0%,rgba(245,166,35,0.05),transparent_70%)]" />
+          <LightCinematicTexture className="z-0" />
 
           <motion.div
             className="mx-auto max-w-6xl p-6 lg:p-10"
