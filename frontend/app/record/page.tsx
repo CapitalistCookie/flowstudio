@@ -42,21 +42,15 @@ export default function RecordPage() {
     return undefined
   }, [isRecording, isPaused, tick])
 
-  const handlePlayAction = () => {
-    if (!isRecording) {
-      startRecording()
-      return
-    }
+  const handleTogglePause = () => {
+    if (!isRecording) return
 
     if (isPaused) {
       resumeRecording()
+      return
     }
-  }
 
-  const handlePause = () => {
-    if (isRecording && !isPaused) {
-      pauseRecording()
-    }
+    pauseRecording()
   }
 
   const handleStop = () => {
@@ -75,14 +69,10 @@ export default function RecordPage() {
 
       <div className="absolute inset-0 bg-black/25" />
 
-      <button
-        type="button"
-        aria-label="Play"
-        onClick={handlePlayAction}
-        className="absolute left-6 top-6 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-black/35 text-white shadow-lg backdrop-blur-sm transition duration-200 hover:scale-105 hover:bg-black/45 hover:shadow-[0_0_24px_rgba(245,166,35,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F5A623]"
-      >
-        <Play className="h-5 w-5 fill-current" />
-      </button>
+      <div className="absolute left-6 top-6 z-20 inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/35 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-white/90 backdrop-blur-sm">
+        <span className={`h-2 w-2 rounded-full ${isPaused ? "bg-[#F5A623]" : "bg-[#FF5A4C]"}`} />
+        {isPaused ? "Paused" : "Recording"}
+      </div>
 
       <section className="relative z-10 flex min-h-screen items-center justify-center px-6 py-8">
         <div className="relative flex w-full max-w-xl flex-col items-center justify-center gap-5 text-center text-white">
@@ -94,18 +84,18 @@ export default function RecordPage() {
 
           <p className="flex items-center gap-2 text-base font-medium text-white/95 sm:text-lg">
             <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[#F5A623]" />
-            Recording in progress
+            {isPaused ? "Recording paused" : "Recording in progress"}
           </p>
 
           <div className="mt-3 flex items-center justify-center gap-3 sm:gap-4">
             <button
               type="button"
-              onClick={handlePause}
-              disabled={!isRecording || isPaused}
+              onClick={handleTogglePause}
+              disabled={!isRecording}
               className="inline-flex min-h-11 min-w-24 items-center justify-center rounded-xl border border-white/35 bg-white/10 px-6 text-sm font-semibold text-white backdrop-blur-sm transition duration-200 hover:scale-[1.02] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Pause className="mr-2 h-4 w-4" />
-              Pause
+              {isPaused ? <Play className="mr-2 h-4 w-4 fill-current" /> : <Pause className="mr-2 h-4 w-4" />}
+              {isPaused ? "Play" : "Pause"}
             </button>
 
             <button

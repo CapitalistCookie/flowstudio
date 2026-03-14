@@ -4,11 +4,13 @@ import { MOCK_PROJECTS } from "../mock-data"
 
 interface ProjectStore {
   projects: Project[]
+  starredProjectIds: string[]
   searchQuery: string
   viewMode: "grid" | "list"
 
   setSearchQuery: (q: string) => void
   setViewMode: (mode: "grid" | "list") => void
+  toggleProjectStar: (id: string) => void
   addProject: (project: Project) => void
   removeProject: (id: string) => void
   duplicateProject: (id: string) => void
@@ -16,13 +18,27 @@ interface ProjectStore {
 
 export const useProjectStore = create<ProjectStore>((set) => ({
   projects: MOCK_PROJECTS,
+  starredProjectIds: [],
   searchQuery: "",
   viewMode: "grid",
 
   setSearchQuery: (q) => set({ searchQuery: q }),
   setViewMode: (mode) => set({ viewMode: mode }),
+  toggleProjectStar: (id) =>
+    set((s) => {
+      const alreadyStarred = s.starredProjectIds.includes(id)
+      return {
+        starredProjectIds: alreadyStarred
+          ? s.starredProjectIds.filter((projectId) => projectId !== id)
+          : [id, ...s.starredProjectIds],
+      }
+    }),
   addProject: (project) => set((s) => ({ projects: [project, ...s.projects] })),
-  removeProject: (id) => set((s) => ({ projects: s.projects.filter((p) => p.id !== id) })),
+  removeProject: (id) =>
+    set((s) => ({
+      projects: s.projects.filter((p) => p.id !== id),
+      starredProjectIds: s.starredProjectIds.filter((projectId) => projectId !== id),
+    })),
   duplicateProject: (id) =>
     set((s) => {
       const orig = s.projects.find((p) => p.id === id)
