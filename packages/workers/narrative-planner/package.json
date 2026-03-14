@@ -6,15 +6,17 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/entrypoint.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/vertex-sdk": "^0.6.0",
     "@flowstudio/shared": "workspace:*",
-    "@flowstudio/worker-shared": "workspace:*",
-    "@anthropic-ai/vertex-sdk": "^0.6.0"
+    "@flowstudio/worker-shared": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "22.15.3",
-    "typescript": "5.7.3"
+    "typescript": "5.7.3",
+    "vitest": "^3.2.4"
   }
 }
