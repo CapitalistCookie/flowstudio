@@ -11,7 +11,7 @@ const STDB_CONFIG: StdbConfig = {
 
 let globalConnection: StdbConnection | null = null;
 
-function getConnection(): StdbConnection {
+export function getConnection(): StdbConnection {
   if (!globalConnection) {
     globalConnection = new StdbConnection(STDB_CONFIG);
   }

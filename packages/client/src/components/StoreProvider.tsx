@@ -13,12 +13,7 @@ import {
 import { subscribeNotifications } from '../core/services/notifications';
 import { startListening, stopListening } from '../core/services/shortcuts';
 import { startSync, stopSync } from '../core/services/stdbSync';
-import { StdbConnection, type StdbConfig } from '../lib/stdb';
-
-const STDB_CONFIG: StdbConfig = {
-  host: process.env.NEXT_PUBLIC_STDB_HOST ?? 'ws://localhost:3000',
-  module: process.env.NEXT_PUBLIC_STDB_MODULE ?? 'flowstudio',
-};
+import { getConnection } from '../lib/hooks';
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -43,8 +38,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // Start keyboard shortcut listener
     startListening();
 
-    // Start SpacetimeDB → store sync
-    const conn = new StdbConnection(STDB_CONFIG);
+    // Start SpacetimeDB → store sync (uses shared singleton connection)
+    const conn = getConnection();
     startSync({
       projectStore,
       signalStore,
@@ -56,7 +51,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       unsubNotifs();
       stopListening();
       stopSync();
-      conn.disconnect();
     };
   }, []);
 
