@@ -4,33 +4,33 @@ import { useEffect, useRef } from 'react';
 const slides = [
   {
     title: "FlowStudio",
-    subtitle: "The Future of Cloud Native Video Editing",
-    details: "Seamless, Local-first, Lightning Fast",
+    subtitle: "Your demo. Already done.",
+    details: "GenAI Genesis Hackathon · Bitdeer Prize · 2026",
   },
   {
     title: "The Problem",
-    subtitle: "Traditional video editing is bound to powerful hardware.",
-    details: "Collaboration is difficult and rendering takes forever.",
+    subtitle: "Great products ship with terrible demo videos.",
+    details: "Post-production is slow, technical, and never prioritised.",
   },
   {
-    title: "The Solution",
-    subtitle: "FlowStudio brings the power of the cloud.",
-    details: "Edit on any device, collaborate in real-time.",
+    title: "Record Once",
+    subtitle: "Screen-capture with live intent signal collection.",
+    details: "Cursor, clicks, keyboard & speech — 6 data streams captured simultaneously.",
   },
   {
-    title: "Architecture",
-    subtitle: "Powered by Next.js & SpacetimeDB",
-    details: "Low latency, intelligent processing, infinite scale.",
+    title: "AI Analyzes",
+    subtitle: "13 specialized workers process your recording in seconds.",
+    details: "Dead time removed. Zoom events scheduled. Chapters built. Structure pre-made.",
   },
   {
-    title: "AI Integrations",
-    subtitle: "Smart Cut, Auto-Caption, Scene Detection",
-    details: "Powered by Gemini 2.0 and Vertex AI.",
+    title: "Export",
+    subtitle: "A pre-built timeline is waiting for you.",
+    details: "Review, adjust if needed, export. The hard part is already done.",
   },
   {
-    title: "Demo Time",
-    subtitle: "Let's see FlowStudio in action",
-    details: "Prepare to be amazed.",
+    title: "Demonstration",
+    subtitle: "Let's see FlowStudio in action.",
+    details: ".",
   },
 ];
 
