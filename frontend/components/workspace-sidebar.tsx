@@ -45,7 +45,7 @@ export function WorkspaceSidebar({ active, showProjectList = true }: WorkspaceSi
 
   return (
     <aside className="relative z-50 flex h-full w-[280px] flex-col border-r border-border bg-card/40 backdrop-blur-xl">
-      <div className="flex h-16 items-center justify-start overflow-hidden px-5 pt-2">
+      <div className="flex h-40 items-center justify-center overflow-hidden px-5">
         <FluxLogo size="sm" />
       </div>
 

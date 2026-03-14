@@ -10,7 +10,7 @@ interface FluxLogoProps {
 
 export function FluxLogo({ size = "md", className }: FluxLogoProps) {
   const sizes = {
-    sm: 30,
+    sm: 156,
     md: 132,
     lg: 176,
   }
