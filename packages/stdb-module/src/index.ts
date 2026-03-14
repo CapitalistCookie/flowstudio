@@ -218,7 +218,7 @@ export const runWatchdog = stdb.reducer(
           if (task.retryCount >= (task.maxRetries || MAX_TASK_RETRIES)) {
             ctx.db.tasks.id.update({ ...task, status: 'failed', failureReason: 'Watchdog: exceeded max retries after stale claim' });
           } else {
-            ctx.db.tasks.id.update({ ...task, status: 'pending', workerId: '', claimedAt: 0n });
+            ctx.db.tasks.id.update({ ...task, status: 'pending', workerId: '', claimedAt: 0n, retryCount: task.retryCount + 1 });
             resetCount++;
           }
         }
@@ -315,7 +315,8 @@ export const completeTask = stdb.reducer(
 
     const downstreamTypes = TASK_CHAIN_DAG[completedType];
     if (!downstreamTypes || downstreamTypes.length === 0) {
-      if (state) ctx.db.projectState.projectId.update({ ...state, currentPhase: "ready", lastUpdated: now });
+      const freshState = ctx.db.projectState.projectId.find(projectId);
+      if (freshState) ctx.db.projectState.projectId.update({ ...freshState, currentPhase: "ready", lastUpdated: now });
       const project = ctx.db.projects.id.find(projectId);
       if (project) ctx.db.projects.id.update({ ...project, status: "ready", updatedAt: now });
       return;

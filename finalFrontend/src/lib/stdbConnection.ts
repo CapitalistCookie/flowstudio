@@ -115,7 +115,7 @@ export async function queryTable(tableName: string): Promise<Record<string, unkn
  * `connection.reducers.someReducer(...)`.
  */
 export async function callReducer(name: string, args: Record<string, unknown>): Promise<void> {
-  const snakeName = name.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+  const snakeName = name.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase()).replace(/^_/, '');
   const url = `${HTTP_HOST}/v1/database/${DB_NAME}/call/${snakeName}`;
 
   const response = await fetch(url, {

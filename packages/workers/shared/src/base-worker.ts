@@ -137,35 +137,58 @@ export abstract class BaseWorker {
         taskType: this.taskType,
         workerId: this.config.workerId,
       });
-    } catch {
-      // No pending task — this is normal
+    } catch (err) {
+      // No pending task or reducer error — normal during idle periods
       return;
     }
 
     try {
-      // Query the tasks table to find the task that was just claimed
+      // Query the tasks table to find all tasks claimed by this worker
       const tasks = await this.stdb.queryTable('tasks');
-      const claimed = tasks.find(
+      const claimedTasks = tasks.filter(
         (t) =>
           t.status === 'claimed' &&
           t.workerId === this.config.workerId &&
           t.taskType === this.taskType
       );
 
-      if (claimed && !this.processingTaskIds.has(claimed.id as string)) {
-        const taskId = claimed.id as string;
-        this.processingTaskIds.add(taskId);
-        try {
-          const taskData: TaskData = {
-            id: taskId,
-            projectId: claimed.projectId as string,
-            taskType: claimed.taskType as string,
-            inputAssetIds: JSON.parse((claimed.inputAssetIds as string) || '[]'),
-            config: JSON.parse((claimed.config as string) || '{}'),
-          };
-          await this.handleClaimedTask(taskData);
-        } finally {
-          this.processingTaskIds.delete(taskId);
+      for (const claimed of claimedTasks) {
+        if (!this.processingTaskIds.has(claimed.id as string)) {
+          const taskId = claimed.id as string;
+          this.processingTaskIds.add(taskId);
+
+          let taskData: TaskData;
+          try {
+            taskData = {
+              id: taskId,
+              projectId: claimed.projectId as string,
+              taskType: claimed.taskType as string,
+              inputAssetIds: JSON.parse((claimed.inputAssetIds as string) || '[]'),
+              config: JSON.parse((claimed.config as string) || '{}'),
+            };
+          } catch (parseErr) {
+            this.logger.error('Failed to parse task data, failing task', {
+              taskId,
+              error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+            });
+            this.processingTaskIds.delete(taskId);
+            await this.stdb.callReducer('failTask', {
+              taskId,
+              failureReason: `Invalid task data: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`,
+            }).catch(() => {});
+            continue;
+          }
+
+          this.handleClaimedTask(taskData)
+            .catch((err) => {
+              this.logger.error('Error handling claimed task', {
+                taskId,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            })
+            .finally(() => {
+              this.processingTaskIds.delete(taskId);
+            });
         }
       }
     } catch (err) {
@@ -214,6 +237,11 @@ export abstract class BaseWorker {
         await this.stdb.callReducer('failTask', {
           taskId: task.id,
           failureReason: reason,
+        }).catch((failErr) => {
+          this.logger.error('Failed to report task failure to SpacetimeDB', {
+            taskId: task.id,
+            error: failErr instanceof Error ? failErr.message : String(failErr),
+          });
         });
       } finally {
         this.activeTasks--;

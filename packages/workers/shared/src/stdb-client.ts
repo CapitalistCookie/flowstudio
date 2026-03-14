@@ -27,8 +27,8 @@ export class StdbClient {
   private readonly logger: Logger;
 
   constructor(config: StdbClientConfig) {
-    const cleanHost = config.host.replace(/^(wss?|https?):\/\//, '');
-    const isSecure = config.host.startsWith('wss://') || config.host.startsWith('https://');
+    const cleanHost = config.host.replace(/^https?:\/\//, '');
+    const isSecure = config.host.startsWith('https://');
     this.baseUrl = `${isSecure ? 'https' : 'http'}://${cleanHost}`;
     this.moduleName = config.module;
     this.logger = config.logger;
@@ -40,7 +40,8 @@ export class StdbClient {
    * SDK migration: replace with generated reducer call (e.g. FindAndClaimTask.call(conn, args))
    */
   async callReducer(reducerName: string, args: Record<string, unknown>): Promise<void> {
-    const url = `${this.baseUrl}/database/call/${this.moduleName}/${reducerName}`;
+    const snakeName = reducerName.replace(/[A-Z]/g, (c: string) => '_' + c.toLowerCase()).replace(/^_/, '');
+    const url = `${this.baseUrl}/v1/database/${this.moduleName}/call/${snakeName}`;
     this.logger.debug(`Calling reducer: ${reducerName}`, { args });
 
     const response = await fetch(url, {
