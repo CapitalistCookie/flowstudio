@@ -1,22 +1,37 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useUser, SignOutButton } from "@clerk/nextjs"
+import { useUser } from "@clerk/nextjs"
 import { motion } from "framer-motion"
 import { 
   Plus, 
   ArrowRight, 
   Clock, 
   TrendingUp, 
-  ChevronRight, 
-  Folder, 
-  LayoutDashboard, 
-  Settings,
-  MoreVertical
+  Rocket,
+  Sparkles,
+  Scissors
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { FluxLogo } from "@/components/flux-logo"
+import { WorkspaceSidebar } from "@/components/workspace-sidebar"
 import { useProjectStore } from "@/lib/stores/project-store"
+
+function parseDurationToSeconds(duration: string): number {
+  const parts = duration.split(":").map(Number)
+  if (parts.some(Number.isNaN)) return 0
+
+  if (parts.length === 3) {
+    const [hours, minutes, seconds] = parts
+    return hours * 3600 + minutes * 60 + seconds
+  }
+
+  if (parts.length === 2) {
+    const [minutes, seconds] = parts
+    return minutes * 60 + seconds
+  }
+
+  return 0
+}
 
 export function DashboardView() {
   const router = useRouter()
@@ -30,86 +45,25 @@ export function DashboardView() {
   // Get recent projects (last 3)
   const recentProjects = projects.slice(0, 3)
 
+  const totalDurationSeconds = projects.reduce((sum, project) => {
+    return sum + parseDurationToSeconds(project.duration)
+  }, 0)
+
+  const editingHoursSaved = (totalDurationSeconds * 2.2) / 3600
+  const demosShipped = projects.filter((project) => project.status === "ready" || project.status === "exported").length
+  const aiEditsApplied = projects.filter((project) => project.confidence >= 80).length
+  const deadTimeRemovedMinutes = Math.round((totalDurationSeconds * 0.18) / 60)
+
+  const stats = [
+    { label: "Editing hours saved", value: `${editingHoursSaved.toFixed(1)}h`, icon: Clock },
+    { label: "Demos shipped", value: `${demosShipped}`, icon: Rocket },
+    { label: "AI edits applied", value: `${aiEditsApplied}`, icon: Sparkles },
+    { label: "Dead time removed", value: `${deadTimeRemovedMinutes}m`, icon: Scissors },
+  ]
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background">
-      {/* ── Sidebar ── */}
-      <div 
-        className="relative z-50 flex h-full w-[280px] flex-col border-r border-border bg-card/40 backdrop-blur-xl"
-      >
-
-        {/* Logo Section */}
-        <div className="flex h-24 items-center justify-center px-6 overflow-hidden">
-          <FluxLogo size="md" />
-        </div>
-
-        {/* Navigation */}
-        <div className="flex-1 space-y-2 px-3 py-4 overflow-y-auto scrollbar-none">
-          <SidebarItem 
-            icon={<LayoutDashboard size={20} />} 
-            label="Dashboard" 
-            active 
-            onClick={() => router.push("/dashboard")}
-          />
-
-          <SidebarItem 
-            icon={<Folder size={20} />} 
-            label="Projects" 
-            onClick={() => router.push("/projects")}
-          />
-
-          <div className="ml-3 mt-1 space-y-1">
-            {projects.length > 0 ? (
-              projects.slice(0, 6).map((project) => (
-                <button
-                  key={project.id}
-                  onClick={() => router.push("/studio")}
-                  className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs text-muted-foreground transition-all hover:bg-secondary hover:text-foreground"
-                >
-                  <div className="h-1 w-1 rounded-full bg-border" />
-                  <span className="line-clamp-1">{project.name}</span>
-                </button>
-              ))
-            ) : (
-              <span className="px-3 py-1.5 text-[10px] text-muted-foreground italic">No projects yet</span>
-            )}
-          </div>
-
-          <SidebarItem 
-            icon={<Settings size={20} />} 
-            label="Settings" 
-            onClick={() => router.push("/projects")}
-          />
-        </div>
-
-        {/* User Profile Hooked to Bottom Left */}
-        <div className="border-t border-border p-4">
-          <div className="flex items-center gap-3 rounded-xl p-2 transition-colors hover:bg-secondary/50">
-            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full ring-2 ring-flux-amber/20">
-              <img 
-                src={user?.imageUrl || "https://avatar.vercel.sh/guest"} 
-                alt="Profile" 
-                className="h-full w-full object-cover"
-              />
-            </div>
-            <div className="flex flex-1 flex-col overflow-hidden">
-              <span className="text-sm font-semibold truncate text-foreground">
-                {user?.firstName || user?.username || "Creative"}
-              </span>
-              <span className="text-[10px] text-muted-foreground truncate">
-                {user?.primaryEmailAddress?.emailAddress || "Free Tier"}
-              </span>
-            </div>
-            <SignOutButton>
-              <button
-                className="cursor-pointer text-muted-foreground transition-colors hover:text-destructive"
-                aria-label="Sign out"
-              >
-                  <MoreVertical size={16} />
-              </button>
-            </SignOutButton>
-          </div>
-        </div>
-      </div>
+      <WorkspaceSidebar active="dashboard" />
 
       {/* ── Main Content ── */}
       <main className="relative flex-1 overflow-y-auto bg-background/50">
@@ -131,6 +85,30 @@ export function DashboardView() {
               Your demo. Exactly how you want it.
             </p>
           </motion.header>
+
+          <motion.section
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
+          >
+            {stats.map((stat) => {
+              const Icon = stat.icon
+
+              return (
+                <div
+                  key={stat.label}
+                  className="rounded-2xl border border-border/50 bg-card/35 px-4 py-3 backdrop-blur-sm"
+                >
+                  <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    <Icon className="h-3.5 w-3.5 text-flux-amber/80" />
+                    {stat.label}
+                  </div>
+                  <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{stat.value}</p>
+                </div>
+              )
+            })}
+          </motion.section>
 
           {/* ── Center Prompt Section ── */}
           <div className="flex flex-1 flex-col items-center justify-center py-10">
@@ -222,23 +200,5 @@ export function DashboardView() {
         </div>
       </main>
     </div>
-  )
-}
-
-function SidebarItem({ icon, label, active = false, onClick }: any) {
-  return (
-    <button
-      onClick={onClick}
-      className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
-        active 
-          ? "bg-flux-amber/10 text-flux-amber shadow-[inset_0_0_0_1px_rgba(245,166,35,0.2)]" 
-          : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-      }`}
-    >
-      <div className={`shrink-0 ${active && "text-flux-amber"}`}>
-        {icon}
-      </div>
-      <span className="flex-1 text-left truncate">{label}</span>
-    </button>
   )
 }

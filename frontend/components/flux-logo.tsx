@@ -10,19 +10,19 @@ interface FluxLogoProps {
 
 export function FluxLogo({ size = "md", className }: FluxLogoProps) {
   const sizes = {
-    sm: 80,
-    md: 120,
-    lg: 160,
+    sm: 30,
+    md: 132,
+    lg: 176,
   }
 
   return (
-    <div className={cn("flex items-center", className)}>
+    <div className={cn("flex items-center justify-center leading-none", className)}>
       <Image
         src="/branding/flowstudio-logo-v3.png"
         alt="FlowStudio"
         width={sizes[size]}
         height={sizes[size]}
-        className="object-contain"
+        className="block object-contain align-middle"
         priority={size !== "sm"}
       />
     </div>

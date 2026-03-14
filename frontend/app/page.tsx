@@ -1,156 +1,85 @@
 "use client"
 
-import { useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { ArrowRight } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { FluxLogo } from "@/components/flux-logo"
-import gsap from "gsap"
-import { ScrollTrigger } from "gsap/ScrollTrigger"
 
 export default function LandingPage() {
   const router = useRouter()
-  const mainRef = useRef<HTMLDivElement>(null)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const heroRef = useRef<HTMLDivElement>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    gsap.registerPlugin(ScrollTrigger)
-
-    // Initial load animation
-    const ctx = gsap.context(() => {
-      // Hero entrance
-      gsap.from(heroRef.current, {
-        opacity: 0,
-        y: 40,
-        duration: 1.5,
-        ease: "expo.out",
-        delay: 0.5
-      })
-
-      // Video background parallax/scroll effect
-      gsap.to(videoRef.current, {
-        scrollTrigger: {
-          trigger: mainRef.current,
-          start: "top top",
-          end: "bottom top",
-          scrub: true
-        },
-        y: 150,
-        scale: 1.1
-      })
-
-      // Text reveal on scroll
-      gsap.to(".scroll-reveal", {
-        scrollTrigger: {
-          trigger: ".scroll-reveal",
-          start: "top 80%",
-          end: "top 20%",
-          scrub: 1
-        },
-        opacity: 0.2,
-        y: -50
-      })
-    }, mainRef)
-
-    return () => ctx.revert()
-  }, [])
 
   const goToStart = () => {
     router.push("/sign-in")
   }
 
   return (
-    <div ref={mainRef} className="relative min-h-[200vh] bg-background text-foreground overflow-x-hidden">
-      {/* ── Background Elements ── */}
-      <div className="fixed inset-0 z-0 overflow-hidden">
-        <video 
-          ref={videoRef}
-          src="/assets/12778108_3840_2160_30fps.mp4" 
-          autoPlay 
-          loop 
-          muted 
-          playsInline
-          className="h-full w-full object-cover opacity-[0.45] brightness-[0.8]"
+    <main className="relative min-h-screen overflow-hidden bg-background text-foreground">
+      <div className="absolute inset-0 z-0">
+        <img
+          src="/assets/image_2026-03-14_010105433_imgupscaler.ai_General_4K.jpg"
+          alt="FlowStudio cinematic backdrop"
+          className="h-full w-full object-cover"
         />
-        {/* Overlays for premium compositing */}
-        <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-transparent to-background" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
-        <div className="grid-texture absolute inset-0 opacity-[0.1]" />
+        <div className="absolute inset-0 bg-black/50" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(245,166,35,0.32),transparent_35%),radial-gradient(circle_at_80%_72%,rgba(255,255,255,0.10),transparent_32%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.18),rgba(0,0,0,0.7))]" />
       </div>
 
-      {/* ── Header ── */}
-      <nav className="relative z-50 mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-8">
-        <FluxLogo size="md" />
-        <div className="flex items-center gap-6">
-          <Button
-            size="sm"
-            onClick={goToStart}
-            className="bg-flux-amber text-flux-charcoal font-bold px-6 border border-flux-amber/20 shadow-[0_0_20px_rgba(245,166,35,0.2)] hover:shadow-[0_0_30px_rgba(245,166,35,0.4)] transition-all hover:scale-105"
-          >
-            Get Started
-          </Button>
-        </div>
-      </nav>
+      <header className="relative z-20 mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-8">
+        <FluxLogo size="md" className="brightness-0 invert" />
+        <Button
+          size="sm"
+          onClick={goToStart}
+          className="cursor-pointer border border-white/35 bg-white/5 px-5 font-semibold text-white/90 shadow-[0_8px_24px_rgba(0,0,0,0.25)] transition hover:bg-white hover:text-black"
+        >
+          Get Started
+        </Button>
+      </header>
 
-      {/* ── Hero Section ── */}
-      <section ref={heroRef} className="relative z-10 flex flex-col items-center justify-center pt-32 pb-48 text-center min-h-[80vh]">
-        <h1 className="max-w-5xl text-7xl font-black leading-[1.05] tracking-tighter sm:text-8xl lg:text-9xl scroll-reveal">
-          Your demo. <br />
-          <span className="bg-gradient-to-br from-flux-amber via-flux-amber to-flux-amber-muted bg-clip-text text-transparent italic">
-            Already done.
-          </span>
-        </h1>
-        
-        <p className="mx-auto mt-12 max-w-2xl text-xl leading-relaxed text-muted-foreground/90 sm:text-2xl scroll-reveal">
-          Stop fighting with keyframes. Record once and let our AI engine handle the cinematic polish, the zoom, and the flow.
-        </p>
-        
-        <div className="mt-16 flex flex-col items-center justify-center gap-6 sm:flex-row scroll-reveal">
-          <Button
-            size="xl"
-            onClick={goToStart}
-            className="group h-18 gap-5 bg-flux-amber px-14 text-2xl font-black text-flux-charcoal transition-all hover:bg-flux-amber hover:scale-[1.05] active:scale-95 shadow-[0_0_50px_rgba(245,166,35,0.4)] hover:shadow-[0_0_70px_rgba(245,166,35,0.6)] border-b-4 border-flux-amber-muted"
-          >
-            Launch Editor
-            <ArrowRight className="h-7 w-7 transition-transform group-hover:translate-x-1" />
-          </Button>
-        </div>
-      </section>
+      <section className="relative z-20 mx-auto flex min-h-[86vh] w-full max-w-7xl items-end px-6 pb-20 pt-8">
+        <div className="max-w-3xl">
+          <p className="mb-5 text-xs font-semibold uppercase tracking-[0.22em] text-white/70">
+            AI-native video workflow
+          </p>
+          <h1 className="text-5xl font-bold leading-[1.02] tracking-tight text-white sm:text-6xl lg:text-7xl">
+            Build polished product demos
+            <span className="mt-2 block text-flux-amber">without touching a timeline first.</span>
+          </h1>
 
-      {/* ── Feature Demo / Below the Fold ── */}
-      <section className="relative z-10 px-6 py-32">
-        <div className="mx-auto max-w-6xl">
-          <div className="relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-flux-amber/30 to-flux-teal/30 blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200" />
-            <div className="relative overflow-hidden rounded-[50px] border border-white/10 bg-black/60 backdrop-blur-3xl shadow-2xl">
-              <div className="aspect-video w-full">
-                <video 
-                  src="/assets/12778108_3840_2160_30fps.mp4" 
-                  autoPlay 
-                  loop 
-                  muted 
-                  playsInline
-                  className="h-full w-full object-cover"
-                />
-              </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
-              <div className="absolute bottom-12 left-12 right-12 flex items-center justify-between">
-                <div className="flex items-center gap-5">
-                  <div className="h-4 w-4 rounded-full bg-flux-amber animate-pulse shadow-[0_0_15px_rgba(245,166,35,1)]" />
-                  <span className="text-xl font-bold tracking-[0.3em] uppercase text-white/90 drop-shadow-xl">Live Engine Preview</span>
-                </div>
-              </div>
-            </div>
+          <p className="mt-6 max-w-2xl text-lg leading-relaxed text-white/85 sm:text-xl">
+            Record once. FlowStudio identifies intent, structures the narrative, and assembles a presentable cut you can refine in minutes.
+          </p>
+
+          <div className="mt-10 flex flex-wrap items-center gap-4">
+            <Button
+              onClick={goToStart}
+              className="group h-12 cursor-pointer gap-2 rounded-xl border border-white/35 bg-white/5 px-7 text-base font-bold text-white/90 shadow-[0_8px_24px_rgba(0,0,0,0.25)] transition hover:bg-white hover:text-black"
+            >
+              Start recording
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </Button>
+
+            <button
+              onClick={() => router.push("/projects")}
+              className="inline-flex h-12 cursor-pointer items-center rounded-xl border border-white/20 bg-white/8 px-5 text-sm font-semibold text-white/92 transition hover:bg-white/16"
+            >
+              View projects
+            </button>
+          </div>
+
+          <div className="mt-10 inline-flex items-center gap-6 rounded-xl border border-white/10 bg-black/20 px-5 py-3 text-sm text-white/75 backdrop-blur-md">
+            <span>Capture</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-white/35" />
+            <span>Auto edit</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-white/35" />
+            <span>Ship</span>
           </div>
         </div>
       </section>
 
-      {/* Footer / Info */}
-      <footer className="relative z-10 py-20 text-center opacity-40">
-        <p className="text-sm font-medium tracking-widest uppercase">FlowStudio © 2026 • Cinematic Production Engine</p>
+      <footer className="relative z-20 px-6 pb-8 text-center text-xs font-medium tracking-[0.18em] text-white/45 sm:text-left">
+        FLOWSTUDIO 2026
       </footer>
-    </div>
+    </main>
   )
 }

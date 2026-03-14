@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
-import { ArrowLeft, Save, Loader2, Download } from "lucide-react"
+import { ArrowLeft, Save, Loader2, Download, Sparkles, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ExportModal } from "./export-modal"
 import { MediaPanel } from "./media-panel"
@@ -21,9 +21,10 @@ import {
 
 interface EditorShellProps {
   projectId: string
+  initialEditMode?: "none" | "auto" | "tweak"
 }
 
-function EditorContent({ projectId }: { projectId: string }) {
+function EditorContent({ projectId, initialEditMode = "none" }: { projectId: string; initialEditMode?: "none" | "auto" | "tweak" }) {
   const [project, setProject] = useState<ProjectData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -31,6 +32,7 @@ function EditorContent({ projectId }: { projectId: string }) {
   const [editedName, setEditedName] = useState("")
   const [isUpdatingName, setIsUpdatingName] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
+  const [showAiNotice, setShowAiNotice] = useState(initialEditMode !== "none")
   const nameInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const { setProjectId, setProjectResolution, loadTimelineData, saveProject, isSaving, hasUnsavedChanges, isPlaying, setIsPlaying, sortedVideoClips, currentTime, setCurrentTime, timelineEndTime, activeClip, splitClip, selectedClipId, removeClip, undo, redo, canUndo, canRedo, copyClip, pasteClip, canPaste } = useEditor()
@@ -306,6 +308,25 @@ function EditorContent({ projectId }: { projectId: string }) {
         </div>
       </div>
 
+      {showAiNotice && (
+        <div className="flex shrink-0 items-center justify-between border-b border-border bg-[#F5A623]/10 px-4 py-2">
+          <div className="flex items-center gap-2 text-sm text-foreground">
+            <Sparkles className="h-4 w-4 text-[#F5A623]" />
+            {initialEditMode === "tweak"
+              ? "AI edits are loaded. Review them and tweak anything in Studio."
+              : "AI edit pass imported. You can now review and refine in Studio."}
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAiNotice(false)}
+            className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+            aria-label="Dismiss AI edit notice"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* Export Modal */}
       <ExportModal open={showExportModal} onOpenChange={setShowExportModal} />
 
@@ -355,10 +376,10 @@ function EditorContent({ projectId }: { projectId: string }) {
   )
 }
 
-export function EditorShell({ projectId }: EditorShellProps) {
+export function EditorShell({ projectId, initialEditMode = "none" }: EditorShellProps) {
   return (
     <EditorProvider>
-      <EditorContent projectId={projectId} />
+      <EditorContent projectId={projectId} initialEditMode={initialEditMode} />
     </EditorProvider>
   )
 }
