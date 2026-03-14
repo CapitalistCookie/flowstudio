@@ -222,10 +222,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
               Upload
             </h3>
             <div
-              className="border-2 border-dashed rounded-lg p-8 text-center transition-colors"
+              className="border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer"
               style={{
                 borderColor: dragOver ? 'var(--color-primary)' : 'var(--color-muted)',
                 backgroundColor: dragOver ? 'var(--color-primary-bg)' : undefined,
+              }}
+              onClick={() => {
+                if (!uploading && !uploadProgress) {
+                  document.getElementById('video-upload')?.click();
+                }
               }}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
