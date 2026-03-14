@@ -1,24 +1,86 @@
-"""FastAPI gateway for the FlowStudio agentic edit pipeline."""
-from __future__ import annotations
-import logging
+"""FastAPI gateway for the FlowStudio agentic edit pipeline.
 
-from fastapi import FastAPI, HTTPException
+Uses Railtracks for agent orchestration and observability.
+"""
+from __future__ import annotations
+import json
+import logging
+import time
+from collections import defaultdict
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 
 from .config import get_settings
-from .schemas import GenerateEditsRequest, RepromptRequest, FlowRunResponse, FlowRunStatus
-from .flow import run_edit_flow, run_reprompt_flow, get_run
+from .schemas import (
+    GenerateEditsRequest,
+    RepromptRequest,
+    FlowRunResponse,
+    FlowRunStatus,
+)
+from .flow import edit_flow, reprompt_flow
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(name)s %(levelname)s %(message)s",
+)
 logger = logging.getLogger(__name__)
+
+settings = get_settings()
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Sliding window rate limiter per client IP."""
+
+    def __init__(self, app, rpm: int = 30):
+        super().__init__(app)
+        self.rpm = rpm
+        self._hits: dict[str, list[float]] = defaultdict(list)
+
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path == "/health":
+            return await call_next(request)
+
+        client = request.client.host if request.client else "unknown"
+        now = time.time()
+        window = self._hits[client]
+        window[:] = [t for t in window if now - t < 60]
+
+        if len(window) >= self.rpm:
+            return JSONResponse(
+                {"error": "Rate limit exceeded"}, status_code=429
+            )
+
+        window.append(now)
+        return await call_next(request)
+
+
+class ApiKeyMiddleware(BaseHTTPMiddleware):
+    """Require X-API-Key header when GATEWAY_API_KEY is set."""
+
+    def __init__(self, app, api_key: str):
+        super().__init__(app)
+        self.api_key = api_key
+
+    async def dispatch(self, request: Request, call_next):
+        if not self.api_key or request.url.path == "/health":
+            return await call_next(request)
+
+        provided = request.headers.get("x-api-key", "")
+        if provided != self.api_key:
+            return JSONResponse(
+                {"error": "Invalid or missing API key"}, status_code=401
+            )
+        return await call_next(request)
+
 
 app = FastAPI(
     title="FlowStudio Agentic Gateway",
-    description="Agentic AI loop for video edit planning: intent → narrative → edits",
-    version="0.1.0",
+    description="Railtracks-powered agentic AI loop for video edit planning",
+    version="0.2.0",
 )
-
-settings = get_settings()
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,34 +89,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-async def _default_llm_call(system_prompt: str, user_message: str) -> str:
-    """Default LLM call using Google Generative AI (Gemini)."""
-    try:
-        import google.generativeai as genai
-    except ImportError:
-        raise HTTPException(status_code=500, detail="google-generativeai not installed")
-
-    if not settings.google_ai_api_key:
-        raise HTTPException(status_code=500, detail="GOOGLE_AI_API_KEY not configured")
-
-    genai.configure(api_key=settings.google_ai_api_key)
-    model = genai.GenerativeModel("gemini-2.0-flash")
-    response = model.generate_content(
-        [{"role": "user", "parts": [f"{system_prompt}\n\n{user_message}"]}],
-    )
-    return response.text
+app.add_middleware(RateLimitMiddleware, rpm=settings.rate_limit_rpm)
+if settings.api_key:
+    app.add_middleware(ApiKeyMiddleware, api_key=settings.api_key)
 
 
 @app.get("/health")
 async def health():
-    return {"healthy": True, "service": "railtracks-gateway"}
+    return {"healthy": True, "service": "railtracks-gateway", "framework": "railtracks"}
 
 
 @app.post("/api/v1/generate-edits", response_model=FlowRunResponse)
 async def generate_edits(request: GenerateEditsRequest):
-    """Run the full agentic pipeline: signals → intent → narrative → edit plan."""
+    """Run the full agentic pipeline: signals → intent → narrative → edit plan.
+
+    Powered by Railtracks Flow with full observability.
+    """
     signals = {
         "speech_segments": request.signals.speech_segments,
         "scene_descriptions": request.signals.scene_descriptions,
@@ -62,72 +112,44 @@ async def generate_edits(request: GenerateEditsRequest):
         "interaction_clusters": request.signals.interaction_clusters,
     }
 
-    run = await run_edit_flow(
-        project_id=request.project_id,
-        signals=signals,
-        llm_call=_default_llm_call,
-    )
-
-    if run.status == FlowRunStatus.FAILED:
-        raise HTTPException(status_code=500, detail=run.error or "Flow failed")
+    try:
+        result = await edit_flow.ainvoke(json.dumps(signals))
+        output = json.loads(result.text)
+    except Exception as e:
+        logger.exception(f"Edit flow failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
     return FlowRunResponse(
-        run_id=run.run_id,
-        status=run.status,
-        project_id=run.project_id,
-        edit_plan=[_dict_to_edit(e) for e in (run.edit_plan or [])],
-        intent_graph=run.intent_graph,
-        narrative_plan=run.narrative_plan,
-        duration_ms=run.duration_ms,
-        token_usage={"total": run.total_tokens},
+        run_id="rt-" + str(id(result)),
+        status=FlowRunStatus.COMPLETED,
+        project_id=request.project_id,
+        edit_plan=output.get("edit_plan", []),
+        intent_graph=output.get("intent_graph"),
+        narrative_plan=output.get("narrative_plan"),
     )
 
 
 @app.post("/api/v1/reprompt", response_model=FlowRunResponse)
 async def reprompt(request: RepromptRequest):
-    """Re-run the edit agent with user feedback on a previous plan."""
+    """Re-run the edit agent with user feedback on a previous plan.
+
+    Powered by Railtracks Flow with full observability.
+    """
     prev_plan = [e.model_dump(by_alias=True) for e in request.previous_edit_plan]
 
-    run = await run_reprompt_flow(
+    try:
+        result = await reprompt_flow.ainvoke(json.dumps({
+            "previous_edit_plan": prev_plan,
+            "feedback": request.feedback,
+        }))
+        output = json.loads(result.text)
+    except Exception as e:
+        logger.exception(f"Reprompt flow failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return FlowRunResponse(
+        run_id="rt-" + str(id(result)),
+        status=FlowRunStatus.COMPLETED,
         project_id=request.project_id,
-        previous_edit_plan=prev_plan,
-        feedback=request.feedback,
-        llm_call=_default_llm_call,
+        edit_plan=output.get("edit_plan", []),
     )
-
-    if run.status == FlowRunStatus.FAILED:
-        raise HTTPException(status_code=500, detail=run.error or "Reprompt failed")
-
-    return FlowRunResponse(
-        run_id=run.run_id,
-        status=run.status,
-        project_id=run.project_id,
-        edit_plan=[_dict_to_edit(e) for e in (run.edit_plan or [])],
-        duration_ms=run.duration_ms,
-        token_usage={"total": run.total_tokens},
-    )
-
-
-@app.get("/api/v1/runs/{run_id}", response_model=FlowRunResponse)
-async def get_run_status(run_id: str):
-    """Get the status and details of a flow run."""
-    run = get_run(run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
-
-    return FlowRunResponse(
-        run_id=run.run_id,
-        status=run.status,
-        project_id=run.project_id,
-        edit_plan=[_dict_to_edit(e) for e in (run.edit_plan or [])],
-        intent_graph=run.intent_graph,
-        narrative_plan=run.narrative_plan,
-        error=run.error,
-        duration_ms=run.duration_ms,
-        token_usage={"total": run.total_tokens},
-    )
-
-
-def _dict_to_edit(d: dict) -> dict:
-    """Pass through dict for response serialization."""
-    return d

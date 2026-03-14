@@ -1,71 +1,52 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TaskType } from '@flowstudio/shared';
-import { type TaskData } from '@flowstudio/worker-shared';
+import { type TaskData, type WorkerDeps } from '@flowstudio/worker-shared';
 
-// ─── Mock layer ────────────────────────────────────────────────────────────────
+// ─── Mock deps factory ──────────────────────────────────────────────────────────
 
-const mockGcsUpload = vi.fn<(path: string, data: Buffer, contentType: string) => Promise<void>>();
-const mockGcsDownload = vi.fn<(path: string) => Promise<Buffer>>();
-const mockGcsExists = vi.fn<(path: string) => Promise<boolean>>();
-const mockCallReducer = vi.fn<(name: string, args: Record<string, unknown>) => Promise<void>>();
+function createMockDeps(): WorkerDeps & {
+  mockGcsUpload: ReturnType<typeof vi.fn>;
+  mockGcsDownload: ReturnType<typeof vi.fn>;
+  mockGcsExists: ReturnType<typeof vi.fn>;
+} {
+  const mockGcsUpload = vi.fn().mockResolvedValue(undefined);
+  const mockGcsDownload = vi.fn().mockResolvedValue(Buffer.from('fake-video-bytes'));
+  const mockGcsExists = vi.fn().mockResolvedValue(true);
 
-vi.mock('../../shared/src/config.js', () => ({
-  loadConfig: () => ({
-    stdbHost: 'localhost:3000',
-    stdbModule: 'flowstudio',
-    gcsBucket: 'test-bucket',
-    gcsProjectId: 'test-project',
-    workerId: 'audio-extract-test-1',
-    workerName: 'audio-extract',
-    concurrency: 2,
-    pollIntervalMs: 100,
-    healthPort: 0,
-  }),
-}));
+  return {
+    config: {
+      stdbHost: 'localhost:3000',
+      stdbModule: 'flowstudio',
+      gcsBucket: 'test-bucket',
+      gcsProjectId: 'test-project',
+      workerId: 'audio-extract-test-1',
+      workerName: 'audio-extract',
+      concurrency: 2,
+      pollIntervalMs: 100,
+      healthPort: 0,
+    },
+    logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as any,
+    gcs: {
+      upload: mockGcsUpload,
+      download: mockGcsDownload,
+      exists: mockGcsExists,
+      getSignedUploadUrl: vi.fn(),
+      getSignedDownloadUrl: vi.fn(),
+    } as any,
+    stdb: {
+      callReducer: vi.fn().mockResolvedValue(undefined),
+      queryTable: vi.fn().mockResolvedValue([]),
+      isConnected: true,
+      disconnect: vi.fn(),
+    } as any,
+    mockGcsUpload,
+    mockGcsDownload,
+    mockGcsExists,
+  };
+}
 
-vi.mock('../../shared/src/logger.js', () => ({
-  Logger: class {
-    debug() {}
-    info() {}
-    warn() {}
-    error() {}
-  },
-}));
+// ─── FFmpeg mock ────────────────────────────────────────────────────────────────
 
-vi.mock('../../shared/src/gcs-client.js', () => ({
-  GcsClient: class {
-    async upload(path: string, data: Buffer, contentType: string) {
-      return mockGcsUpload(path, data, contentType);
-    }
-    async download(path: string) {
-      return mockGcsDownload(path);
-    }
-    async exists(path: string) {
-      return mockGcsExists(path);
-    }
-  },
-}));
-
-vi.mock('../../shared/src/stdb-client.js', () => ({
-  StdbClient: class {
-    async callReducer(name: string, args: Record<string, unknown>) {
-      return mockCallReducer(name, args);
-    }
-    async queryTable() { return []; }
-    get isConnected() { return true; }
-    disconnect() {}
-  },
-}));
-
-vi.mock('../../shared/src/health.js', () => ({
-  startHealthServer: () => ({
-    close() {},
-    once() {},
-    address: () => ({ port: 9999 }),
-  }),
-}));
-
-// Track FFmpeg construction arguments for assertion
 let ffmpegCalls: {
   input: string;
   noVideo: boolean;
@@ -97,7 +78,6 @@ vi.mock('fluent-ffmpeg', () => {
       output(path: string) { ffmpegCalls.outputPath = path; return chain; },
       on(event: string, cb: (...args: unknown[]) => void) {
         if (event === 'end') {
-          // Schedule the 'end' callback to fire after run()
           Promise.resolve().then(() => cb());
         }
         return chain;
@@ -158,16 +138,19 @@ import { rm } from 'node:fs/promises';
 
 describe('AudioExtractWorker', () => {
   let worker: AudioExtractWorker;
+  let mockGcsUpload: ReturnType<typeof vi.fn>;
+  let mockGcsDownload: ReturnType<typeof vi.fn>;
+  let mockGcsExists: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     resetFfmpegCalls();
     writtenFiles.clear();
-    mockGcsUpload.mockResolvedValue(undefined);
-    mockGcsDownload.mockResolvedValue(Buffer.from('fake-video-bytes'));
-    mockGcsExists.mockResolvedValue(true);
-    mockCallReducer.mockResolvedValue(undefined);
+    const deps = createMockDeps();
+    mockGcsUpload = deps.mockGcsUpload;
+    mockGcsDownload = deps.mockGcsDownload;
+    mockGcsExists = deps.mockGcsExists;
     vi.mocked(rm).mockResolvedValue(undefined);
-    worker = new AudioExtractWorker();
+    worker = new AudioExtractWorker(deps);
   });
 
   afterEach(() => {

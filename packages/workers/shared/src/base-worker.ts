@@ -27,13 +27,21 @@ export interface TaskResult {
   }>;
 }
 
+/** Dependencies that can be injected for testing */
+export interface WorkerDeps {
+  config: WorkerConfig;
+  logger: Logger;
+  gcs: GcsClient;
+  stdb: StdbClient;
+}
+
 /**
  * Abstract base class for all FlowStudio workers.
  * Handles SpacetimeDB communication, task claiming, GCS access, health checks,
  * and concurrency control. Subclasses implement processTask().
  *
- * Uses HTTP-only StdbClient (no WebSocket). When the SpacetimeDB SDK supports
- * generated bindings, the poll loop can be replaced with subscription callbacks.
+ * Accepts optional dependency injection for testability. In production,
+ * call with no arguments to load config from env vars.
  */
 export abstract class BaseWorker {
   protected readonly config: WorkerConfig;
@@ -49,16 +57,23 @@ export abstract class BaseWorker {
   /** The task type this worker handles */
   abstract readonly taskType: TaskType;
 
-  constructor() {
-    this.config = loadConfig();
-    this.logger = new Logger(this.config.workerName, this.config.workerId);
+  constructor(deps?: WorkerDeps) {
+    if (deps) {
+      this.config = deps.config;
+      this.logger = deps.logger;
+      this.gcs = deps.gcs;
+      this.stdb = deps.stdb;
+    } else {
+      this.config = loadConfig();
+      this.logger = new Logger(this.config.workerName, this.config.workerId);
+      this.gcs = new GcsClient(this.config.gcsBucket, this.config.gcsProjectId, this.logger);
+      this.stdb = new StdbClient({
+        host: this.config.stdbHost,
+        module: this.config.stdbModule,
+        logger: this.logger,
+      });
+    }
     this.semaphore = new Semaphore(this.config.concurrency);
-    this.gcs = new GcsClient(this.config.gcsBucket, this.config.gcsProjectId, this.logger);
-    this.stdb = new StdbClient({
-      host: this.config.stdbHost,
-      module: this.config.stdbModule,
-      logger: this.logger,
-    });
   }
 
   /**

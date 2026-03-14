@@ -1,66 +1,6 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TaskType, SignalType } from '@flowstudio/shared';
-import { type TaskData } from '@flowstudio/worker-shared';
-
-// ─── Mock layer ────────────────────────────────────────────────────────────────
-
-const mockGcsUpload = vi.fn<(path: string, data: Buffer, contentType: string) => Promise<void>>();
-const mockGcsDownload = vi.fn<(path: string) => Promise<Buffer>>();
-
-vi.mock('../../shared/src/config.js', () => ({
-  loadConfig: () => ({
-    stdbHost: 'localhost:3000',
-    stdbModule: 'flowstudio',
-    gcsBucket: 'test-bucket',
-    gcsProjectId: 'test-project',
-    workerId: 'narrative-planner-test-1',
-    workerName: 'narrative-planner',
-    concurrency: 2,
-    pollIntervalMs: 100,
-    healthPort: 0,
-    vertexRegion: 'us-central1',
-    vertexProjectId: 'test-project',
-    anthropicModel: 'claude-sonnet-4-20250514',
-  }),
-}));
-
-vi.mock('../../shared/src/logger.js', () => ({
-  Logger: class {
-    debug() {}
-    info() {}
-    warn() {}
-    error() {}
-  },
-}));
-
-vi.mock('../../shared/src/gcs-client.js', () => ({
-  GcsClient: class {
-    async upload(path: string, data: Buffer, contentType: string) {
-      return mockGcsUpload(path, data, contentType);
-    }
-    async download(path: string) {
-      return mockGcsDownload(path);
-    }
-    async exists() { return true; }
-  },
-}));
-
-vi.mock('../../shared/src/stdb-client.js', () => ({
-  StdbClient: class {
-    async callReducer() {}
-    async queryTable() { return []; }
-    get isConnected() { return true; }
-    disconnect() {}
-  },
-}));
-
-vi.mock('../../shared/src/health.js', () => ({
-  startHealthServer: () => ({
-    close() {},
-    once() {},
-    address: () => ({ port: 9999 }),
-  }),
-}));
+import { type TaskData, type WorkerDeps } from '@flowstudio/worker-shared';
 
 // ─── Anthropic mock ────────────────────────────────────────────────────────────
 
@@ -73,6 +13,52 @@ vi.mock('@anthropic-ai/vertex-sdk', () => ({
 }));
 
 import { NarrativePlannerWorker } from '../src/worker.js';
+
+// ─── Mock factory ───────────────────────────────────────────────────────────────
+
+function createMockDeps(): WorkerDeps & {
+  mockGcsUpload: ReturnType<typeof vi.fn>;
+  mockGcsDownload: ReturnType<typeof vi.fn>;
+  mockGcsExists: ReturnType<typeof vi.fn>;
+} {
+  const mockGcsUpload = vi.fn().mockResolvedValue(undefined);
+  const mockGcsDownload = vi.fn().mockResolvedValue(Buffer.from('[]'));
+  const mockGcsExists = vi.fn().mockResolvedValue(true);
+
+  return {
+    config: {
+      stdbHost: 'localhost:3000',
+      stdbModule: 'flowstudio',
+      gcsBucket: 'test-bucket',
+      gcsProjectId: 'test-project',
+      workerId: 'narrative-planner-test-1',
+      workerName: 'narrative-planner',
+      concurrency: 2,
+      pollIntervalMs: 100,
+      healthPort: 0,
+      vertexRegion: 'us-central1',
+      vertexProjectId: 'test-project',
+      anthropicModel: 'claude-sonnet-4-20250514',
+    },
+    logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as any,
+    gcs: {
+      upload: mockGcsUpload,
+      download: mockGcsDownload,
+      exists: mockGcsExists,
+      getSignedUploadUrl: vi.fn(),
+      getSignedDownloadUrl: vi.fn(),
+    } as any,
+    stdb: {
+      callReducer: vi.fn().mockResolvedValue(undefined),
+      queryTable: vi.fn().mockResolvedValue([]),
+      isConnected: true,
+      disconnect: vi.fn(),
+    } as any,
+    mockGcsUpload,
+    mockGcsDownload,
+    mockGcsExists,
+  };
+}
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -170,12 +156,16 @@ function makeIntentGraph() {
 
 describe('NarrativePlannerWorker', () => {
   let worker: NarrativePlannerWorker;
+  let mockGcsUpload: ReturnType<typeof vi.fn>;
+  let mockGcsDownload: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    mockGcsUpload.mockResolvedValue(undefined);
+    const deps = createMockDeps();
+    mockGcsUpload = deps.mockGcsUpload;
+    mockGcsDownload = deps.mockGcsDownload;
     mockGcsDownload.mockResolvedValue(Buffer.from(JSON.stringify(makeIntentGraph())));
     mockMessagesCreate.mockResolvedValue(makeValidNarrativeResponse(defaultBeats));
-    worker = new NarrativePlannerWorker();
+    worker = new NarrativePlannerWorker(deps);
   });
 
   afterEach(() => {

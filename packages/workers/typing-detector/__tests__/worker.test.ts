@@ -1,74 +1,60 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TaskType, SignalType } from '@flowstudio/shared';
-import { type TaskData } from '@flowstudio/worker-shared';
-
-// ─── Mock layer ────────────────────────────────────────────────────────────────
-
-const mockGcsUpload = vi.fn<(path: string, data: Buffer, contentType: string) => Promise<void>>();
-const mockGcsDownload = vi.fn<(path: string) => Promise<Buffer>>();
-
-vi.mock('../../shared/src/config.js', () => ({
-  loadConfig: () => ({
-    stdbHost: 'localhost:3000',
-    stdbModule: 'flowstudio',
-    gcsBucket: 'test-bucket',
-    gcsProjectId: 'test-project',
-    workerId: 'typing-detector-test-1',
-    workerName: 'typing-detector',
-    concurrency: 2,
-    pollIntervalMs: 100,
-    healthPort: 0,
-  }),
-}));
-
-vi.mock('../../shared/src/logger.js', () => ({
-  Logger: class {
-    debug() {}
-    info() {}
-    warn() {}
-    error() {}
-  },
-}));
-
-vi.mock('../../shared/src/gcs-client.js', () => ({
-  GcsClient: class {
-    async upload(path: string, data: Buffer, contentType: string) {
-      return mockGcsUpload(path, data, contentType);
-    }
-    async download(path: string) {
-      return mockGcsDownload(path);
-    }
-    async exists() { return true; }
-  },
-}));
-
-vi.mock('../../shared/src/stdb-client.js', () => ({
-  StdbClient: class {
-    async callReducer() {}
-    async queryTable() { return []; }
-    get isConnected() { return true; }
-    disconnect() {}
-  },
-}));
-
-vi.mock('../../shared/src/health.js', () => ({
-  startHealthServer: () => ({
-    close() {},
-    once() {},
-    address: () => ({ port: 9999 }),
-  }),
-}));
-
+import { type TaskData, type WorkerDeps } from '@flowstudio/worker-shared';
 import { TypingDetectorWorker } from '../src/worker.js';
+
+// ─── Mock factory ───────────────────────────────────────────────────────────────
+
+function createMockDeps(): WorkerDeps & {
+  mockGcsUpload: ReturnType<typeof vi.fn>;
+  mockGcsDownload: ReturnType<typeof vi.fn>;
+} {
+  const mockGcsUpload = vi.fn().mockResolvedValue(undefined);
+  const mockGcsDownload = vi.fn().mockResolvedValue(Buffer.from('[]'));
+
+  return {
+    config: {
+      stdbHost: 'localhost:3000',
+      stdbModule: 'flowstudio',
+      gcsBucket: 'test-bucket',
+      gcsProjectId: 'test-project',
+      workerId: 'typing-detector-test-1',
+      workerName: 'typing-detector',
+      concurrency: 2,
+      pollIntervalMs: 100,
+      healthPort: 0,
+    },
+    logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as any,
+    gcs: {
+      upload: mockGcsUpload,
+      download: mockGcsDownload,
+      exists: vi.fn().mockResolvedValue(true),
+      getSignedUploadUrl: vi.fn(),
+      getSignedDownloadUrl: vi.fn(),
+    } as any,
+    stdb: {
+      callReducer: vi.fn().mockResolvedValue(undefined),
+      queryTable: vi.fn().mockResolvedValue([]),
+      isConnected: true,
+      disconnect: vi.fn(),
+    } as any,
+    mockGcsUpload,
+    mockGcsDownload,
+  };
+}
 
 // ─── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('TypingDetectorWorker', () => {
   let worker: TypingDetectorWorker;
+  let mockGcsUpload: ReturnType<typeof vi.fn>;
+  let mockGcsDownload: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    mockGcsUpload.mockResolvedValue(undefined);
-    worker = new TypingDetectorWorker();
+    const deps = createMockDeps();
+    mockGcsUpload = deps.mockGcsUpload;
+    mockGcsDownload = deps.mockGcsDownload;
+    worker = new TypingDetectorWorker(deps);
   });
 
   afterEach(() => {
@@ -114,14 +100,14 @@ describe('TypingDetectorWorker', () => {
     const result = await worker.processTask(makeTask());
 
     expect(result.signals[0]!.timestampMs).toBe(1000);
-    expect(result.signals[0]!.durationMs).toBe(800); // 1800 - 1000
+    expect(result.signals[0]!.durationMs).toBe(800);
   });
 
   // ─── T7.2: Paste event detection ───────────────────────────────────────────
   test('classifies >15 chars/sec as paste', async () => {
-    const keys = 'abcdefghijklmnopqrst'.split(''); // 20 chars
+    const keys = 'abcdefghijklmnopqrst'.split('');
     const events = keys.map((key, i) => ({
-      key, timestampMs: i * 50, type: 'keydown', // 50ms apart → 20/0.95s ≈ 21 cps
+      key, timestampMs: i * 50, type: 'keydown',
     }));
     setKeyboardData(events);
 
@@ -134,7 +120,7 @@ describe('TypingDetectorWorker', () => {
 
   test('normal typing speed is not classified as paste', async () => {
     const events = 'hello world'.split('').map((key, i) => ({
-      key, timestampMs: i * 150, type: 'keydown', // 150ms apart → ~7 cps
+      key, timestampMs: i * 150, type: 'keydown',
     }));
     setKeyboardData(events);
 
@@ -255,7 +241,6 @@ describe('TypingDetectorWorker', () => {
     const burst1 = 'abcd'.split('').map((key, i) => ({
       key, timestampMs: i * 200, type: 'keydown',
     }));
-    // Only 2 keys — below MIN_BURST_KEYS threshold
     const tooShort = [
       { key: 'x', timestampMs: 3000, type: 'keydown' },
       { key: 'y', timestampMs: 3200, type: 'keydown' },
@@ -300,7 +285,7 @@ describe('TypingDetectorWorker', () => {
     const result = await worker.processTask(makeTask());
 
     expect(result.signals).toHaveLength(1);
-    expect(result.signals[0]!.payload.charactersPerSecond).toBe(5); // fallback: events.length
+    expect(result.signals[0]!.payload.charactersPerSecond).toBe(5);
     expect(result.signals[0]!.durationMs).toBe(0);
   });
 

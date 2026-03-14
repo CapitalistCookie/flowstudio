@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Video, Volume2, Lock, Eye, Film, Trash2, Scissors, Undo2, Redo2, Copy, Clipboard } from "lucide-react"
+import { Video, Volume2, Lock, Eye, Film, Trash2, Scissors, Undo2, Redo2, Copy, Clipboard, Sparkles } from "lucide-react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { useEditor, TimelineClip, PIXELS_PER_SECOND, DEFAULT_CLIP_TRANSFORM, DEFAULT_CLIP_EFFECTS } from "./editor-context"
@@ -1087,15 +1087,20 @@ export function Timeline() {
                       onMouseDown={(e) => handleClipMouseDown(e, clip.id)}
                       onContextMenu={(e) => handleClipContextMenu(e, clip.id)}
                         className={`absolute z-10 mx-1 my-1.5 h-9 rounded border overflow-hidden group ${
-                        clip.type === "video" ? "bg-primary/80 border-primary" : "bg-chart-2/80 border-chart-2"
+                        clip.aiEditType
+                          ? "bg-amber-600/80 border-amber-500"
+                          : clip.type === "video" ? "bg-primary/80 border-primary" : "bg-chart-2/80 border-chart-2"
                         } ${draggedClip === clip.id ? "opacity-70 cursor-grabbing z-50" : trimState?.clipId === clip.id ? "cursor-ew-resize z-50" : "cursor-grab"} ${
                           selectedClipId === clip.id ? "ring-2 ring-white" : ""
                         } ${activeClip?.id === clip.id ? "ring-2 ring-red-500/50" : ""}`}
+                      title={clip.aiReasoning ?? undefined}
                       style={{ left: `${visualStartTime}px`, width: `${Math.max(20, visualDuration)}px` }}
                     >
                       {clip.type === "video" ? (
                           <div className="flex h-full items-center gap-1.5 px-2">
-                            {media?.thumbnail ? (
+                            {clip.aiEditType ? (
+                              <Sparkles className="h-3 w-3 text-amber-200 shrink-0" />
+                            ) : media?.thumbnail ? (
                               <img 
                                 src={media.thumbnail} 
                                 alt="" 

@@ -26,7 +26,7 @@ export class VideoUnderstandingWorker extends BaseWorker {
     }
 
     const mode = (task.config.videoContextMode as VideoContextMode) ?? 'frames';
-    const sampleIntervalMs = ((task.config.sampleIntervalSecs as number) ?? 2) * 1000;
+    const sampleIntervalMs = ((task.config.sampleIntervalSecs as number) ?? (DEFAULT_SAMPLE_INTERVAL_MS / 1000)) * 1000;
 
     const genAI = new GoogleGenerativeAI(this.config.googleAiApiKey);
     const modelName = this.config.googleAiModel ?? 'gemini-2.0-flash';

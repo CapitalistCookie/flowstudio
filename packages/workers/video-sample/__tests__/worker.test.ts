@@ -1,63 +1,46 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TaskType, SignalType } from '@flowstudio/shared';
-import { type TaskData } from '@flowstudio/worker-shared';
+import { type TaskData, type WorkerDeps } from '@flowstudio/worker-shared';
 
-// ─── Mock layer ────────────────────────────────────────────────────────────────
+// ─── Mock deps factory ──────────────────────────────────────────────────────────
 
-const mockGcsUpload = vi.fn<(path: string, data: Buffer, contentType: string) => Promise<void>>();
-const mockGcsDownload = vi.fn<(path: string) => Promise<Buffer>>();
+function createMockDeps(): WorkerDeps & {
+  mockGcsUpload: ReturnType<typeof vi.fn>;
+  mockGcsDownload: ReturnType<typeof vi.fn>;
+} {
+  const mockGcsUpload = vi.fn().mockResolvedValue(undefined);
+  const mockGcsDownload = vi.fn().mockResolvedValue(Buffer.from('fake-video-bytes'));
 
-vi.mock('../../shared/src/config.js', () => ({
-  loadConfig: () => ({
-    stdbHost: 'localhost:3000',
-    stdbModule: 'flowstudio',
-    gcsBucket: 'test-bucket',
-    gcsProjectId: 'test-project',
-    workerId: 'video-sample-test-1',
-    workerName: 'video-sample',
-    concurrency: 2,
-    pollIntervalMs: 100,
-    healthPort: 0,
-  }),
-}));
-
-vi.mock('../../shared/src/logger.js', () => ({
-  Logger: class {
-    debug() {}
-    info() {}
-    warn() {}
-    error() {}
-  },
-}));
-
-vi.mock('../../shared/src/gcs-client.js', () => ({
-  GcsClient: class {
-    async upload(path: string, data: Buffer, contentType: string) {
-      return mockGcsUpload(path, data, contentType);
-    }
-    async download(path: string) {
-      return mockGcsDownload(path);
-    }
-    async exists() { return true; }
-  },
-}));
-
-vi.mock('../../shared/src/stdb-client.js', () => ({
-  StdbClient: class {
-    async callReducer() {}
-    async queryTable() { return []; }
-    get isConnected() { return true; }
-    disconnect() {}
-  },
-}));
-
-vi.mock('../../shared/src/health.js', () => ({
-  startHealthServer: () => ({
-    close() {},
-    once() {},
-    address: () => ({ port: 9999 }),
-  }),
-}));
+  return {
+    config: {
+      stdbHost: 'localhost:3000',
+      stdbModule: 'flowstudio',
+      gcsBucket: 'test-bucket',
+      gcsProjectId: 'test-project',
+      workerId: 'video-sample-test-1',
+      workerName: 'video-sample',
+      concurrency: 2,
+      pollIntervalMs: 100,
+      healthPort: 0,
+    },
+    logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as any,
+    gcs: {
+      upload: mockGcsUpload,
+      download: mockGcsDownload,
+      exists: vi.fn().mockResolvedValue(true),
+      getSignedUploadUrl: vi.fn(),
+      getSignedDownloadUrl: vi.fn(),
+    } as any,
+    stdb: {
+      callReducer: vi.fn().mockResolvedValue(undefined),
+      queryTable: vi.fn().mockResolvedValue([]),
+      isConnected: true,
+      disconnect: vi.fn(),
+    } as any,
+    mockGcsUpload,
+    mockGcsDownload,
+  };
+}
 
 // ─── FFmpeg mock ───────────────────────────────────────────────────────────────
 
@@ -88,18 +71,10 @@ vi.mock('@ffmpeg-installer/ffmpeg', () => ({
 }));
 
 // ─── Sharp mock ────────────────────────────────────────────────────────────────
-// Two code paths:
-//   1) Main resize: sharp(buf).resize(1280, 720, {fit:'inside'}).jpeg({quality:85}).toBuffer()
-//   2) Frame diff:  sharp(buf).resize(64, 64).greyscale().raw().toBuffer()
 
 const sharpResizeCalls: Array<{ width: number; height: number; opts?: unknown }> = [];
 const sharpJpegCalls: Array<{ quality: number }> = [];
 
-/**
- * Per-frame raw pixel buffers returned by the diff path.
- * Key: full buffer content as string → output raw pixels.
- * When not found, returns a default "identical" buffer.
- */
 const rawPixelOverrides = new Map<string, Buffer>();
 const PIXELS_64x64 = 64 * 64;
 
@@ -141,14 +116,9 @@ vi.mock('sharp', () => {
 });
 
 // ─── Filesystem mocks ──────────────────────────────────────────────────────────
-// Simulate FFmpeg having written frame-0001.jpg .. frame-NNNN.jpg into framesDir
 
 let simulatedFrameCount = 5;
 
-/**
- * Per-frame file content buffers returned by readFile.
- * Key: frame filename (e.g. "frame-0001.jpg")
- */
 const frameFileContents = new Map<string, Buffer>();
 
 vi.mock('node:fs/promises', () => ({
@@ -186,6 +156,8 @@ import { rm, readdir } from 'node:fs/promises';
 
 describe('VideoSampleWorker', () => {
   let worker: VideoSampleWorker;
+  let mockGcsUpload: ReturnType<typeof vi.fn>;
+  let mockGcsDownload: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     ffmpegOutputOptions = [];
@@ -195,10 +167,11 @@ describe('VideoSampleWorker', () => {
     rawPixelOverrides.clear();
     frameFileContents.clear();
     simulatedFrameCount = 5;
-    mockGcsUpload.mockResolvedValue(undefined);
-    mockGcsDownload.mockResolvedValue(Buffer.from('fake-video-bytes'));
+    const deps = createMockDeps();
+    mockGcsUpload = deps.mockGcsUpload;
+    mockGcsDownload = deps.mockGcsDownload;
     vi.mocked(rm).mockResolvedValue(undefined);
-    worker = new VideoSampleWorker();
+    worker = new VideoSampleWorker(deps);
   });
 
   afterEach(() => {
@@ -259,8 +232,6 @@ describe('VideoSampleWorker', () => {
   test('detects scene changes when frame diff exceeds 0.3 threshold', async () => {
     simulatedFrameCount = 3;
 
-    // Frame 1: dark pixels (0), Frame 2: bright pixels (255) → diff = 1.0
-    // Frame 3: also bright (255) → diff from frame 2 = 0.0
     const frame1Buf = Buffer.from('raw-frame-frame-0001.jpg');
     const frame2Buf = Buffer.from('raw-frame-frame-0002.jpg');
     const frame3Buf = Buffer.from('raw-frame-frame-0003.jpg');
@@ -275,8 +246,6 @@ describe('VideoSampleWorker', () => {
 
     const result = await worker.processTask(makeTask());
 
-    // Only frame 1→2 transition should trigger (diff=1.0 > 0.3)
-    // Frame 2→3 should NOT trigger (diff=0.0)
     const sceneSignals = result.signals.filter(s => s.signalType === SignalType.SCENE_CHANGE);
     expect(sceneSignals).toHaveLength(1);
     expect(sceneSignals[0]!.confidence).toBe(1.0);
@@ -287,7 +256,6 @@ describe('VideoSampleWorker', () => {
 
   test('no scene change signals when all frames are identical', async () => {
     simulatedFrameCount = 4;
-    // Default rawPixelOverrides returns identical buffers (all 128), so diff = 0.0
 
     const result = await worker.processTask(makeTask());
 
@@ -401,7 +369,6 @@ describe('VideoSampleWorker', () => {
     const frame2Buf = Buffer.from('raw-frame-frame-0002.jpg');
     frameFileContents.set('frame-0001.jpg', frame1Buf);
     frameFileContents.set('frame-0002.jpg', frame2Buf);
-    // Maximum possible diff = 1.0, should be clamped at 1.0 by Math.min
     rawPixelOverrides.set(bufferKey(frame1Buf), Buffer.alloc(PIXELS_64x64, 0));
     rawPixelOverrides.set(bufferKey(frame2Buf), Buffer.alloc(PIXELS_64x64, 255));
 

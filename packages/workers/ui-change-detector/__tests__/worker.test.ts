@@ -1,67 +1,48 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TaskType, SignalType } from '@flowstudio/shared';
-import { type TaskData } from '@flowstudio/worker-shared';
+import { type TaskData, type WorkerDeps } from '@flowstudio/worker-shared';
 
-// ─── Mock layer ────────────────────────────────────────────────────────────────
+// ─── Mock deps factory ──────────────────────────────────────────────────────────
 
-const mockGcsUpload = vi.fn<(path: string, data: Buffer, contentType: string) => Promise<void>>();
-const mockGcsDownload = vi.fn<(path: string) => Promise<Buffer>>();
+function createMockDeps(): WorkerDeps & {
+  mockGcsUpload: ReturnType<typeof vi.fn>;
+  mockGcsDownload: ReturnType<typeof vi.fn>;
+} {
+  const mockGcsUpload = vi.fn().mockResolvedValue(undefined);
+  const mockGcsDownload = vi.fn().mockResolvedValue(Buffer.from('[]'));
 
-vi.mock('../../shared/src/config.js', () => ({
-  loadConfig: () => ({
-    stdbHost: 'localhost:3000',
-    stdbModule: 'flowstudio',
-    gcsBucket: 'test-bucket',
-    gcsProjectId: 'test-project',
-    workerId: 'ui-change-detector-test-1',
-    workerName: 'ui-change-detector',
-    concurrency: 2,
-    pollIntervalMs: 100,
-    healthPort: 0,
-  }),
-}));
-
-vi.mock('../../shared/src/logger.js', () => ({
-  Logger: class {
-    debug() {}
-    info() {}
-    warn() {}
-    error() {}
-  },
-}));
-
-vi.mock('../../shared/src/gcs-client.js', () => ({
-  GcsClient: class {
-    async upload(path: string, data: Buffer, contentType: string) {
-      return mockGcsUpload(path, data, contentType);
-    }
-    async download(path: string) {
-      return mockGcsDownload(path);
-    }
-    async exists() { return true; }
-  },
-}));
-
-vi.mock('../../shared/src/stdb-client.js', () => ({
-  StdbClient: class {
-    async callReducer() {}
-    async queryTable() { return []; }
-    get isConnected() { return true; }
-    disconnect() {}
-  },
-}));
-
-vi.mock('../../shared/src/health.js', () => ({
-  startHealthServer: () => ({
-    close() {},
-    once() {},
-    address: () => ({ port: 9999 }),
-  }),
-}));
+  return {
+    config: {
+      stdbHost: 'localhost:3000',
+      stdbModule: 'flowstudio',
+      gcsBucket: 'test-bucket',
+      gcsProjectId: 'test-project',
+      workerId: 'ui-change-detector-test-1',
+      workerName: 'ui-change-detector',
+      concurrency: 2,
+      pollIntervalMs: 100,
+      healthPort: 0,
+    },
+    logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as any,
+    gcs: {
+      upload: mockGcsUpload,
+      download: mockGcsDownload,
+      exists: vi.fn().mockResolvedValue(true),
+      getSignedUploadUrl: vi.fn(),
+      getSignedDownloadUrl: vi.fn(),
+    } as any,
+    stdb: {
+      callReducer: vi.fn().mockResolvedValue(undefined),
+      queryTable: vi.fn().mockResolvedValue([]),
+      isConnected: true,
+      disconnect: vi.fn(),
+    } as any,
+    mockGcsUpload,
+    mockGcsDownload,
+  };
+}
 
 // ─── Sharp mock ────────────────────────────────────────────────────────────────
-// The worker uses sharp to resize to 128x128 greyscale and compute pixel diffs
-// in a 4x4 grid (cell size 32x32). We control raw pixel data via frameBufferMap.
 
 const COMPARE_SIZE = 128;
 const PIXEL_COUNT = COMPARE_SIZE * COMPARE_SIZE;
@@ -109,10 +90,6 @@ function makeUniformFrame(name: string, value: number): Buffer {
   return buf;
 }
 
-/**
- * Creates a frame buffer where specific 4x4 grid cells have different values.
- * cells is a 4x4 boolean grid; true cells get `changedValue`, false cells get `baseValue`.
- */
 function makeGridFrame(name: string, cells: boolean[][], baseValue: number, changedValue: number): Buffer {
   const buf = Buffer.from(name);
   const raw = Buffer.alloc(PIXEL_COUNT, baseValue);
@@ -137,11 +114,15 @@ function makeGridFrame(name: string, cells: boolean[][], baseValue: number, chan
 
 describe('UIChangeDetectorWorker', () => {
   let worker: UIChangeDetectorWorker;
+  let mockGcsUpload: ReturnType<typeof vi.fn>;
+  let mockGcsDownload: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    mockGcsUpload.mockResolvedValue(undefined);
     frameBufferMap.clear();
-    worker = new UIChangeDetectorWorker();
+    const deps = createMockDeps();
+    mockGcsUpload = deps.mockGcsUpload;
+    mockGcsDownload = deps.mockGcsDownload;
+    worker = new UIChangeDetectorWorker(deps);
   });
 
   afterEach(() => {

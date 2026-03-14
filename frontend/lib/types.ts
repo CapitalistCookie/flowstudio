@@ -33,7 +33,9 @@ export interface TimelineClipData {
   label: string
   type: "video" | "audio"
   transform?: ClipTransform 
-  effects?: ClipEffects 
+  effects?: ClipEffects
+  aiReasoning?: string
+  aiEditType?: string
 }
 
 export interface Caption {
