@@ -1,6 +1,7 @@
 'use client';
 
 import { useTimelineStore } from '@/hooks/useStores';
+import { SignalOverlay } from '@/components/studio/SignalOverlay';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { Input } from '@/components/ui/Input';
 import { Separator } from '@/components/ui/Separator';
@@ -152,6 +153,11 @@ export function PropertiesPanel() {
             </div>
           </div>
         )}
+
+        {/* AI Signals */}
+        <div className="mt-3">
+          <SignalOverlay />
+        </div>
       </ScrollArea>
     </div>
   );

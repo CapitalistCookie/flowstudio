@@ -3,6 +3,7 @@
 import { useRef, useEffect } from 'react';
 import { usePlayback } from '@/hooks/usePlayback';
 import { useUIStore } from '@/hooks/useStores';
+import { PipelineOverlay } from '@/components/studio/PipelineOverlay';
 import { Button } from '@/components/ui/Button';
 import { formatTimecode } from '@/lib/utils';
 import {
@@ -46,6 +47,8 @@ export function VideoPreview() {
           />
           <Play className="h-12 w-12 opacity-30" style={{ color: 'var(--color-muted)' }} />
         </div>
+
+        <PipelineOverlay />
 
         {/* Fullscreen button */}
         <button

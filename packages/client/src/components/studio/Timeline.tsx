@@ -9,6 +9,9 @@ import {
 import { useTimelineStore } from '@/hooks/useStores';
 import { useTimelineActions, useTimelineHistory } from '@/hooks/useTimeline';
 import { usePlayback } from '@/hooks/usePlayback';
+import { TimelineMinimap } from '@/components/studio/TimelineMinimap';
+import { TrackHeader } from '@/components/studio/TrackHeader';
+import { ClipContextMenu } from '@/components/studio/ClipContextMenu';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import {
@@ -324,17 +327,48 @@ export function Timeline() {
         </Button>
       </div>
 
-      {/* Canvas */}
-      <div ref={containerRef} className="flex-1 overflow-hidden cursor-crosshair">
-        <canvas
-          ref={canvasRef}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-          onWheel={handleWheel}
-          className="block"
-        />
+      {/* Minimap */}
+      <TimelineMinimap />
+
+      {/* Track headers + Canvas */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Track headers */}
+        {tracks.length > 0 && (
+          <div className="w-32 shrink-0 overflow-y-auto border-r" style={{ borderColor: 'var(--color-border)' }}>
+            {[...tracks].sort((a, b) => a.order - b.order).map((track) => (
+              <TrackHeader key={track.id} track={track} />
+            ))}
+          </div>
+        )}
+
+        {/* Canvas with clip context menu */}
+        {selectedClipIds.length === 1 ? (
+          <ClipContextMenu clipId={selectedClipIds[0]!}>
+            <div ref={containerRef} className="flex-1 overflow-hidden cursor-crosshair">
+              <canvas
+                ref={canvasRef}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                onWheel={handleWheel}
+                className="block"
+              />
+            </div>
+          </ClipContextMenu>
+        ) : (
+          <div ref={containerRef} className="flex-1 overflow-hidden cursor-crosshair">
+            <canvas
+              ref={canvasRef}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onWheel={handleWheel}
+              className="block"
+            />
+          </div>
+        )}
       </div>
     </div>
   );
