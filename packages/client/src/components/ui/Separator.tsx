@@ -14,7 +14,7 @@ export function Separator({ orientation = 'horizontal', className }: SeparatorPr
         orientation === 'horizontal' ? 'h-px w-full' : 'h-full w-px',
         className
       )}
-      style={{ backgroundColor: 'rgba(148, 163, 184, 0.2)' }}
+      style={{ backgroundColor: 'var(--color-border)' }}
       role="separator"
     />
   );

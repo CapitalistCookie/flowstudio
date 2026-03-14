@@ -108,7 +108,7 @@ export default function ProjectsPage() {
                   style={{
                     backgroundColor:
                       statusFilter === status
-                        ? 'rgba(99, 102, 241, 0.15)'
+                        ? 'var(--color-primary-bg)'
                         : 'transparent',
                     color:
                       statusFilter === status

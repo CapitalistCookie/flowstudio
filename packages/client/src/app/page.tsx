@@ -49,7 +49,7 @@ export default function DashboardPage() {
             >
               <div
                 className="rounded-lg p-2"
-                style={{ backgroundColor: 'rgba(99, 102, 241, 0.15)' }}
+                style={{ backgroundColor: 'var(--color-primary-bg)' }}
               >
                 <Icon className="h-5 w-5" style={{ color: 'var(--color-primary)' }} />
               </div>

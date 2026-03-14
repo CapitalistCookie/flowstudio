@@ -55,7 +55,7 @@ export function SignalOverlay() {
                 onClick={() => selectSignal(isSelected ? null : signal.id)}
                 className="w-full flex items-center gap-2 px-2 py-1 rounded text-xs hover:bg-white/5"
                 style={{
-                  backgroundColor: isSelected ? 'rgba(99, 102, 241, 0.15)' : undefined,
+                  backgroundColor: isSelected ? 'var(--color-primary-bg)' : undefined,
                 }}
               >
                 <span className="truncate flex-1 text-left">

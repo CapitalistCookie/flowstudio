@@ -225,7 +225,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
               className="border-2 border-dashed rounded-lg p-8 text-center transition-colors"
               style={{
                 borderColor: dragOver ? 'var(--color-primary)' : 'var(--color-muted)',
-                backgroundColor: dragOver ? 'rgba(99, 102, 241, 0.05)' : undefined,
+                backgroundColor: dragOver ? 'var(--color-primary-bg)' : undefined,
               }}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}

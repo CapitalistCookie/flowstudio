@@ -43,7 +43,7 @@ export default function StudioPage({ params }: StudioPageProps) {
         className="flex items-center justify-between px-4 py-2 border-b"
         style={{
           backgroundColor: 'var(--color-surface)',
-          borderColor: 'rgba(148, 163, 184, 0.2)',
+          borderColor: 'var(--color-border)',
         }}
       >
         <div className="flex items-center gap-3">

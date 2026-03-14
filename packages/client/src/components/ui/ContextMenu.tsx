@@ -54,7 +54,7 @@ export function ContextMenu({ items, children, className }: ContextMenuProps) {
             left: position.x,
             top: position.y,
             backgroundColor: 'var(--color-surface)',
-            border: '1px solid rgba(148, 163, 184, 0.2)',
+            border: '1px solid var(--color-border)',
           }}
         >
           {items.map((item, i) =>
@@ -62,7 +62,7 @@ export function ContextMenu({ items, children, className }: ContextMenuProps) {
               <div
                 key={`sep-${i}`}
                 className="my-1 h-px"
-                style={{ backgroundColor: 'rgba(148, 163, 184, 0.2)' }}
+                style={{ backgroundColor: 'var(--color-border)' }}
               />
             ) : (
               <button

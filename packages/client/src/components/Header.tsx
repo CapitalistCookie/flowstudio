@@ -18,7 +18,7 @@ export function Header() {
   return (
     <header
       className="border-b px-6 py-3 flex items-center justify-between"
-      style={{ borderColor: 'rgba(148, 163, 184, 0.2)', backgroundColor: 'var(--color-surface)' }}
+      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
     >
       <div className="flex items-center gap-6">
         <Link href="/" className="flex items-center gap-2">
@@ -38,7 +38,7 @@ export function Header() {
                   'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors',
                   active ? 'font-medium' : 'opacity-60 hover:opacity-100'
                 )}
-                style={active ? { backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--color-primary)' } : undefined}
+                style={active ? { backgroundColor: 'var(--color-primary-bg)', color: 'var(--color-primary)' } : undefined}
               >
                 <Icon className="h-4 w-4" />
                 {label}

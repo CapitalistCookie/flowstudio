@@ -92,7 +92,7 @@ export function AssetPanel() {
 
   return (
     <div className="h-full flex flex-col" style={{ backgroundColor: 'var(--color-background)' }}>
-      <div className="p-3 border-b" style={{ borderColor: 'rgba(148, 163, 184, 0.2)' }}>
+      <div className="p-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
         <h3
           className="text-xs font-semibold uppercase tracking-wider mb-2"
           style={{ color: 'var(--color-muted)' }}
@@ -117,7 +117,7 @@ export function AssetPanel() {
               onClick={() => setFilterType(null)}
               className="px-2 py-0.5 rounded text-xs"
               style={{
-                backgroundColor: !filterType ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                backgroundColor: !filterType ? 'var(--color-primary-bg)' : 'transparent',
                 color: !filterType ? 'var(--color-primary)' : 'var(--color-muted)',
               }}
             >
@@ -129,7 +129,7 @@ export function AssetPanel() {
                 onClick={() => setFilterType(filterType === type ? null : type)}
                 className="px-2 py-0.5 rounded text-xs"
                 style={{
-                  backgroundColor: filterType === type ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                  backgroundColor: filterType === type ? 'var(--color-primary-bg)' : 'transparent',
                   color: filterType === type ? 'var(--color-primary)' : 'var(--color-muted)',
                 }}
               >

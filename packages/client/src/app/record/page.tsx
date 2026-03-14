@@ -67,7 +67,7 @@ export default function RecordPage() {
                     style={{
                       backgroundColor:
                         sourceType === value
-                          ? 'rgba(99, 102, 241, 0.2)'
+                          ? 'var(--color-primary-bg)'
                           : 'var(--color-background)',
                       color:
                         sourceType === value
@@ -76,7 +76,7 @@ export default function RecordPage() {
                       border: `1px solid ${
                         sourceType === value
                           ? 'var(--color-primary)'
-                          : 'rgba(148, 163, 184, 0.2)'
+                          : 'var(--color-border)'
                       }`,
                     }}
                   >

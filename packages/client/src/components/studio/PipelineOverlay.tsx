@@ -24,7 +24,7 @@ export function PipelineOverlay() {
       className="absolute bottom-4 left-4 right-4 rounded-xl p-3 z-10"
       style={{
         backgroundColor: 'rgba(15, 23, 42, 0.9)',
-        border: '1px solid rgba(148, 163, 184, 0.2)',
+        border: '1px solid var(--color-border)',
         backdropFilter: 'blur(8px)',
       }}
     >

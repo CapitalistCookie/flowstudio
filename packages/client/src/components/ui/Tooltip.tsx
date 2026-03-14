@@ -23,7 +23,7 @@ const TooltipContent = React.forwardRef<
       style={{
         backgroundColor: 'var(--color-surface)',
         color: 'var(--color-text)',
-        border: '1px solid rgba(148, 163, 184, 0.2)',
+        border: '1px solid var(--color-border)',
       }}
       {...props}
     />

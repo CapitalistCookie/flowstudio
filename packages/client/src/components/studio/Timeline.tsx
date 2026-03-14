@@ -225,7 +225,7 @@ export function Timeline() {
       {/* Toolbar */}
       <div
         className="flex items-center gap-1 px-3 py-1.5 border-b"
-        style={{ borderColor: 'rgba(148, 163, 184, 0.2)' }}
+        style={{ borderColor: 'var(--color-border)' }}
       >
         {/* Transport */}
         <Button variant="ghost" size="icon" onClick={() => seek(0)} className="h-7 w-7">
@@ -238,7 +238,7 @@ export function Timeline() {
           <SkipForward className="h-3.5 w-3.5" />
         </Button>
 
-        <div className="w-px h-5 mx-1" style={{ backgroundColor: 'rgba(148, 163, 184, 0.2)' }} />
+        <div className="w-px h-5 mx-1" style={{ backgroundColor: 'var(--color-border)' }} />
 
         {/* Edit */}
         <Button
@@ -262,7 +262,7 @@ export function Timeline() {
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
 
-        <div className="w-px h-5 mx-1" style={{ backgroundColor: 'rgba(148, 163, 184, 0.2)' }} />
+        <div className="w-px h-5 mx-1" style={{ backgroundColor: 'var(--color-border)' }} />
 
         {/* Undo/redo */}
         <Button variant="ghost" size="icon" onClick={undo} disabled={!canUndo} className="h-7 w-7" title="Undo">
@@ -272,7 +272,7 @@ export function Timeline() {
           <Redo2 className="h-3.5 w-3.5" />
         </Button>
 
-        <div className="w-px h-5 mx-1" style={{ backgroundColor: 'rgba(148, 163, 184, 0.2)' }} />
+        <div className="w-px h-5 mx-1" style={{ backgroundColor: 'var(--color-border)' }} />
 
         {/* Snap */}
         <Button

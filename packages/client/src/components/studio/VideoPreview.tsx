@@ -60,7 +60,7 @@ export function VideoPreview() {
       {/* Transport controls */}
       <div
         className="flex items-center justify-between px-4 py-2 border-t"
-        style={{ borderColor: 'rgba(148, 163, 184, 0.2)' }}
+        style={{ borderColor: 'var(--color-border)' }}
       >
         <span className="text-xs font-mono" style={{ color: 'var(--color-muted)' }}>
           {formatTimecode(playheadMs)}

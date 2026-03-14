@@ -47,7 +47,7 @@ export function TrackHeader({ track }: TrackHeaderProps) {
       className="flex items-center gap-1 px-2 border-b"
       style={{
         height: track.height,
-        borderColor: 'rgba(148, 163, 184, 0.1)',
+        borderColor: 'var(--color-border)',
         backgroundColor: 'var(--color-surface)',
       }}
     >

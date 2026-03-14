@@ -17,7 +17,7 @@ export function PropertiesPanel() {
 
   return (
     <div className="h-full flex flex-col" style={{ backgroundColor: 'var(--color-background)' }}>
-      <div className="p-3 border-b" style={{ borderColor: 'rgba(148, 163, 184, 0.2)' }}>
+      <div className="p-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
         <h3
           className="text-xs font-semibold uppercase tracking-wider"
           style={{ color: 'var(--color-muted)' }}

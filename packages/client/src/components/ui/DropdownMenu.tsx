@@ -23,7 +23,7 @@ const DropdownMenuContent = React.forwardRef<
       style={{
         backgroundColor: 'var(--color-surface)',
         color: 'var(--color-text)',
-        border: '1px solid rgba(148, 163, 184, 0.2)',
+        border: '1px solid var(--color-border)',
       }}
       {...props}
     />
@@ -56,7 +56,7 @@ const DropdownMenuSeparator = React.forwardRef<
   <DropdownMenuPrimitive.Separator
     ref={ref}
     className={cn('-mx-1 my-1 h-px', className)}
-    style={{ backgroundColor: 'rgba(148, 163, 184, 0.2)' }}
+    style={{ backgroundColor: 'var(--color-border)' }}
     {...props}
   />
 ));
