@@ -292,10 +292,10 @@ function EditorContent({ projectId }: { projectId: string }) {
       {/* Main Content Area - Resizable Panels */}
       <ResizablePanelGroup orientation="vertical" className="flex-1">
         {/* Top Section: Media, Preview, Inspector */}
-        <ResizablePanel defaultSize={65} minSize={30}>
+        <ResizablePanel defaultSize="65%" minSize="30%">
           <ResizablePanelGroup orientation="horizontal">
             {/* Left Panel - Media Bin */}
-            <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
+            <ResizablePanel defaultSize="20%" minSize="15%" maxSize="35%">
               <div className="h-full border-r border-border bg-card">
                 <MediaPanel />
               </div>
@@ -304,7 +304,7 @@ function EditorContent({ projectId }: { projectId: string }) {
             <ResizableHandle withHandle />
 
             {/* Center Panel - Video Preview */}
-            <ResizablePanel defaultSize={60} minSize={40}>
+            <ResizablePanel defaultSize="60%" minSize="25%">
               <div className="h-full">
                 <VideoPreview />
               </div>
@@ -313,7 +313,7 @@ function EditorContent({ projectId }: { projectId: string }) {
             <ResizableHandle withHandle />
 
             {/* Right Panel - Inspector */}
-            <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
+            <ResizablePanel defaultSize="20%" minSize="15%" maxSize="35%">
               <div className="h-full border-l border-border bg-card">
                 <InspectorPanel />
               </div>
@@ -325,7 +325,7 @@ function EditorContent({ projectId }: { projectId: string }) {
         <ResizableHandle className="bg-transparent after:bg-transparent hover:bg-border/50 transition-colors" />
 
         {/* Bottom Panel - Timeline */}
-        <ResizablePanel defaultSize={35} minSize={20} maxSize={60}>
+        <ResizablePanel defaultSize="35%" minSize="20%" maxSize="60%">
           <div className="h-full border-t border-border bg-card">
             <Timeline />
           </div>
