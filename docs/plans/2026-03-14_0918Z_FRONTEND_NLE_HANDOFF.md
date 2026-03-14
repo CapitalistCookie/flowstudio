@@ -24,7 +24,7 @@ Build a full NLE video editor frontend with:
 ## Architecture Summary
 
 ```
-packages/client/src/
+finalFrontend/src/
 ├── app/                    ← Next.js pages (swappable)
 │   ├── page.tsx            ← Dashboard (/)
 │   ├── record/page.tsx     ← Recording (/record)
@@ -104,10 +104,10 @@ packages/client/src/
 
 ```bash
 # Core
-pnpm --filter @flowstudio/client add zustand zundo sonner
+pnpm --filter @flowstudio/frontend add zustand zundo sonner
 
 # shadcn/ui primitives
-pnpm --filter @flowstudio/client add @radix-ui/react-dialog @radix-ui/react-dropdown-menu @radix-ui/react-context-menu @radix-ui/react-tooltip @radix-ui/react-tabs @radix-ui/react-slider @radix-ui/react-toggle @radix-ui/react-toggle-group @radix-ui/react-popover @radix-ui/react-select class-variance-authority clsx tailwind-merge lucide-react react-resizable-panels
+pnpm --filter @flowstudio/frontend add @radix-ui/react-dialog @radix-ui/react-dropdown-menu @radix-ui/react-context-menu @radix-ui/react-tooltip @radix-ui/react-tabs @radix-ui/react-slider @radix-ui/react-toggle @radix-ui/react-toggle-group @radix-ui/react-popover @radix-ui/react-select class-variance-authority clsx tailwind-merge lucide-react react-resizable-panels
 ```
 
 ## SpacetimeDB Contract (Backend API)
@@ -137,13 +137,13 @@ pnpm --filter @flowstudio/client add @radix-ui/react-dialog @radix-ui/react-drop
 
 - **Working directory:** `/home/user/FlowStudio`
 - **Package manager:** pnpm (monorepo)
-- **Client package:** `@flowstudio/client` at `packages/client/`
+- **Client package:** `@flowstudio/frontend` at `finalFrontend/`
 - **Shared package:** `@flowstudio/shared` at `packages/shared/`
 - **TypeScript:** strict mode
 - **Next.js:** 15.3.2, App Router, standalone output
 - **Tailwind:** 4.1.4 (uses `@import "tailwindcss"` NOT JIT directives)
-- **Build check:** `pnpm --filter @flowstudio/client run typecheck`
-- **Full build:** `pnpm --filter @flowstudio/client run build`
+- **Build check:** `pnpm --filter @flowstudio/frontend run typecheck`
+- **Full build:** `pnpm --filter @flowstudio/frontend run build`
 
 ## Phase Dependency Graph
 

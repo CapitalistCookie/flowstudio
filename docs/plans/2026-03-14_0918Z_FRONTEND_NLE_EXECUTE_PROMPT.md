@@ -49,24 +49,24 @@ When dispatching each task to a subagent:
 - Point it to the implementation plan: `docs/plans/2026-03-14-frontend-nle-implementation.md`
 - Tell it which Task number to execute (e.g., "Execute Task 1.3")
 - Tell it to read the specific task section for exact file paths and code
-- Tell it to run `pnpm --filter @flowstudio/client run typecheck` after code changes
+- Tell it to run `pnpm --filter @flowstudio/frontend run typecheck` after code changes
 - Tell it to commit with a descriptive message after each task
 - For shadcn components (Task 2.1): tell it to use latest shadcn/ui component patterns from web search if needed
 
 ### Review Checkpoints
 
 After each phase completes, verify:
-- `pnpm --filter @flowstudio/client run typecheck` passes
-- `pnpm --filter @flowstudio/client run build` passes
+- `pnpm --filter @flowstudio/frontend run typecheck` passes
+- `pnpm --filter @flowstudio/frontend run build` passes
 - No unintended changes to existing files (`git diff --stat`)
 
 ### Key Constraints (from handoff doc)
 
 - All Zustand stores MUST use `createStore()` (vanilla), NOT `create()` (React-bound)
 - Canvas timeline renderer MUST NOT import React
-- All new React components go in `packages/client/src/components/` (swappable layer)
-- All framework-agnostic code goes in `packages/client/src/core/` (permanent layer)
-- React hook adapters go in `packages/client/src/hooks/` (swappable layer)
+- All new React components go in `finalFrontend/src/components/` (swappable layer)
+- All framework-agnostic code goes in `finalFrontend/src/core/` (permanent layer)
+- React hook adapters go in `finalFrontend/src/hooks/` (swappable layer)
 - Use CSS variables (`var(--color-*)`) for all colors, not hardcoded hex values
 - SpacetimeDB client (`lib/stdb.ts`) is already framework-agnostic — don't modify it
 - The existing `lib/hooks.ts` is DEPRECATED — new code uses `hooks/` directory instead

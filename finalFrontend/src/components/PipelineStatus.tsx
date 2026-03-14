@@ -35,8 +35,7 @@ export function PipelineStatus({ tasks }: PipelineStatusProps) {
         {sorted.map(task => (
           <div
             key={task.id}
-            className="flex items-center gap-3 rounded px-3 py-2 text-sm"
-            style={{ backgroundColor: 'var(--color-surface)' }}
+            className="flex items-center gap-3 glass-subtle rounded-xl px-3 py-2 text-sm"
           >
             <span style={{ color: STATUS_COLORS[task.status] ?? 'var(--color-muted)' }}>
               {STATUS_ICONS[task.status] ?? '?'}

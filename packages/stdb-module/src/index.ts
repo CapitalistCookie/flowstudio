@@ -61,6 +61,18 @@ const projects = table({ name: "projects", public: true }, {
   updatedAt: t.u64(),
   ownerId: t.string(),
   metadata: t.string(),
+  starred: t.bool(),
+  folderId: t.string(),
+});
+
+const folders = table({ name: "folders", public: true }, {
+  id: t.string().primaryKey(),
+  name: t.string(),
+  ownerId: t.string(),
+  color: t.string(),
+  sortOrder: t.i32(),
+  createdAt: t.u64(),
+  updatedAt: t.u64(),
 });
 
 const assets = table({ name: "assets", public: true }, {
@@ -125,6 +137,7 @@ const workerConfigs = table({ name: "worker_configs", public: true }, {
 // Schema
 const stdb = (schema as any)({
   projects,
+  folders,
   assets,
   tasks,
   signals,
@@ -139,7 +152,7 @@ export const createProject = stdb.reducer(
   (ctx: any, args: any) => {
     const now = nowMs();
     const id = generateId(ctx);
-    ctx.db.projects.insert({ id, name: args.name, status: "created", createdAt: now, updatedAt: now, ownerId: args.ownerId, metadata: args.metadata });
+    ctx.db.projects.insert({ id, name: args.name, status: "created", createdAt: now, updatedAt: now, ownerId: args.ownerId, metadata: args.metadata, starred: false, folderId: "" });
     ctx.db.projectState.insert({ projectId: id, completedTasks: "[]", totalTasks: 0, completedCount: 0, currentPhase: "created", lastUpdated: now });
   },
 );
@@ -313,6 +326,62 @@ export const updateWorkerConfig = stdb.reducer(
     } else {
       ctx.db.workerConfigs.insert({ workerId: args.workerId, workerType: args.workerType, lastHeartbeat: now, isActive: args.isActive, concurrency: args.concurrency, metadata: args.metadata });
     }
+  },
+);
+
+export const toggleProjectStar = stdb.reducer(
+  "toggleProjectStar",
+  { projectId: t.string() },
+  (ctx: any, args: any) => {
+    const project = ctx.db.projects.id.find(args.projectId);
+    if (!project) throw new Error("toggleProjectStar: project not found");
+    ctx.db.projects.id.update({ ...project, starred: !project.starred, updatedAt: nowMs() });
+  },
+);
+
+export const createFolder = stdb.reducer(
+  "createFolder",
+  { name: t.string(), ownerId: t.string(), color: t.string(), sortOrder: t.i32() },
+  (ctx: any, args: any) => {
+    const now = nowMs();
+    const id = generateId(ctx);
+    ctx.db.folders.insert({ id, name: args.name, ownerId: args.ownerId, color: args.color, sortOrder: args.sortOrder, createdAt: now, updatedAt: now });
+  },
+);
+
+export const renameFolder = stdb.reducer(
+  "renameFolder",
+  { folderId: t.string(), name: t.string() },
+  (ctx: any, args: any) => {
+    const folder = ctx.db.folders.id.find(args.folderId);
+    if (!folder) throw new Error("renameFolder: folder not found");
+    ctx.db.folders.id.update({ ...folder, name: args.name, updatedAt: nowMs() });
+  },
+);
+
+export const deleteFolder = stdb.reducer(
+  "deleteFolder",
+  { folderId: t.string() },
+  (ctx: any, args: any) => {
+    const folder = ctx.db.folders.id.find(args.folderId);
+    if (!folder) throw new Error("deleteFolder: folder not found");
+    const now = nowMs();
+    for (const project of ctx.db.projects.iter()) {
+      if (project.folderId === args.folderId) {
+        ctx.db.projects.id.update({ ...project, folderId: "", updatedAt: now });
+      }
+    }
+    ctx.db.folders.id.delete(args.folderId);
+  },
+);
+
+export const moveProjectToFolder = stdb.reducer(
+  "moveProjectToFolder",
+  { projectId: t.string(), folderId: t.string() },
+  (ctx: any, args: any) => {
+    const project = ctx.db.projects.id.find(args.projectId);
+    if (!project) throw new Error("moveProjectToFolder: project not found");
+    ctx.db.projects.id.update({ ...project, folderId: args.folderId, updatedAt: nowMs() });
   },
 );
 

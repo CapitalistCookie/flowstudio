@@ -38,7 +38,7 @@ Complete frontend redesign for FlowStudio: 4 views (Dashboard, Recording, Studio
 
 File structure:
 ```
-packages/client/src/
+finalFrontend/src/
 ├── app/              ← React pages (swappable)
 ├── components/       ← React components (swappable)
 ├── hooks/            ← React adapters (swappable)

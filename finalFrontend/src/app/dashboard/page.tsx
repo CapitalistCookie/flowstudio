@@ -44,12 +44,11 @@ export default function DashboardPage() {
           ].map(({ label, value, icon: Icon }) => (
             <div
               key={label}
-              className="rounded-xl p-4 flex items-center gap-4"
-              style={{ backgroundColor: 'var(--color-surface)' }}
+              className="glass-card rounded-2xl p-4 flex items-center gap-4"
             >
               <div
-                className="rounded-lg p-2"
-                style={{ backgroundColor: 'var(--color-primary-bg)' }}
+                className="rounded-xl p-2"
+                style={{ backgroundColor: 'rgba(245, 166, 35, 0.1)' }}
               >
                 <Icon className="h-5 w-5" style={{ color: 'var(--color-primary)' }} />
               </div>
@@ -86,10 +85,7 @@ export default function DashboardPage() {
             ))}
           </div>
         ) : recentProjects.length === 0 ? (
-          <div
-            className="rounded-xl p-12 text-center"
-            style={{ backgroundColor: 'var(--color-surface)' }}
-          >
+          <div className="glass-card rounded-2xl p-12 text-center">
             <FolderOpen
               className="h-12 w-12 mx-auto mb-3"
               style={{ color: 'var(--color-muted)' }}

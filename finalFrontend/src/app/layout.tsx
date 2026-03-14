@@ -35,7 +35,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${dmSans.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
       <body className="min-h-screen font-sans antialiased grain-overlay" suppressHydrationWarning>
-        <div className="pointer-events-none fixed inset-0 z-[-1] grid-texture opacity-50" />
+        {/* Ambient background blobs */}
+        <div className="pointer-events-none fixed inset-0 z-[-2] overflow-hidden" aria-hidden="true">
+          <div className="absolute -top-32 -left-32 h-[500px] w-[500px] rounded-full bg-[#F5A623]/[0.04] blur-[150px]" />
+          <div className="absolute -bottom-32 -right-32 h-[450px] w-[450px] rounded-full bg-[#1A9E8F]/[0.03] blur-[130px]" />
+        </div>
+        <div className="pointer-events-none fixed inset-0 z-[-1] grid-texture opacity-30" />
         <CursorTrail />
         <StoreProvider>
           {children}

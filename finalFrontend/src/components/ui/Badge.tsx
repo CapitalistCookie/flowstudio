@@ -5,7 +5,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors',
+  'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors backdrop-blur-sm',
   {
     variants: {
       variant: {
@@ -28,25 +28,25 @@ export interface BadgeProps
 
 const VARIANT_STYLES: Record<string, CSSProperties> = {
   default: {
-    backgroundColor: 'var(--color-primary)',
-    color: 'var(--color-text)',
+    backgroundColor: 'rgba(245, 166, 35, 0.15)',
+    color: '#D4870A',
   },
   success: {
-    backgroundColor: 'var(--color-success)',
-    color: '#FFFFFF',
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    color: '#16A34A',
   },
   warning: {
-    backgroundColor: 'var(--color-warning)',
-    color: 'var(--color-text)',
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    color: '#D97706',
   },
   error: {
-    backgroundColor: 'var(--color-error)',
-    color: 'var(--color-text)',
+    backgroundColor: 'rgba(220, 38, 38, 0.15)',
+    color: '#DC2626',
   },
   outline: {
-    borderColor: 'var(--color-muted)',
+    borderColor: 'rgba(230, 225, 215, 0.6)',
     color: 'var(--color-muted)',
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
   },
 };
 

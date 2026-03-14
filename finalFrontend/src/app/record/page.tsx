@@ -44,10 +44,7 @@ export default function RecordPage() {
 
           {/* Source selection */}
           {status === 'idle' && (
-            <div
-              className="rounded-xl p-6 mb-6"
-              style={{ backgroundColor: 'var(--color-surface)' }}
-            >
+            <div className="glass-card rounded-2xl p-6 mb-6">
               <h3
                 className="text-sm font-semibold uppercase tracking-wider mb-4"
                 style={{ color: 'var(--color-muted)' }}
@@ -63,21 +60,23 @@ export default function RecordPage() {
                   <button
                     key={value}
                     onClick={() => setSourceType(value)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm transition-all duration-200"
                     style={{
                       backgroundColor:
                         sourceType === value
-                          ? 'var(--color-primary-bg)'
-                          : 'var(--color-background)',
+                          ? 'rgba(245, 166, 35, 0.12)'
+                          : 'rgba(255, 255, 255, 0.4)',
                       color:
                         sourceType === value
                           ? 'var(--color-primary)'
                           : 'var(--color-text)',
                       border: `1px solid ${
                         sourceType === value
-                          ? 'var(--color-primary)'
-                          : 'var(--color-border)'
+                          ? 'rgba(245, 166, 35, 0.3)'
+                          : 'rgba(230, 225, 215, 0.6)'
                       }`,
+                      backdropFilter: 'blur(8px)',
+                      boxShadow: sourceType === value ? 'var(--glow-amber)' : 'none',
                     }}
                   >
                     <Icon className="h-4 w-4" />
@@ -88,10 +87,11 @@ export default function RecordPage() {
 
               <button
                 onClick={toggleAudio}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm transition-all duration-200"
                 style={{
-                  backgroundColor: audioEnabled ? 'rgba(34, 197, 94, 0.15)' : 'var(--color-background)',
+                  backgroundColor: audioEnabled ? 'rgba(34, 197, 94, 0.12)' : 'rgba(255, 255, 255, 0.4)',
                   color: audioEnabled ? 'var(--color-success)' : 'var(--color-muted)',
+                  backdropFilter: 'blur(8px)',
                 }}
               >
                 {audioEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
@@ -101,10 +101,7 @@ export default function RecordPage() {
           )}
 
           {/* Recording controls */}
-          <div
-            className="rounded-xl p-8 text-center"
-            style={{ backgroundColor: 'var(--color-surface)' }}
-          >
+          <div className="glass-card rounded-2xl p-8 text-center">
             {status === 'idle' && (
               <>
                 <Button onClick={start} size="lg" className="gap-2">
@@ -131,6 +128,11 @@ export default function RecordPage() {
                     {formatTime(elapsedMs)}
                   </span>
                 </div>
+                {status === 'recording' && (
+                  <div className="flex justify-center">
+                    <div className="h-3 w-3 rounded-full bg-red-500 animate-glow-pulse" />
+                  </div>
+                )}
                 <div className="flex items-center justify-center gap-3">
                   {status === 'recording' ? (
                     <Button variant="outline" onClick={pause} className="gap-2">
@@ -160,7 +162,7 @@ export default function RecordPage() {
                 <video
                   src={blobUrl}
                   controls
-                  className="w-full rounded-lg max-h-80"
+                  className="w-full rounded-xl max-h-80"
                 />
                 <div className="flex items-center justify-center gap-3">
                   <Button onClick={start} className="gap-2">

@@ -28,20 +28,20 @@ export function Sheet({ open, onClose, side = 'right', title, children, classNam
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div
         className={cn(
-          'fixed top-0 z-50 h-full w-80 transition-transform duration-200',
+          'fixed top-0 z-50 h-full w-80 transition-transform duration-200 glass-strong rounded-2xl m-2',
           side === 'left' ? 'left-0' : 'right-0',
           className
         )}
-        style={{ backgroundColor: 'var(--color-surface)' }}
+        style={{ color: 'var(--color-text)' }}
       >
         <div className="flex items-center justify-between p-4">
           {title && <h2 className="text-lg font-semibold">{title}</h2>}
           <button
             onClick={onClose}
-            className="ml-auto rounded-sm opacity-70 hover:opacity-100"
+            className="ml-auto rounded-lg p-1 opacity-70 hover:opacity-100 transition-opacity"
           >
             <X className="h-4 w-4" />
           </button>

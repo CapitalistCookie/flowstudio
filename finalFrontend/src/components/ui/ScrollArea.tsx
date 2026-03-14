@@ -11,7 +11,7 @@ const ScrollArea = forwardRef<HTMLDivElement, ScrollAreaProps>(
       <div
         ref={ref}
         className={cn('overflow-auto', className)}
-        style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--color-muted) transparent' }}
+        style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(214, 209, 201, 0.5) transparent' }}
         {...props}
       >
         {children}

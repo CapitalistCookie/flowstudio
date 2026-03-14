@@ -53,17 +53,11 @@ export default function StudioPage({ params }: StudioPageProps) {
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       {/* Compact studio header */}
-      <div
-        className="flex items-center justify-between px-4 py-2 border-b"
-        style={{
-          backgroundColor: 'var(--color-surface)',
-          borderColor: 'var(--color-border)',
-        }}
-      >
+      <div className="flex items-center justify-between px-4 py-2 glass border-b border-white/20">
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push(`/project/${id}`)}
-            className="flex items-center gap-1 text-sm"
+            className="flex items-center gap-1 text-sm hover:opacity-80 transition-opacity"
             style={{ color: 'var(--color-primary)' }}
           >
             <ArrowLeft className="h-4 w-4" />
@@ -85,7 +79,7 @@ export default function StudioPage({ params }: StudioPageProps) {
                   <Panel defaultSize={20} minSize={15} maxSize={35}>
                     <AssetPanel />
                   </Panel>
-                  <PanelResizeHandle className="w-1 hover:bg-[var(--color-primary)]/30 transition-colors" />
+                  <PanelResizeHandle className="w-1 hover:bg-[#F5A623]/30 transition-colors rounded-full" />
                 </>
               )}
 
@@ -97,7 +91,7 @@ export default function StudioPage({ params }: StudioPageProps) {
               {/* Properties */}
               {!propertiesPanelCollapsed && (
                 <>
-                  <PanelResizeHandle className="w-1 hover:bg-[var(--color-primary)]/30 transition-colors" />
+                  <PanelResizeHandle className="w-1 hover:bg-[#F5A623]/30 transition-colors rounded-full" />
                   <Panel defaultSize={25} minSize={15} maxSize={40}>
                     <PropertiesPanel />
                   </Panel>
@@ -107,7 +101,7 @@ export default function StudioPage({ params }: StudioPageProps) {
           </Panel>
 
           {/* Resize handle between preview and timeline */}
-          <PanelResizeHandle className="h-1 hover:bg-[var(--color-primary)]/30 transition-colors" />
+          <PanelResizeHandle className="h-1 hover:bg-[#F5A623]/30 transition-colors rounded-full" />
 
           {/* Timeline */}
           <Panel defaultSize={40} minSize={20} maxSize={70}>

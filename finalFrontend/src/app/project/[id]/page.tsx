@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation';
 import { BRANDING, INITIAL_TASK_TYPES, TaskStatus } from '@flowstudio/shared';
 import { Header } from '@/components/Header';
 import { PipelineStatus } from '@/components/PipelineStatus';
+import { ProcessingOrb } from '@/components/ProcessingOrb';
+import { CompletionSummary } from '@/components/CompletionSummary';
 import { Button } from '@/components/ui/Button';
-import { useProjectStore } from '@/hooks/useStores';
+import { useProjectStore, useSignalStore } from '@/hooks/useStores';
 import {
   ArrowLeft,
   Upload,
@@ -33,14 +35,21 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const assets = useProjectStore((s) => s.assets);
   const setActiveProject = useProjectStore((s) => s.setActiveProject);
 
+  const signals = useSignalStore((s) => s.signals);
+
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [summaryDismissed, setSummaryDismissed] = useState(false);
 
   useEffect(() => {
     setActiveProject(id);
     return () => setActiveProject(null);
   }, [id, setActiveProject]);
+
+  useEffect(() => {
+    setSummaryDismissed(false);
+  }, [id]);
 
   const project = projects.find((p) => p.id === id);
   const completedCount = tasks.filter((t) => t.status === TaskStatus.COMPLETED).length;
@@ -66,6 +75,48 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   }, [assets, tasks]);
 
   const isReady = project?.status === 'ready';
+  const isProcessing = project?.status === 'processing';
+
+  // Processing time from task timestamps
+  const processingTimeMs = useMemo(() => {
+    const claimed = tasks.filter((t) => t.claimedAt > 0);
+    const completed = tasks.filter((t) => t.completedAt > 0);
+    if (claimed.length === 0 || completed.length === 0) return 0;
+    const earliest = Math.min(...claimed.map((t) => t.claimedAt));
+    const latest = Math.max(...completed.map((t) => t.completedAt));
+    return latest - earliest;
+  }, [tasks]);
+
+  // Signal counts for completion summary
+  const signalCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const s of signals) {
+      counts[s.signalType] = (counts[s.signalType] ?? 0) + 1;
+    }
+    return counts;
+  }, [signals]);
+
+  // Current task label for processing orb
+  const currentTaskLabel = useMemo(() => {
+    const TASK_LABELS: Record<string, string> = {
+      AUDIO_EXTRACT: 'Extracting audio',
+      VIDEO_SAMPLE: 'Sampling video frames',
+      CURSOR_PROCESS: 'Processing cursor data',
+      TYPING_DETECT: 'Detecting typing events',
+      SPEECH_TRANSCRIPTION: 'Transcribing speech',
+      VIDEO_UNDERSTANDING: 'Understanding video content',
+      UI_CHANGE_DETECT: 'Detecting UI changes',
+      INTERACTION_PATTERN: 'Analyzing interaction patterns',
+      INTENT_GRAPH: 'Building intent graph',
+      NARRATIVE_PLAN: 'Planning narrative structure',
+      EDIT_PLAN: 'Generating edit plan',
+      TIMELINE_BUILD: 'Building timeline',
+      RENDER: 'Rendering final video',
+    };
+    const claimed = tasks.find((t) => t.status === TaskStatus.CLAIMED);
+    if (!claimed) return undefined;
+    return TASK_LABELS[claimed.taskType] ?? claimed.taskType.replace(/_/g, ' ').toLowerCase();
+  }, [tasks]);
 
   const MAX_UPLOAD_BYTES = 5 * 1024 * 1024 * 1024;
 
@@ -143,7 +194,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         <div className="mb-6">
           <button
             onClick={() => router.push('/dashboard')}
-            className="flex items-center gap-1 text-sm mb-4"
+            className="flex items-center gap-1 text-sm mb-4 hover:opacity-80 transition-opacity"
             style={{ color: 'var(--color-primary)' }}
           >
             <ArrowLeft className="h-4 w-4" />
@@ -184,8 +235,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           ].map(({ label, value, icon: Icon }) => (
             <div
               key={label}
-              className="rounded-xl p-4 flex items-center gap-3"
-              style={{ backgroundColor: 'var(--color-surface)' }}
+              className="glass-card rounded-2xl p-4 flex items-center gap-3"
             >
               <Icon className="h-5 w-5" style={{ color: 'var(--color-primary)' }} />
               <div>
@@ -196,36 +246,69 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           ))}
         </div>
 
-        {/* Progress bar */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm" style={{ color: 'var(--color-muted)' }}>
-              Processing Progress
-            </span>
-            <span className="text-sm font-semibold">{progress}%</span>
-          </div>
-          <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--color-surface)' }}>
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${progress}%`, backgroundColor: 'var(--color-primary)' }}
+        {/* Completion Summary */}
+        {isReady && !summaryDismissed && (
+          <div className="mb-6">
+            <CompletionSummary
+              sourceDurationMs={videoStats.outputSeconds * 1000 + videoStats.secondsRemoved * 1000}
+              outputDurationMs={videoStats.outputSeconds * 1000}
+              editCount={videoStats.editCount}
+              processingTimeMs={processingTimeMs}
+              signalCounts={signalCounts}
+              onDismiss={() => setSummaryDismissed(true)}
+              onOpenStudio={() => router.push(`/project/${id}/studio`)}
+              onExport={() => {/* TODO: export */}}
             />
           </div>
-        </div>
+        )}
+
+        {/* Processing Orb or Progress bar */}
+        {isProcessing && (
+          <div className="mb-6 flex flex-col items-center py-6">
+            <ProcessingOrb
+              size="lg"
+              progress={progress}
+              label={currentTaskLabel}
+            />
+          </div>
+        )}
+
+        {!isProcessing && !isReady && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm" style={{ color: 'var(--color-muted)' }}>
+                Processing Progress
+              </span>
+              <span className="text-sm font-semibold">{progress}%</span>
+            </div>
+            <div className="h-2 rounded-full overflow-hidden glass-subtle">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${progress}%`,
+                  background: 'linear-gradient(90deg, #F5A623, #FBC96B)',
+                  boxShadow: '0 0 8px rgba(245, 166, 35, 0.3)',
+                }}
+              />
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--color-surface)' }}>
+          <div className="glass-card rounded-2xl p-4">
             <PipelineStatus tasks={tasks} />
           </div>
 
-          <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--color-surface)' }}>
+          <div className="glass-card rounded-2xl p-4">
             <h3 className="text-sm font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--color-muted)' }}>
               Upload
             </h3>
             <div
-              className="border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer"
+              className="border-2 border-dashed rounded-2xl p-8 text-center transition-all duration-200 cursor-pointer"
               style={{
-                borderColor: dragOver ? 'var(--color-primary)' : 'var(--color-muted)',
-                backgroundColor: dragOver ? 'var(--color-primary-bg)' : undefined,
+                borderColor: dragOver ? 'var(--color-primary)' : 'rgba(230, 225, 215, 0.6)',
+                backgroundColor: dragOver ? 'rgba(245, 166, 35, 0.06)' : 'rgba(255, 255, 255, 0.2)',
+                boxShadow: dragOver ? 'var(--glow-amber)' : 'none',
               }}
               onClick={() => {
                 if (!uploading && !uploadProgress) {
@@ -262,10 +345,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   />
                   <label
                     htmlFor="video-upload"
-                    className={`mt-3 inline-block px-4 py-2 rounded text-sm font-semibold ${
-                      uploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                    className={`mt-3 inline-block px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                      uploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover-glow-amber'
                     }`}
-                    style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-text)' }}
+                    style={{ background: 'linear-gradient(135deg, #F5A623, #E09420)', color: 'var(--color-text)' }}
                   >
                     {uploading ? 'Uploading...' : `Upload to ${BRANDING.name}`}
                   </label>
@@ -277,11 +360,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
         {/* Preview section */}
         {isReady && (
-          <div className="rounded-xl p-6 mt-6" style={{ backgroundColor: 'var(--color-surface)' }}>
+          <div className="glass-card rounded-2xl p-6 mt-6">
             <h3 className="text-lg font-semibold mb-4">Preview</h3>
             <div
-              className="aspect-video rounded-lg flex items-center justify-center mb-4"
-              style={{ backgroundColor: 'var(--color-background)' }}
+              className="aspect-video rounded-xl flex items-center justify-center mb-4"
+              style={{ background: 'linear-gradient(135deg, rgba(245,166,35,0.03) 0%, rgba(26,158,143,0.03) 100%)' }}
             >
               <Play className="h-16 w-16 opacity-50" style={{ color: 'var(--color-muted)' }} />
             </div>

@@ -17,14 +17,10 @@ const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'z-50 min-w-[8rem] overflow-hidden rounded-lg p-1 shadow-lg animate-in fade-in-0 zoom-in-95',
+        'z-50 min-w-[8rem] overflow-hidden rounded-xl p-1 shadow-lg animate-in fade-in-0 zoom-in-95 glass-strong',
         className
       )}
-      style={{
-        backgroundColor: 'var(--color-surface)',
-        color: 'var(--color-text)',
-        border: '1px solid var(--color-border)',
-      }}
+      style={{ color: 'var(--color-text)' }}
       {...props}
     />
   </DropdownMenuPrimitive.Portal>
@@ -40,7 +36,7 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none transition-colors focus:bg-black/5 data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'relative flex cursor-pointer select-none items-center gap-2 rounded-lg px-2 py-1.5 text-sm outline-none transition-colors hover:bg-white/40 focus:bg-white/40 data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       inset && 'pl-8',
       className
     )}
@@ -56,7 +52,7 @@ const DropdownMenuSeparator = React.forwardRef<
   <DropdownMenuPrimitive.Separator
     ref={ref}
     className={cn('-mx-1 my-1 h-px', className)}
-    style={{ backgroundColor: 'var(--color-border)' }}
+    style={{ background: 'linear-gradient(90deg, transparent 0%, var(--color-border) 20%, var(--color-border) 80%, transparent 100%)' }}
     {...props}
   />
 ));

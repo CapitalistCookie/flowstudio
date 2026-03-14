@@ -90,6 +90,18 @@ export interface ProjectMeta {
   updatedAt: number;
   ownerId: string;
   thumbnailUrl?: string;
+  starred: boolean;
+  folderId: string;
+}
+
+export interface FolderMeta {
+  id: string;
+  name: string;
+  ownerId: string;
+  color: string;
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
 // ─── UI ─────────────────────────────────────────────────────────────

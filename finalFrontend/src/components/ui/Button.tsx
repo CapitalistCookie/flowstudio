@@ -6,13 +6,13 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer',
   {
     variants: {
       variant: {
-        default: '',
-        outline: 'border',
-        ghost: '',
+        default: 'hover-glow-amber',
+        outline: 'border backdrop-blur-sm hover-glow-amber',
+        ghost: 'backdrop-blur-sm',
         destructive: '',
         link: 'underline-offset-4 hover:underline',
       },
@@ -42,13 +42,13 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variantStyles: Record<string, React.CSSProperties> = {
       default: {
-        backgroundColor: 'var(--color-primary)',
+        background: 'linear-gradient(135deg, #F5A623 0%, #E09420 100%)',
         color: 'var(--color-text)',
       },
       outline: {
-        borderColor: 'var(--color-muted)',
+        borderColor: 'rgba(230, 225, 215, 0.6)',
         color: 'var(--color-text)',
-        backgroundColor: 'transparent',
+        backgroundColor: 'rgba(255, 255, 255, 0.4)',
       },
       ghost: {
         color: 'var(--color-text)',
@@ -56,7 +56,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       },
       destructive: {
         backgroundColor: 'var(--color-error)',
-        color: 'var(--color-text)',
+        color: '#FFFFFF',
       },
       link: {
         color: 'var(--color-primary)',

@@ -7,7 +7,7 @@
 import type { StoreApi } from 'zustand';
 import type { ProjectStore } from '../stores/projectStore';
 import type { SignalStoreType } from '../stores/signalStore';
-import type { ProjectMeta, SignalEntry } from '../types';
+import type { ProjectMeta, FolderMeta, SignalEntry } from '../types';
 import type { Asset, Task, ProjectState } from '@flowstudio/shared';
 
 interface SyncConfig {
@@ -42,9 +42,31 @@ export function startSync(config: SyncConfig) {
           createdAt: r.createdAt as number,
           updatedAt: r.updatedAt as number,
           ownerId: r.ownerId as string,
+          starred: (r.starred as boolean) ?? false,
+          folderId: (r.folderId as string) ?? '',
         }));
         projectStore.getState().setProjects(projects);
         projectStore.getState().setLoading(false);
+      },
+      pollInterval
+    )
+  );
+
+  // Sync folders
+  unsubscribers.push(
+    connection.subscribeTable(
+      'folders',
+      (rows) => {
+        const folders: FolderMeta[] = rows.map((r) => ({
+          id: r.id as string,
+          name: r.name as string,
+          ownerId: r.ownerId as string,
+          color: r.color as string,
+          sortOrder: r.sortOrder as number,
+          createdAt: r.createdAt as number,
+          updatedAt: r.updatedAt as number,
+        }));
+        projectStore.getState().setFolders(folders);
       },
       pollInterval
     )

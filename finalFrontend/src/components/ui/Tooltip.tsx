@@ -17,14 +17,10 @@ const TooltipContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'z-50 overflow-hidden rounded-md px-3 py-1.5 text-xs animate-in fade-in-0 zoom-in-95',
+        'z-50 overflow-hidden rounded-xl px-3 py-1.5 text-xs animate-in fade-in-0 zoom-in-95 glass-strong',
         className
       )}
-      style={{
-        backgroundColor: 'var(--color-surface)',
-        color: 'var(--color-text)',
-        border: '1px solid var(--color-border)',
-      }}
+      style={{ color: 'var(--color-text)' }}
       {...props}
     />
   </TooltipPrimitive.Portal>

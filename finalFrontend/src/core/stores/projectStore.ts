@@ -1,5 +1,5 @@
 import { createStore } from 'zustand/vanilla';
-import type { ProjectMeta } from '../types';
+import type { ProjectMeta, FolderMeta } from '../types';
 import type { Asset, Task, ProjectState } from '@flowstudio/shared';
 
 export interface ProjectStoreState {
@@ -13,6 +13,10 @@ export interface ProjectStoreState {
   tasks: Task[];
   /** Project state (progress) for active project */
   projectState: ProjectState | null;
+  /** All folders */
+  folders: FolderMeta[];
+  /** Active folder ID for browsing (null = root) */
+  activeFolderId: string | null;
   /** Loading flags */
   loading: boolean;
   /** Error message */
@@ -29,6 +33,12 @@ export interface ProjectStoreActions {
   setError: (error: string | null) => void;
   updateProject: (id: string, patch: Partial<ProjectMeta>) => void;
   removeProject: (id: string) => void;
+  toggleStar: (id: string) => void;
+  setFolders: (folders: FolderMeta[]) => void;
+  setActiveFolderId: (id: string | null) => void;
+  addFolder: (folder: FolderMeta) => void;
+  removeFolder: (id: string) => void;
+  moveProjectToFolder: (projectId: string, folderId: string) => void;
 }
 
 export type ProjectStore = ProjectStoreState & ProjectStoreActions;
@@ -40,6 +50,8 @@ export const createProjectStore = () =>
     assets: [],
     tasks: [],
     projectState: null,
+    folders: [],
+    activeFolderId: null,
     loading: false,
     error: null,
 
@@ -63,5 +75,28 @@ export const createProjectStore = () =>
         ...(s.activeProjectId === id
           ? { assets: [], tasks: [], projectState: null }
           : {}),
+      })),
+
+    toggleStar: (id) =>
+      set((s) => ({
+        projects: s.projects.map((p) =>
+          p.id === id ? { ...p, starred: !p.starred } : p
+        ),
+      })),
+
+    setFolders: (folders) => set({ folders }),
+    setActiveFolderId: (id) => set({ activeFolderId: id }),
+    addFolder: (folder) =>
+      set((s) => ({ folders: [...s.folders, folder] })),
+    removeFolder: (id) =>
+      set((s) => ({
+        folders: s.folders.filter((f) => f.id !== id),
+        activeFolderId: s.activeFolderId === id ? null : s.activeFolderId,
+      })),
+    moveProjectToFolder: (projectId, folderId) =>
+      set((s) => ({
+        projects: s.projects.map((p) =>
+          p.id === projectId ? { ...p, folderId } : p
+        ),
       })),
   }));

@@ -49,27 +49,26 @@ export function ContextMenu({ items, children, className }: ContextMenuProps) {
       {open && (
         <div
           ref={menuRef}
-          className="fixed z-50 min-w-[160px] rounded-lg p-1 shadow-lg"
+          className="fixed z-50 min-w-[160px] rounded-xl p-1 shadow-lg glass-strong"
           style={{
             left: position.x,
             top: position.y,
-            backgroundColor: 'var(--color-surface)',
-            border: '1px solid var(--color-border)',
+            color: 'var(--color-text)',
           }}
         >
           {items.map((item, i) =>
             item.separator ? (
               <div
                 key={`sep-${i}`}
-                className="my-1 h-px"
-                style={{ backgroundColor: 'var(--color-border)' }}
+                className="my-1 h-px mx-1"
+                style={{ background: 'linear-gradient(90deg, transparent 0%, var(--color-border) 20%, var(--color-border) 80%, transparent 100%)' }}
               />
             ) : (
               <button
                 key={item.label || `sep-${i}`}
                 disabled={item.disabled}
                 className={cn(
-                  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-black/5',
+                  'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-white/40',
                   item.disabled && 'opacity-50'
                 )}
                 style={{

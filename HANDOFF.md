@@ -31,7 +31,7 @@ A complete TypeScript monorepo for an AI-powered video editing platform. Spaceti
 |---------|---------|
 | `@flowstudio/shared` | Types, enums, constants, branding, utils |
 | `@flowstudio/stdb-module` | SpacetimeDB tables + reducers (WASM module) |
-| `@flowstudio/client` | Next.js 15 dashboard + project view |
+| `@flowstudio/frontend` | Next.js 15 dashboard + project view |
 | `@flowstudio/worker-shared` | BaseWorker, GCS client, semaphore, logger |
 | `@flowstudio/worker-{name}` | 13 pipeline workers (see Pipeline below) |
 
@@ -240,7 +240,7 @@ Add these secrets to the repo:
 | All reducers | `packages/stdb-module/src/index.ts` (11 reducers) |
 | Worker base class | `packages/workers/shared/src/base-worker.ts` |
 | SpacetimeDB type stubs | `packages/stdb-module/src/spacetimedb-server.d.ts` |
-| Upload flow | `packages/client/src/app/project/[id]/page.tsx` |
+| Upload flow | `finalFrontend/src/app/project/[id]/page.tsx` |
 | Terraform entry | `infra/terraform/main.tf` |
 | Worker Dockerfile | `infra/docker/Dockerfile.worker` |
 | Deploy all script | `infra/scripts/deploy-all.sh` |
@@ -262,7 +262,7 @@ pnpm --filter @flowstudio/shared run build
 pnpm --filter @flowstudio/worker-shared run build
 
 # Run client locally
-pnpm --filter @flowstudio/client run dev
+pnpm --filter @flowstudio/frontend run dev
 
 # Validate Terraform
 cd infra/terraform && terraform validate
