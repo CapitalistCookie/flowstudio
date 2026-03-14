@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { StdbConnection, type StdbConfig } from './stdb.js';
+import { StdbConnection, type StdbConfig } from './stdb';
 import type { Project, Task } from '@flowstudio/shared';
 
 const STDB_CONFIG: StdbConfig = {

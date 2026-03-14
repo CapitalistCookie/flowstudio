@@ -20,7 +20,8 @@ export interface WorkerConfig {
   /** API Keys (optional, worker-specific) */
   deepgramApiKey?: string;
   googleAiApiKey?: string;
-  anthropicApiKey?: string;
+  vertexRegion?: string;
+  vertexProjectId?: string;
 
   /** LLM model overrides */
   anthropicModel?: string;
@@ -53,7 +54,8 @@ export function loadConfig(): WorkerConfig {
     healthPort: optionalInt('HEALTH_PORT', 8080),
     deepgramApiKey: optional('DEEPGRAM_API_KEY'),
     googleAiApiKey: optional('GOOGLE_AI_API_KEY'),
-    anthropicApiKey: optional('ANTHROPIC_API_KEY'),
+    vertexRegion: optional('VERTEX_REGION') ?? 'us-central1',
+    vertexProjectId: optional('VERTEX_PROJECT_ID') ?? optional('GCP_PROJECT_ID'),
     anthropicModel: optional('ANTHROPIC_MODEL') ?? 'claude-sonnet-4-20250514',
     googleAiModel: optional('GOOGLE_AI_MODEL') ?? 'gemini-1.5-flash',
   };

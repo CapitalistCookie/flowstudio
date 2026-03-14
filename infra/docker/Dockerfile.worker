@@ -1,4 +1,4 @@
-FROM node:20.18-slim AS base
+FROM node:20.18-slim
 
 # Install FFmpeg conditionally
 ARG NEEDS_FFMPEG=false
@@ -22,7 +22,7 @@ ARG WORKER_NAME
 COPY packages/workers/${WORKER_NAME}/ packages/workers/${WORKER_NAME}/
 
 # Install dependencies
-RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN npm install -g pnpm@9
 RUN pnpm install --frozen-lockfile --filter @flowstudio/shared --filter @flowstudio/worker-shared --filter @flowstudio/worker-${WORKER_NAME}
 
 # Build
@@ -30,27 +30,8 @@ RUN pnpm --filter @flowstudio/shared run build
 RUN pnpm --filter @flowstudio/worker-shared run build
 RUN pnpm --filter @flowstudio/worker-${WORKER_NAME} run build
 
-# Production stage
-FROM node:20.18-slim AS production
-
-ARG NEEDS_FFMPEG=false
-RUN if [ "$NEEDS_FFMPEG" = "true" ]; then \
-      apt-get update && apt-get install -y --no-install-recommends ffmpeg && \
-      rm -rf /var/lib/apt/lists/*; \
-    fi
-
-WORKDIR /app
-
-# Copy only what's needed for production
-COPY --from=base /app/node_modules ./node_modules
-COPY --from=base /app/packages/shared/dist ./packages/shared/dist
-COPY --from=base /app/packages/shared/package.json ./packages/shared/
-COPY --from=base /app/packages/workers/shared/dist ./packages/workers/shared/dist
-COPY --from=base /app/packages/workers/shared/package.json ./packages/workers/shared/
-ARG WORKER_NAME
-COPY --from=base /app/packages/workers/${WORKER_NAME}/dist ./packages/workers/${WORKER_NAME}/dist
-COPY --from=base /app/packages/workers/${WORKER_NAME}/package.json ./packages/workers/${WORKER_NAME}/
-COPY --from=base /app/package.json ./
+# Clean up source files (keep dist only)
+RUN rm -rf packages/shared/src packages/workers/shared/src packages/workers/${WORKER_NAME}/src
 
 ENV NODE_ENV=production
 ENV WORKER_NAME=${WORKER_NAME}

@@ -1,7 +1,7 @@
 'use client';
 
 import { BRANDING } from '@flowstudio/shared';
-import { useConnectionStatus } from '../lib/hooks.js';
+import { useConnectionStatus } from '../lib/hooks';
 
 export function Header() {
   const connected = useConnectionStatus();

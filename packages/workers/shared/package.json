@@ -17,10 +17,12 @@
   },
   "dependencies": {
     "@flowstudio/shared": "workspace:*",
-    "@google-cloud/storage": "7.16.0"
+    "@google-cloud/storage": "7.16.0",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@types/node": "22.15.3",
+    "@types/ws": "^8.18.1",
     "typescript": "5.7.3"
   }
 }

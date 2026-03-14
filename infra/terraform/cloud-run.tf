@@ -13,8 +13,9 @@ resource "google_storage_bucket_iam_member" "worker_gcs" {
 
 # Cloud Run service for the Next.js client
 resource "google_cloud_run_v2_service" "client" {
-  name     = "${var.project_prefix}-client"
-  location = var.region
+  name                = "${var.project_prefix}-client"
+  location            = var.region
+  deletion_protection = false
 
   template {
     containers {
@@ -83,14 +84,15 @@ locals {
   # API key requirements per worker
   deepgram_workers  = toset(["speech-transcription"])
   google_ai_workers = toset(["video-understanding"])
-  anthropic_workers = toset(["intent-graph", "narrative-planner", "edit-planner"])
+  vertex_workers = toset(["intent-graph", "narrative-planner", "edit-planner"])
 }
 
 resource "google_cloud_run_v2_service" "workers" {
   for_each = toset(local.workers)
 
-  name     = "${var.project_prefix}-${each.key}"
-  location = var.region
+  name                = "${var.project_prefix}-${each.key}"
+  location            = var.region
+  deletion_protection = false
 
   template {
     service_account = google_service_account.worker.email
@@ -156,15 +158,10 @@ resource "google_cloud_run_v2_service" "workers" {
       }
 
       dynamic "env" {
-        for_each = contains(local.anthropic_workers, each.key) ? [1] : []
+        for_each = contains(local.vertex_workers, each.key) ? [1] : []
         content {
-          name = "ANTHROPIC_API_KEY"
-          value_source {
-            secret_key_ref {
-              secret  = google_secret_manager_secret.anthropic_api_key.secret_id
-              version = "latest"
-            }
-          }
+          name  = "VERTEX_REGION"
+          value = "us-central1"
         }
       }
 

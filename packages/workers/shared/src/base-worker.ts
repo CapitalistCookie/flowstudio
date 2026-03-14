@@ -73,12 +73,18 @@ export abstract class BaseWorker {
       pollInterval: this.config.pollIntervalMs,
     });
 
-    // Start health server
+    // Start health server first (must respond before stdb connects)
     startHealthServer(this.config.healthPort, () => this.getHealthStatus(), this.logger);
 
-    // Register worker config
-    await this.stdb.connect();
-    await this.registerWorker();
+    // Connect to SpacetimeDB (non-fatal — retry in background if unavailable)
+    try {
+      await this.stdb.connect();
+      await this.registerWorker();
+    } catch (err) {
+      this.logger.warn('SpacetimeDB not available, will retry in background', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
 
     // Subscribe to task table for claimed task discovery
     this.stdb.onTableUpdate('tasks', (update) => {
@@ -247,7 +253,7 @@ export abstract class BaseWorker {
 
   private getHealthStatus(): HealthStatus {
     return {
-      healthy: this.running && this.stdb.isConnected,
+      healthy: this.running,
       workerName: this.config.workerName,
       workerId: this.config.workerId,
       activeTasks: this.activeTasks,

@@ -18,6 +18,8 @@ resource "google_vpc_access_connector" "main" {
   region        = var.region
   ip_cidr_range = "10.8.0.0/28"
   network       = google_compute_network.main.name
+  min_throughput = 200
+  max_throughput = 300
 }
 
 # Firewall: allow internal traffic

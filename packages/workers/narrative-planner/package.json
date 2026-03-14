@@ -11,7 +11,7 @@
   "dependencies": {
     "@flowstudio/shared": "workspace:*",
     "@flowstudio/worker-shared": "workspace:*",
-    "@anthropic-ai/sdk": "0.39.0"
+    "@anthropic-ai/vertex-sdk": "^0.6.0"
   },
   "devDependencies": {
     "@types/node": "22.15.3",

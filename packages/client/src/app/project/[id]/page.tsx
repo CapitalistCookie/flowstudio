@@ -2,9 +2,9 @@
 
 import { use, useState, useCallback } from 'react';
 import { BRANDING, INITIAL_TASK_TYPES } from '@flowstudio/shared';
-import { Header } from '../../../components/Header.js';
-import { PipelineStatus } from '../../../components/PipelineStatus.js';
-import { useProjectTasks, useReducer } from '../../../lib/hooks.js';
+import { Header } from '../../../components/Header';
+import { PipelineStatus } from '../../../components/PipelineStatus';
+import { useProjectTasks, useReducer } from '../../../lib/hooks';
 
 interface ProjectPageProps {
   params: Promise<{ id: string }>;

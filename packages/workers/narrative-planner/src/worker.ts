@@ -1,6 +1,6 @@
 import { TaskType, SignalType } from '@flowstudio/shared';
 import { BaseWorker, type TaskData, type TaskResult } from '@flowstudio/worker-shared';
-import Anthropic from '@anthropic-ai/sdk';
+import { AnthropicVertex } from '@anthropic-ai/vertex-sdk';
 
 function extractJsonArray(text: string): string | null {
   const start = text.indexOf('[');
@@ -18,9 +18,10 @@ export class NarrativePlannerWorker extends BaseWorker {
   readonly taskType = TaskType.NARRATIVE_PLAN;
 
   async processTask(task: TaskData): Promise<TaskResult> {
-    if (!this.config.anthropicApiKey) throw new Error('ANTHROPIC_API_KEY not configured');
-
-    const anthropic = new Anthropic({ apiKey: this.config.anthropicApiKey });
+    const anthropic = new AnthropicVertex({
+      region: this.config.vertexRegion ?? 'us-central1',
+      projectId: this.config.vertexProjectId ?? this.config.gcsProjectId,
+    });
 
     // Download intent graph
     const graphPath = `projects/${task.projectId}/signals/intent_graph.json`;

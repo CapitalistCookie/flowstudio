@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { BRANDING } from '@flowstudio/shared';
-import { useReducer } from '../lib/hooks.js';
+import { useReducer } from '../lib/hooks';
 
 interface CreateProjectDialogProps {
   open: boolean;

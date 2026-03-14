@@ -97,9 +97,9 @@ importers:
 
   packages/workers/edit-planner:
     dependencies:
-      '@anthropic-ai/sdk':
-        specifier: 0.39.0
-        version: 0.39.0
+      '@anthropic-ai/vertex-sdk':
+        specifier: ^0.6.0
+        version: 0.6.4
       '@flowstudio/shared':
         specifier: workspace:*
         version: link:../../shared
@@ -116,9 +116,9 @@ importers:
 
   packages/workers/intent-graph:
     dependencies:
-      '@anthropic-ai/sdk':
-        specifier: 0.39.0
-        version: 0.39.0
+      '@anthropic-ai/vertex-sdk':
+        specifier: ^0.6.0
+        version: 0.6.4
       '@flowstudio/shared':
         specifier: workspace:*
         version: link:../../shared
@@ -151,9 +151,9 @@ importers:
 
   packages/workers/narrative-planner:
     dependencies:
-      '@anthropic-ai/sdk':
-        specifier: 0.39.0
-        version: 0.39.0
+      '@anthropic-ai/vertex-sdk':
+        specifier: ^0.6.0
+        version: 0.6.4
       '@flowstudio/shared':
         specifier: workspace:*
         version: link:../../shared
@@ -198,10 +198,16 @@ importers:
       '@google-cloud/storage':
         specifier: 7.16.0
         version: 7.16.0
+      ws:
+        specifier: ^8.19.0
+        version: 8.19.0
     devDependencies:
       '@types/node':
         specifier: 22.15.3
         version: 22.15.3
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
       typescript:
         specifier: 5.7.3
         version: 5.7.3
@@ -328,6 +334,9 @@ packages:
 
   '@anthropic-ai/sdk@0.39.0':
     resolution: {integrity: sha512-eMyDIPRZbt1CCLErRCi3exlAvNkBtRe+kW5vvJyef93PmNr/clstYgHhtvmkxN82nlKgzyGPCyGxrm0JQ1ZIdg==}
+
+  '@anthropic-ai/vertex-sdk@0.6.4':
+    resolution: {integrity: sha512-rMBlO2jF53TfMRmsQMm1bPO2JRUh4jYddjq/OJLj8DSAkfbCrNWhc0yhDed6oLYJg5s+VpDbvlPzMggqHhTfMw==}
 
   '@deepgram/captions@1.2.0':
     resolution: {integrity: sha512-8B1C/oTxTxyHlSFubAhNRgCbQ2SQ5wwvtlByn8sDYZvdDtdn/VE2yEPZ4BvUnrKWmsbTQY6/ooLV+9Ka2qmDSQ==}
@@ -819,6 +828,9 @@ packages:
 
   '@types/tough-cookie@4.0.5':
     resolution: {integrity: sha512-/Ad8+nIOV7Rl++6f1BdKxFSMgmoqEoYbHRpPcx3JEfv8VRsQe9Z4mCXeJBzxs7mbHY/XOZZuXlRNfhpVPbs6ZA==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
   abort-controller@3.0.0:
     resolution: {integrity: sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==}
@@ -1392,6 +1404,14 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
+  '@anthropic-ai/vertex-sdk@0.6.4':
+    dependencies:
+      '@anthropic-ai/sdk': 0.39.0
+      google-auth-library: 9.15.1
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
+
   '@deepgram/captions@1.2.0':
     dependencies:
       dayjs: 1.11.20
@@ -1784,6 +1804,10 @@ snapshots:
       form-data: 2.5.5
 
   '@types/tough-cookie@4.0.5': {}
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 22.15.3
 
   abort-controller@3.0.0:
     dependencies:

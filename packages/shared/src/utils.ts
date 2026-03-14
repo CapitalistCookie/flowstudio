@@ -1,8 +1,6 @@
-import { randomUUID } from 'node:crypto';
-
 /** Generate a unique ID */
 export function generateId(): string {
-  return randomUUID();
+  return crypto.randomUUID();
 }
 
 /** Current Unix timestamp in milliseconds */

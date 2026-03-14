@@ -1,3 +1,4 @@
+import WebSocket from 'ws';
 import { Logger } from './logger.js';
 
 export interface StdbClientConfig {

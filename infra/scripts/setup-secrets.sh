@@ -15,7 +15,4 @@ echo -n "$DEEPGRAM_KEY" | gcloud secrets versions add "${PREFIX}-deepgram-api-ke
 read -sp "Google AI API Key: " GOOGLE_KEY; echo
 echo -n "$GOOGLE_KEY" | gcloud secrets versions add "${PREFIX}-google-ai-api-key" --data-file=-
 
-read -sp "Anthropic API Key: " ANTHROPIC_KEY; echo
-echo -n "$ANTHROPIC_KEY" | gcloud secrets versions add "${PREFIX}-anthropic-api-key" --data-file=-
-
 echo "All secrets stored."
