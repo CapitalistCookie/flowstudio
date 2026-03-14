@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { ArrowLeft, Save, Loader2, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -34,6 +34,26 @@ function EditorContent({ projectId }: { projectId: string }) {
   const nameInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const { setProjectId, setProjectResolution, loadTimelineData, saveProject, isSaving, hasUnsavedChanges, isPlaying, setIsPlaying, sortedVideoClips, currentTime, setCurrentTime, timelineEndTime, activeClip, splitClip, selectedClipId, removeClip, undo, redo, canUndo, canRedo, copyClip, pasteClip, canPaste } = useEditor()
+  const searchParams = useSearchParams()
+
+  // Handle direct export action from recording
+  useEffect(() => {
+    if (searchParams.get("action") === "export" && !isLoading && project) {
+      setShowExportModal(true)
+    }
+  }, [searchParams, isLoading, !!project])
+
+  // Exit guard for unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        e.returnValue = ""
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [hasUnsavedChanges])
 
   useEffect(() => {
     async function loadProject() {

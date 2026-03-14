@@ -1,5 +1,6 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { useState, useRef, useCallback, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Download, Loader2, Check, AlertCircle, Film } from "lucide-react"
@@ -86,7 +87,7 @@ type VideoFrameCallbackMetadata = {
 
 export function ExportModal({ open, onOpenChange }: ExportModalProps) {
   const { sortedVideoClips, mediaFiles } = useEditor()
-
+  const router = useRouter()
   const [format, setFormat] = useState<ExportFormat>("webm")
   const [quality, setQuality] = useState<ExportQuality>("medium")
   const [isExporting, setIsExporting] = useState(false)
@@ -839,6 +840,19 @@ export function ExportModal({ open, onOpenChange }: ExportModalProps) {
           >
             {isExporting ? "Cancel" : "Close"}
           </motion.button>
+          
+          {success && (
+            <motion.button
+              onClick={() => router.push("/dashboard")}
+              className="px-4 py-2 rounded-md text-sm font-medium bg-white text-black hover:bg-[#F5A623] transition-colors cursor-pointer flex items-center gap-2"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 400, damping: 17 }}
+            >
+              Back to Dashboard
+            </motion.button>
+          )}
+
           {hasClips && !success && (
             <motion.button
               onClick={handleExport}
