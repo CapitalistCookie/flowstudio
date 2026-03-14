@@ -60,6 +60,13 @@ export function RecordView() {
     router.push("/studio")
   }
 
+  const handleExportDirectly = () => {
+    // Logic to trigger export directly from recording
+    setShowPreviewModal(false)
+    // For now, we'll route to studio with a query param to trigger export
+    router.push("/studio?action=export")
+  }
+
   return (
     <>
       <div className="relative flex h-screen w-screen flex-col overflow-hidden">
@@ -247,13 +254,23 @@ export function RecordView() {
                   <h3 className="text-xl font-semibold text-[#1A1916]">Recording Complete</h3>
                   <p className="text-sm text-[#8A8780] mt-1">Preview your recording before moving to the studio</p>
                 </div>
-                <Button
-                  size="lg"
-                  onClick={handleContinueToStudio}
-                  className="bg-[#F5A623] hover:bg-[#E09420] text-[#1A1916]"
-                >
-                  Continue to Studio
-                </Button>
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={handleExportDirectly}
+                    className="border-border hover:bg-secondary text-foreground"
+                  >
+                    Direct Export
+                  </Button>
+                  <Button
+                    size="lg"
+                    onClick={handleContinueToStudio}
+                    className="bg-[#F5A623] hover:bg-[#E09420] text-[#1A1916] shadow-lg shadow-[#F5A623]/20"
+                  >
+                    Go to Studio
+                  </Button>
+                </div>
               </div>
             </motion.div>
           </motion.div>

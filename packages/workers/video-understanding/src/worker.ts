@@ -1,18 +1,6 @@
-import { TaskType, SignalType } from '@flowstudio/shared';
+import { TaskType, SignalType, extractJsonArray } from '@flowstudio/shared';
 import { BaseWorker, type TaskData, type TaskResult } from '@flowstudio/worker-shared';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-
-function extractJsonArray(text: string): string | null {
-  const start = text.indexOf('[');
-  if (start === -1) return null;
-  let depth = 0;
-  for (let i = start; i < text.length; i++) {
-    if (text[i] === '[') depth++;
-    else if (text[i] === ']') depth--;
-    if (depth === 0) return text.slice(start, i + 1);
-  }
-  return null;
-}
 
 /** How many frames to analyze per batch */
 const FRAMES_PER_BATCH = 4;

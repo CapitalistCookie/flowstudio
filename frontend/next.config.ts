@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "export",
+  // SSR mode required for Clerk auth middleware
   images: {
     unoptimized: true,
   },

@@ -1,0 +1,9 @@
+railtracks[cli]
+fastapi[standard]
+uvicorn[standard]
+google-cloud-storage
+pydantic>=2.0.0
+python-dotenv
+httpx
+pytest
+pytest-asyncio
