@@ -13,12 +13,15 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { callReducer, isConnected } from './stdbConnection';
+import { forceSync } from '../core/services/stdbSdkSync';
 
 /** Hook: call a SpacetimeDB reducer by name. */
 export function useStdbReducer() {
   const call = useCallback(
     async (name: string, args: Record<string, unknown>) => {
       await callReducer(name, args);
+      // Force immediate sync for UI responsiveness
+      await forceSync();
     },
     [],
   );

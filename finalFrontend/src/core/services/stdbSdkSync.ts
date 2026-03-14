@@ -23,6 +23,7 @@ interface SyncConfig {
 }
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+let syncFn: (() => Promise<void>) | null = null;
 
 export function startSdkSync(config: SyncConfig) {
   const { projectStore, signalStore, pollInterval = 3000 } = config;
@@ -60,45 +61,49 @@ export function startSdkSync(config: SyncConfig) {
       // ── Scope-filtered queries (active project) ────────────────────
       const activeId = projectStore.getState().activeProjectId;
 
-      // Sync assets
-      const assetRows = await queryTable('assets');
       if (activeId) {
+        // Sync assets
+        const assetRows = await queryTable('assets');
         const assets = (assetRows as unknown as Asset[]).filter(
           (a) => a.projectId === activeId,
         );
         projectStore.getState().setAssets(assets);
-      }
 
-      // Sync tasks
-      const taskRows = await queryTable('tasks');
-      if (activeId) {
+        // Sync tasks
+        const taskRows = await queryTable('tasks');
         const tasks = (taskRows as unknown as Task[]).filter(
           (t) => t.projectId === activeId,
         );
         projectStore.getState().setTasks(tasks);
-      }
 
-      // project_state is PRIVATE (Phase 2) — set to null
-      projectStore.getState().setProjectState(null);
-
-      // Sync signals
-      const signalRows = await queryTable('signals');
-      if (activeId) {
+        // Sync signals
+        const signalRows = await queryTable('signals');
         const signals = (signalRows as unknown as SignalEntry[]).filter(
           (s) => s.projectId === activeId,
         );
         signalStore.getState().setSignals(signals);
       }
+
+      // project_state is PRIVATE (Phase 2) — set to null
+      projectStore.getState().setProjectState(null);
     } catch (err) {
       console.error('[SdkSync] Poll failed:', err);
     }
   };
+
+  // Store sync function for external calls
+  syncFn = sync;
 
   // Initial sync
   sync();
 
   // Periodic poll
   pollTimer = setInterval(sync, pollInterval);
+}
+
+/** Force an immediate sync (called after mutations for UI responsiveness) */
+export async function forceSync() {
+  if (syncFn) await syncFn();
 }
 
 export function stopSdkSync() {

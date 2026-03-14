@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Toaster, toast } from 'sonner';
 import {
   StoreContext,
@@ -16,8 +16,6 @@ import { initConnection, disconnect } from '../lib/stdbConnection';
 import { startSdkSync, stopSdkSync } from '../core/services/stdbSdkSync';
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [connected, setConnected] = useState(false);
-
   useEffect(() => {
     // Wire notifications -> sonner
     const unsubNotifs = subscribeNotifications((notification) => {
@@ -41,10 +39,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     startListening();
 
     // Connect to SpacetimeDB and start store sync
-    initConnection(
-      () => setConnected(true),
-      () => setConnected(false),
-    )
+    initConnection()
       .then(() => {
         startSdkSync({ projectStore, signalStore, pollInterval: 3000 });
       })
