@@ -1,0 +1,239 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* FluxStudio — warm cinematic light studio */
+  --background: #F5F2ED;
+  --foreground: #1A1916;
+  --card: #FFFFFF;
+  --card-foreground: #1A1916;
+  --popover: #FFFFFF;
+  --popover-foreground: #1A1916;
+  --primary: #F5A623;
+  --primary-foreground: #1A1916;
+  --secondary: #EDE9E2;
+  --secondary-foreground: #1A1916;
+  --muted: #EDE9E2;
+  --muted-foreground: #8A8780;
+  --accent: #F5A623;
+  --accent-foreground: #1A1916;
+  --destructive: #DC2626;
+  --destructive-foreground: #FFFFFF;
+  --border: #E5E1D8;
+  --input: #EDEAE4;
+  --ring: #F5A623;
+  --radius: 0.5rem;
+
+  /* Sidebar */
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #1A1916;
+  --sidebar-primary: #F5A623;
+  --sidebar-primary-foreground: #1A1916;
+  --sidebar-accent: #EDE9E2;
+  --sidebar-accent-foreground: #1A1916;
+  --sidebar-border: #E5E1D8;
+  --sidebar-ring: #F5A623;
+
+  /* FluxStudio brand tokens */
+  --flux-amber: #F5A623;
+  --flux-amber-muted: #8C5E14;
+  --flux-teal: #1A9E8F;
+  --flux-charcoal: #1A1916;
+  --flux-surface: #2E2C29;
+  --flux-offwhite: #F0EDE8;
+  --flux-secondary-text: #8A8780;
+  --flux-tertiary-text: #56544F;
+  --flux-amber-glow: rgba(245, 166, 35, 0.08);
+  --flux-teal-glow: rgba(26, 158, 143, 0.08);
+}
+
+@theme inline {
+  --font-sans: var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), "JetBrains Mono", monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "ss01", "ss02", "cv01", "cv02";
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply tracking-tight;
+  }
+
+  /* Warm studio scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #D6D1C9;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #C4BEB5;
+  }
+}
+
+/* Studio-specific thin scrollbar */
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #D6D1C9;
+    border-radius: 2px;
+  }
+}
+
+/* ── FluxStudio Animations ── */
+@keyframes pulse-amber {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(245,166,35,0.4); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 5px rgba(245,166,35,0); }
+}
+
+@keyframes recording-ring {
+  0% { transform: scale(1); opacity: 0.7; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+@keyframes float-up {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes scroll-x {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes fade-in-up {
+  0% { opacity: 0; transform: translateY(14px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.animate-pulse-amber { animation: pulse-amber 2s ease-in-out infinite; }
+.animate-recording-ring { animation: recording-ring 1.5s ease-out infinite; }
+.animate-float { animation: float-up 4s ease-in-out infinite; }
+.animate-scroll { animation: scroll-x 30s linear infinite; }
+.animate-fade-in-up { animation: fade-in-up 0.6s ease-out forwards; }
+
+/* ── Noise / Grain texture ── */
+.grain-overlay::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.022;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 200px 200px;
+}
+
+/* ── Subtle grid ── */
+.grid-texture {
+  background-image:
+    linear-gradient(to right, rgba(26,25,22,0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(26,25,22,0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* ── Splash image fade top ── */
+.splash-fade-top {
+  position: relative;
+}
+.splash-fade-top::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 45%;
+  background: linear-gradient(to bottom, #F5F2ED 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ── Studio amber/teal hover cards ── */
+.card-amber-hover {
+  transition: border-color 180ms, box-shadow 180ms;
+}
+.card-amber-hover:hover {
+  border-color: rgba(245,166,35,0.35);
+  box-shadow: 0 0 0 3px rgba(245,166,35,0.06), 0 2px 12px rgba(245,166,35,0.08);
+}
+.card-teal-hover {
+  transition: border-color 180ms, box-shadow 180ms;
+}
+.card-teal-hover:hover {
+  border-color: rgba(26,158,143,0.3);
+  box-shadow: 0 0 0 3px rgba(26,158,143,0.05);
+}
+
+/* ── Timeline segment tokens ── */
+.timeline-video-seg {
+  background: rgba(245,166,35,0.10);
+  border: 1px solid rgba(245,166,35,0.30);
+}
+.timeline-effect-seg {
+  background: rgba(26,158,143,0.09);
+  border: 1px solid rgba(26,158,143,0.28);
+}
+.timeline-caption-seg {
+  background: rgba(138,135,128,0.07);
+  border: 1px solid rgba(138,135,128,0.22);
+}
+
+/* ── Recording indicator ── */
+.rec-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #DC2626;
+}

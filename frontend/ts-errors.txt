@@ -1,0 +1,15 @@
+﻿components/auto-enhance-modal.tsx(91,25): error TS2339: Property 'mediaName' does not exist on type '{ start: number; end: number; score: number; }'.
+components/auto-enhance-modal.tsx(180,58): error TS2339: Property 'mediaName' does not exist on type '{ start: number; end: number; score: number; }'.
+components/inspector-panel.tsx(7,31): error TS2307: Cannot find module '@/lib/agent/use-agent' or its corresponding type declarations.
+components/inspector-panel.tsx(288,24): error TS7006: Parameter 'message' implicitly has an 'any' type.
+components/inspector-panel.tsx(288,33): error TS7006: Parameter 'i' implicitly has an 'any' type.
+components/inspector-panel.tsx(320,46): error TS7006: Parameter 'tc' implicitly has an 'any' type.
+components/inspector-panel.tsx(320,50): error TS7006: Parameter 'tcIndex' implicitly has an 'any' type.
+components/projects-dashboard.tsx(15,15): error TS2305: Module '"@/lib/types"' has no exported member 'Project'.
+lib/mock-data.ts(1,15): error TS2305: Module '"./types"' has no exported member 'Project'.
+lib/mock-data.ts(1,24): error TS2305: Module '"./types"' has no exported member 'MediaAsset'.
+lib/mock-data.ts(1,36): error TS2305: Module '"./types"' has no exported member 'TimelineTrack'.
+lib/mock-data.ts(1,51): error TS2305: Module '"./types"' has no exported member 'IntentStream'.
+lib/stores/editor-store.ts(2,15): error TS2305: Module '"../types"' has no exported member 'TimelineTrack'.
+lib/stores/project-store.ts(2,15): error TS2305: Module '"../types"' has no exported member 'Project'.
+lib/stores/recording-store.ts(2,15): error TS2305: Module '"../types"' has no exported member 'IntentStream'.
