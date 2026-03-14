@@ -1226,7 +1226,7 @@ grep -rn 'signals/' packages/workers/ --include='*.ts'
 
 ### 6a. SpacetimeDB Connection
 
-**Source:** `/home/user/FlowStudio/packages/client/src/lib/stdb.ts`
+**Source:** `/home/user/FlowStudio/finalFrontend/src/lib/stdb.ts`
 
 **Single global connection pattern:** A module-level variable `globalConnection` holds the
 single `StdbConnection` instance. The `getConnection()` function lazily creates and
@@ -1261,7 +1261,7 @@ reconnect attempts. On intentional disconnect, the timer is cleared.
 
 **No external state library.** All state comes from SpacetimeDB subscriptions.
 
-**Hook:** `useProjects()` (`/home/user/FlowStudio/packages/client/src/lib/hooks.ts:23`)
+**Hook:** `useProjects()` (`/home/user/FlowStudio/finalFrontend/src/lib/hooks.ts:23`)
 - Subscribes to `projects` table updates.
 - Replaces entire project list on each update (SpacetimeDB sends full table snapshots).
 - 10-second timeout sets error state if no data arrives.
@@ -1286,7 +1286,7 @@ dispatches to registered `TableUpdateCallback` --> React `useState` setter --> r
 
 ### 6c. Upload Flow
 
-**Source:** `/home/user/FlowStudio/packages/client/src/app/project/[id]/page.tsx`
+**Source:** `/home/user/FlowStudio/finalFrontend/src/app/project/[id]/page.tsx`
 
 Step-by-step sequence:
 

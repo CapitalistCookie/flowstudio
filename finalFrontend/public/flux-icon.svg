@@ -1,0 +1,23 @@
+<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="orb-core" cx="40%" cy="38%" r="50%">
+      <stop offset="0%" stop-color="#FBC96B" />
+      <stop offset="45%" stop-color="#F5A623" />
+      <stop offset="85%" stop-color="#D4870A" />
+      <stop offset="100%" stop-color="#B87108" />
+    </radialGradient>
+    <radialGradient id="orb-highlight" cx="35%" cy="30%" r="35%">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.6)" />
+      <stop offset="50%" stop-color="rgba(255,255,255,0.15)" />
+      <stop offset="100%" stop-color="rgba(255,255,255,0)" />
+    </radialGradient>
+    <radialGradient id="orb-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="60%" stop-color="rgba(245,166,35,0)" />
+      <stop offset="100%" stop-color="rgba(245,166,35,0.12)" />
+    </radialGradient>
+  </defs>
+  <circle cx="24" cy="24" r="22" fill="url(#orb-glow)" />
+  <circle cx="24" cy="24" r="16" fill="url(#orb-core)" />
+  <circle cx="24" cy="24" r="16" fill="url(#orb-highlight)" />
+  <ellipse cx="20" cy="19" rx="7" ry="5" fill="rgba(255,255,255,0.2)" transform="rotate(-15 20 19)" />
+</svg>

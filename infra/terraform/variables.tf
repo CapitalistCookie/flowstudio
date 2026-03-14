@@ -17,9 +17,9 @@ variable "zone" {
 }
 
 variable "stdb_domain" {
-  description = "Domain for SpacetimeDB"
+  description = "Domain for SpacetimeDB (via proxy)"
   type        = string
-  default     = "stdb.flowstudio.ai"
+  default     = "flowstudio-stdb-proxy-s2vq7emwcq-uk.a.run.app"
 }
 
 variable "project_prefix" {
@@ -41,7 +41,7 @@ variable "certbot_email" {
 }
 
 variable "upload_function_url" {
-  description = "URL of the Cloud Function for generating signed upload URLs"
+  description = "URL of the Cloud Run service for generating signed upload URLs"
   type        = string
-  default     = ""
+  default     = "https://flowstudio-generate-upload-url-s2vq7emwcq-uk.a.run.app"
 }

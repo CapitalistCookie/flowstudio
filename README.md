@@ -169,7 +169,7 @@ FlowStudio/
 │   │   └── src/
 │   │       ├── index.ts                    # All tables, reducers, watchdog, task chaining logic
 │   │       └── spacetimedb-server.d.ts     # Type stubs for spacetimedb/server runtime
-│   ├── client/                             # @flowstudio/client — Next.js 15 frontend
+│   ├── finalFrontend/                      # @flowstudio/frontend — Next.js 15 frontend (production)
 │   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   └── src/
@@ -260,7 +260,7 @@ pnpm --filter @flowstudio/worker-shared run build
 ### Run the Client Locally
 
 ```bash
-pnpm --filter @flowstudio/client run dev
+pnpm --filter @flowstudio/frontend run dev
 ```
 
 The client starts at `http://localhost:3000`. It requires a running SpacetimeDB instance (local or remote) to function. Set `NEXT_PUBLIC_STDB_HOST` to `ws://localhost:3000` for local development.
@@ -319,9 +319,9 @@ This is the CI gate. Zero errors required before merge.
 
 ---
 
-### `@flowstudio/client`
+### `@flowstudio/frontend`
 
-**Path:** `packages/client/`
+**Path:** `finalFrontend/`
 **Purpose:** Next.js 15 frontend dashboard for creating projects, uploading videos, and monitoring pipeline progress in real time.
 
 **Key Exports:** None (standalone application).
@@ -330,8 +330,8 @@ This is the CI gate. Zero errors required before merge.
 - `@flowstudio/shared` (workspace)
 - `next` 15.3.2, `react` 19.1.0, `tailwindcss` 4.1.4
 
-**Build:** `pnpm --filter @flowstudio/client run build`
-**Dev:** `pnpm --filter @flowstudio/client run dev`
+**Build:** `pnpm --filter @flowstudio/frontend run build`
+**Dev:** `pnpm --filter @flowstudio/frontend run dev`
 
 ---
 
@@ -631,7 +631,7 @@ Methods: `upload(path, data, contentType)`, `download(path)`, `exists(path)`, `g
 
 ### 6c. Frontend
 
-**File:** `packages/client/`
+**File:** `finalFrontend/`
 
 #### Pages and Routing
 
@@ -642,7 +642,7 @@ Methods: `upload(path, data, contentType)`, `download(path)`, `exists(path)`, `g
 
 #### SpacetimeDB Connection Management
 
-File: `packages/client/src/lib/stdb.ts`
+File: `finalFrontend/src/lib/stdb.ts`
 
 A singleton `StdbConnection` manages the WebSocket connection. It connects to `{NEXT_PUBLIC_STDB_HOST}/database/subscribe/{module}` for real-time table subscriptions, and uses HTTP POST to `{host}/database/call/{module}/{reducer}` for reducer calls.
 
@@ -652,7 +652,7 @@ A singleton `StdbConnection` manages the WebSocket connection. It connects to `{
 
 #### Hooks
 
-File: `packages/client/src/lib/hooks.ts`
+File: `finalFrontend/src/lib/hooks.ts`
 
 | Hook | Returns | Description |
 |------|---------|-------------|
@@ -901,7 +901,7 @@ pnpm --filter @flowstudio/shared run build
 pnpm --filter @flowstudio/worker-shared run build
 
 # 4. Run the client
-pnpm --filter @flowstudio/client run dev
+pnpm --filter @flowstudio/frontend run dev
 ```
 
 ### Typecheck the Entire Monorepo
@@ -924,7 +924,7 @@ pnpm --filter @flowstudio/worker-shared run build
 ### Run the Client Locally
 
 ```bash
-pnpm --filter @flowstudio/client run dev
+pnpm --filter @flowstudio/frontend run dev
 ```
 
 Requires `NEXT_PUBLIC_STDB_HOST` and `NEXT_PUBLIC_STDB_MODULE` to be set. For local development, point to a local SpacetimeDB instance at `ws://localhost:3000`.

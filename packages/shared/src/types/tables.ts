@@ -9,6 +9,19 @@ export interface Project {
   updatedAt: number;
   ownerId: string;
   metadata: string;      // JSON string
+  starred: boolean;
+  folderId: string;      // empty string = ungrouped
+}
+
+/** SpacetimeDB: folders table */
+export interface Folder {
+  id: string;
+  name: string;
+  ownerId: string;
+  color: string;
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
 /** SpacetimeDB: assets table */
