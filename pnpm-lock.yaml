@@ -44,6 +44,9 @@ importers:
 
   packages/shared:
     devDependencies:
+      '@types/node':
+        specifier: '22'
+        version: 22.15.3
       typescript:
         specifier: 5.7.3
         version: 5.7.3

@@ -1,1 +1,89 @@
-export {};
+import { TaskType, SignalType } from '@flowstudio/shared';
+import { BaseWorker, type TaskData, type TaskResult } from '@flowstudio/worker-shared';
+import Anthropic from '@anthropic-ai/sdk';
+
+export class EditPlannerWorker extends BaseWorker {
+  readonly taskType = TaskType.EDIT_PLAN;
+
+  async processTask(task: TaskData): Promise<TaskResult> {
+    if (!this.config.anthropicApiKey) throw new Error('ANTHROPIC_API_KEY not configured');
+
+    const anthropic = new Anthropic({ apiKey: this.config.anthropicApiKey });
+
+    const narrativePath = `projects/${task.projectId}/signals/narrative_plan.json`;
+    const narrativeData = await this.gcs.download(narrativePath);
+    const beats: unknown = JSON.parse(narrativeData.toString('utf-8'));
+
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      messages: [{
+        role: 'user',
+        content: `You are a professional video editor. Convert these narrative beats into specific edit decisions.
+
+Narrative beats:
+${JSON.stringify(beats, null, 2)}
+
+For each beat, decide specific edits:
+- Cut points (where to start/end clips)
+- Speed changes (speedup boring parts, slow important parts)
+- Zoom/pan on important UI elements
+- Transitions between beats
+
+Respond with a JSON array:
+{
+  "editType": "cut" | "trim" | "speedup" | "slowdown" | "zoom" | "pan" | "transition" | "overlay",
+  "sourceStartMs": number,
+  "sourceEndMs": number,
+  "outputStartMs": number,
+  "outputEndMs": number,
+  "parameters": { speed?: number, zoomLevel?: number, transitionType?: string, ... },
+  "reasoning": "why this edit"
+}`,
+      }],
+    });
+
+    const responseText = message.content[0]?.type === 'text' ? message.content[0].text : '';
+    const signals: TaskResult['signals'] = [];
+
+    try {
+      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const edits = JSON.parse(jsonMatch[0]) as Array<{
+          editType: string;
+          sourceStartMs: number;
+          sourceEndMs: number;
+          outputStartMs: number;
+          outputEndMs: number;
+          parameters: Record<string, unknown>;
+          reasoning: string;
+        }>;
+
+        for (const edit of edits) {
+          signals.push({
+            signalType: SignalType.EDIT_DECISION,
+            timestampMs: edit.sourceStartMs,
+            durationMs: edit.sourceEndMs - edit.sourceStartMs,
+            confidence: 0.8,
+            payload: {
+              editType: edit.editType,
+              sourceStartMs: edit.sourceStartMs,
+              sourceEndMs: edit.sourceEndMs,
+              outputStartMs: edit.outputStartMs,
+              outputEndMs: edit.outputEndMs,
+              parameters: edit.parameters,
+              reasoning: edit.reasoning,
+            },
+          });
+        }
+      }
+    } catch {
+      this.logger.warn('Failed to parse edit decisions from LLM response');
+    }
+
+    const outputPath = `projects/${task.projectId}/signals/edit_plan.json`;
+    await this.gcs.upload(outputPath, Buffer.from(JSON.stringify(signals, null, 2)), 'application/json');
+
+    return { outputAssetIds: [`edit-plan-${task.projectId}`], signals };
+  }
+}

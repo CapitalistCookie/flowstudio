@@ -1,1 +1,91 @@
-export {};
+import { TaskType, SignalType } from '@flowstudio/shared';
+import { BaseWorker, type TaskData, type TaskResult } from '@flowstudio/worker-shared';
+import Anthropic from '@anthropic-ai/sdk';
+
+export class NarrativePlannerWorker extends BaseWorker {
+  readonly taskType = TaskType.NARRATIVE_PLAN;
+
+  async processTask(task: TaskData): Promise<TaskResult> {
+    if (!this.config.anthropicApiKey) throw new Error('ANTHROPIC_API_KEY not configured');
+
+    const anthropic = new Anthropic({ apiKey: this.config.anthropicApiKey });
+
+    // Download intent graph
+    const graphPath = `projects/${task.projectId}/signals/intent_graph.json`;
+    const graphData = await this.gcs.download(graphPath);
+    const intents: unknown = JSON.parse(graphData.toString('utf-8'));
+
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      messages: [{
+        role: 'user',
+        content: `You are a video editor creating a narrative structure for an edited video from a screen recording.
+
+Intent graph (what the user was doing):
+${JSON.stringify(intents, null, 2)}
+
+Create a sequence of narrative beats that would make a compelling, clear edited video:
+- Each beat is a segment of the final video
+- Beats should flow logically (setup → action → result)
+- Remove dead time, repetition, and errors
+- Highlight key moments and achievements
+
+Respond with a JSON array:
+{
+  "beatIndex": number,
+  "beatType": "setup" | "action" | "result" | "transition" | "highlight",
+  "title": "short title",
+  "description": "what happens in this beat",
+  "suggestedDurationMs": number,
+  "startMs": number,
+  "endMs": number,
+  "relatedIntentIds": ["string"]
+}`,
+      }],
+    });
+
+    const responseText = message.content[0]?.type === 'text' ? message.content[0].text : '';
+    const signals: TaskResult['signals'] = [];
+
+    try {
+      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const beats = JSON.parse(jsonMatch[0]) as Array<{
+          beatIndex: number;
+          beatType: string;
+          title: string;
+          description: string;
+          suggestedDurationMs: number;
+          startMs: number;
+          endMs: number;
+          relatedIntentIds: string[];
+        }>;
+
+        for (const beat of beats) {
+          signals.push({
+            signalType: SignalType.NARRATIVE_BEAT,
+            timestampMs: beat.startMs,
+            durationMs: beat.endMs - beat.startMs,
+            confidence: 0.85,
+            payload: {
+              beatIndex: beat.beatIndex,
+              beatType: beat.beatType,
+              title: beat.title,
+              description: beat.description,
+              suggestedDurationMs: beat.suggestedDurationMs,
+              relatedIntentIds: beat.relatedIntentIds,
+            },
+          });
+        }
+      }
+    } catch {
+      this.logger.warn('Failed to parse narrative beats from LLM response');
+    }
+
+    const outputPath = `projects/${task.projectId}/signals/narrative_plan.json`;
+    await this.gcs.upload(outputPath, Buffer.from(JSON.stringify(signals, null, 2)), 'application/json');
+
+    return { outputAssetIds: [`narrative-${task.projectId}`], signals };
+  }
+}

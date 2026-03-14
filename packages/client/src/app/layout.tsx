@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import { BRANDING } from "@flowstudio/shared";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "FlowStudio",
-  description: "AI-powered video editing platform",
+  title: BRANDING.name,
+  description: BRANDING.tagline,
 };
 
 export default function RootLayout({
@@ -11,8 +13,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" className="dark">
+      <body className="min-h-screen antialiased">
+        {children}
+      </body>
     </html>
   );
 }
