@@ -1074,21 +1074,19 @@ export function VideoPreview() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* Video Preview Area */}
-      <div className="flex flex-1 min-h-0 items-center justify-center bg-black/40 p-4">
+      {/* Video Preview Area - ensuring form factor maintenance */}
+      <div className="flex flex-1 min-h-0 items-center justify-center bg-muted/5 p-4 overflow-hidden">
         <div
           ref={previewContainerRef}
-          className={`relative overflow-hidden bg-black ${isFullscreen
+          className={`relative overflow-hidden bg-black shadow-2xl ${isFullscreen
             ? "w-full h-full max-w-none"
             : "rounded-lg border border-border"
             }`}
           style={!isFullscreen ? {
             aspectRatio: `${aspectRatio}`,
-            width: 'min(100%, 80rem)',
-            maxWidth: '80rem',
+            width: '100%',
+            maxWidth: '100%',
             maxHeight: '100%',
-            height: 'auto',
-            flexShrink: 0,
           } : undefined}
         >
           {previewMedia && activeClip ? (
@@ -1136,7 +1134,7 @@ export function VideoPreview() {
               {/* Canvas for seamless playback - draws from active video */}
               <canvas
                 ref={seamlessCanvasRef}
-                className={chromakeyEnabled ? "absolute inset-0 h-full w-full object-contain pointer-events-none -z-10" : `h-full w-full object-contain ${isEyedropperActive ? "cursor-crosshair" : "cursor-pointer"}`}
+                className={chromakeyEnabled ? "absolute inset-0 h-full w-full object-contain pointer-events-none -z-10" : `absolute inset-0 h-full w-full object-contain ${isEyedropperActive ? "cursor-crosshair" : "cursor-pointer"}`}
                 style={chromakeyEnabled ? { ...videoStyle, visibility: "hidden" } : videoStyle}
                 onClick={chromakeyEnabled ? undefined : handleVideoClick}
               />
@@ -1249,8 +1247,7 @@ export function VideoPreview() {
               {/* Fullscreen Controls Overlay */}
               {isFullscreen && (
                 <div
-                  className={`absolute inset-x-0 bottom-0 z-40 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-6 pb-6 pt-12 transition-opacity duration-300 ${showFullscreenControls ? "opacity-100" : "opacity-0"
-                    }`}
+                  className={`absolute inset-x-0 bottom-0 z-40 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-6 pb-6 pt-12 transition-opacity duration-300 ${showFullscreenControls ? "opacity-100" : "opacity-0"}`}
                 >
                   <div className="flex flex-col gap-4">
                     {/* Scrubber */}

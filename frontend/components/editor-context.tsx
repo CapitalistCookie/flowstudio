@@ -486,19 +486,28 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const loadTimelineData = useCallback((data: TimelineData | null) => {
     if (!data) return
 
-    // Restore clips
-    const restoredClips: TimelineClip[] = data.clips.map((clip: TimelineClipData) => ({
-      id: clip.id,
-      mediaId: clip.mediaId,
-      trackId: clip.trackId,
-      startTime: clip.startTime,
-      duration: clip.duration,
-      mediaOffset: clip.mediaOffset ?? 0,
-      label: clip.label,
-      type: clip.type,
-      transform: clip.transform ?? DEFAULT_CLIP_TRANSFORM,
-      effects: clip.effects ?? DEFAULT_CLIP_EFFECTS,
-    }))
+    // Restore clips with track migration
+    const restoredClips: TimelineClip[] = data.clips.map((clip: TimelineClipData) => {
+      // Migrate old track IDs to new generic ones if necessary
+      let trackId = clip.trackId
+      if (trackId === "V2") trackId = "Track 4"
+      if (trackId === "V1") trackId = "Track 3"
+      if (trackId === "A2") trackId = "Track 2"
+      if (trackId === "A1") trackId = "Track 1"
+
+      return {
+        id: clip.id,
+        mediaId: clip.mediaId,
+        trackId: trackId,
+        startTime: clip.startTime,
+        duration: clip.duration,
+        mediaOffset: clip.mediaOffset ?? 0,
+        label: clip.label,
+        type: clip.type,
+        transform: clip.transform ?? DEFAULT_CLIP_TRANSFORM,
+        effects: clip.effects ?? DEFAULT_CLIP_EFFECTS,
+      }
+    })
 
     // Restore media files from storage URLs
     const restoredMedia: MediaFile[] = data.media.map((m: MediaFileData) => ({
@@ -635,9 +644,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   }, [timelineEndTime, currentTime, isScrubbing, isPlaying, setIsPlaying])
 
   // Find clip under the playhead
-  // When multiple clips overlap, prioritize the topmost track (V2 > V1 > A2 > A1)
-  // Convert currentTime to base pixels to compare with stored clip positions
-  const tracks = ["V2", "V1", "A2", "A1"]
+  // When multiple clips overlap, prioritize the topmost track (Track 4 > 3 > 2 > 1)
+  const tracks = ["Track 4", "Track 3", "Track 2", "Track 1"]
   const playheadBasePixels = currentTime * PIXELS_PER_SECOND
   const clipsAtPlayhead = sortedVideoClips.filter(
     (clip) =>

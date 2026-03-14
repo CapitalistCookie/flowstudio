@@ -13,7 +13,17 @@
 
 const HOST = process.env.NEXT_PUBLIC_STDB_HOST ?? 'ws://localhost:3000';
 const DB_NAME = process.env.NEXT_PUBLIC_STDB_MODULE ?? 'flowstudio';
-const HTTP_HOST = HOST.replace('wss://', 'https://').replace('ws://', 'http://');
+
+// When the app is served from a different port than SpacetimeDB (e.g. Next on 3001, STDB on 3000),
+// use the same-origin proxy to avoid CORS (SpacetimeDB standalone does not send CORS headers).
+function getHttpHost(): string {
+  const base = HOST.replace('wss://', 'https://').replace('ws://', 'http://');
+  if (typeof window !== 'undefined' && base.startsWith('http://localhost:3000')) {
+    return `${window.location.origin}/api/stdb`;
+  }
+  return base;
+}
+const HTTP_HOST = getHttpHost();
 
 /** Whether the connection layer has been initialised */
 let initialised = false;
