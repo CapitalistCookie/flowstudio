@@ -1,3 +1,10 @@
+/**
+ * MIGRATION NOTE: These manual type definitions mirror the SpacetimeDB module schema.
+ * When `spacetime generate` bindings are available, these should be replaced with
+ * the auto-generated types from `module_bindings/`.
+ * See: packages/stdb-module/package.json scripts (stdb:generate:frontend, stdb:generate:workers)
+ */
+
 import { TaskType, TaskStatus, ProjectStatus, AssetType, SignalType } from './enums.js';
 
 /** SpacetimeDB: projects table */

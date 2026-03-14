@@ -8,7 +8,9 @@
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r exec tsc --noEmit",
     "lint": "pnpm -r run lint",
-    "clean": "pnpm -r exec rm -rf dist node_modules"
+    "clean": "pnpm -r exec rm -rf dist node_modules",
+    "stdb:dev": "cd packages/stdb-module && pnpm run stdb:publish",
+    "stdb:logs": "cd packages/stdb-module && pnpm run stdb:logs"
   },
   "engines": {
     "node": ">=20.18.0",

@@ -3,6 +3,9 @@
  * No React imports allowed in core/.
  */
 
+// NOTE: ProjectMeta and FolderMeta extend/differ from the STDB schema types.
+// These remain as frontend-specific types even after SDK migration.
+
 // ─── Timeline ───────────────────────────────────────────────────────
 
 export type TrackType = 'video' | 'audio' | 'overlay' | 'text';
