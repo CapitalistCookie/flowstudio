@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import { ClerkProvider } from "@clerk/nextjs"
 import { DM_Sans, JetBrains_Mono } from "next/font/google"
 import { Toaster } from "sonner"
-import { CursorTrail } from "@/components/cursor-trail"
+import { CustomCursor } from "@/components/custom-cursor"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ThemeControls } from "@/components/theme-controls"
 import "./globals.css"
@@ -42,7 +42,7 @@ export default function RootLayout({
           <ThemeProvider>
             <div className="pointer-events-none fixed inset-0 z-[-1] grid-texture opacity-50" />
             <ThemeControls />
-            <CursorTrail />
+            <CustomCursor />
             {children}
             <Toaster position="bottom-right" richColors />
           </ThemeProvider>
