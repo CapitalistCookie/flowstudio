@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { BRANDING } from '@flowstudio/shared';
 import { useReducer } from '../lib/hooks';
 
@@ -14,6 +14,26 @@ export function CreateProjectDialog({ open, onClose }: CreateProjectDialogProps)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { callReducer } = useReducer();
+
+  // Reset state when dialog opens
+  useEffect(() => {
+    if (open) {
+      setName('');
+      setError(null);
+      setLoading(false);
+    }
+  }, [open]);
+
+  // Escape key to close
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, handleKeyDown]);
 
   if (!open) return null;
 
@@ -35,8 +55,9 @@ export function CreateProjectDialog({ open, onClose }: CreateProjectDialogProps)
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
+        onClick={(e) => e.stopPropagation()}
         className="rounded-lg p-6 w-full max-w-md"
         style={{ backgroundColor: 'var(--color-surface)' }}
       >
@@ -52,7 +73,7 @@ export function CreateProjectDialog({ open, onClose }: CreateProjectDialogProps)
             color: 'var(--color-text)',
             border: '1px solid var(--color-muted)',
           }}
-          onKeyDown={e => { if (e.key === 'Enter') handleCreate(); }}
+          onKeyDown={e => { if (e.key === 'Enter' && !loading) handleCreate(); }}
           autoFocus
         />
         {error && (

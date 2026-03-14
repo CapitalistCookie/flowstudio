@@ -1,6 +1,6 @@
 'use client';
 
-import { type HTMLAttributes } from 'react';
+import { type HTMLAttributes, type CSSProperties } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
@@ -26,7 +26,7 @@ export interface BadgeProps
   extends HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof badgeVariants> {}
 
-const VARIANT_STYLES: Record<string, React.CSSProperties> = {
+const VARIANT_STYLES: Record<string, CSSProperties> = {
   default: {
     backgroundColor: 'var(--color-primary)',
     color: 'var(--color-text)',

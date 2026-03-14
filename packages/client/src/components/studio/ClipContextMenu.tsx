@@ -37,9 +37,8 @@ export function ClipContextMenu({ clipId, children }: ClipContextMenuProps) {
     {
       label: 'Duplicate',
       icon: <Copy className="h-3.5 w-3.5" />,
-      onClick: () => {
-        // TODO: duplicate clip
-      },
+      onClick: () => {},
+      disabled: true,
     },
     {
       label: clip.locked ? 'Unlock' : 'Lock',

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Toaster, toast } from 'sonner';
 import {
   StoreContext,
@@ -21,12 +21,7 @@ const STDB_CONFIG: StdbConfig = {
 };
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const initialized = useRef(false);
-
   useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
-
     // Wire notifications → sonner
     const unsubNotifs = subscribeNotifications((notification) => {
       const opts = { duration: notification.durationMs, description: notification.description };

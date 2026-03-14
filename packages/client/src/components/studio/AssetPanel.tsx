@@ -2,10 +2,10 @@
 
 import { useState, useMemo } from 'react';
 import { useProjectStore } from '@/hooks/useStores';
+import { timelineStore } from '@/hooks/useStores';
 import { useTimelineActions } from '@/hooks/useTimeline';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { Input } from '@/components/ui/Input';
-import { Badge } from '@/components/ui/Badge';
 import { formatBytes } from '@/lib/utils';
 import {
   Search,
@@ -15,6 +15,11 @@ import {
   FileText,
   Plus,
 } from 'lucide-react';
+
+function safeParseMeta(metadata: string | undefined): Record<string, unknown> {
+  try { return JSON.parse(metadata || '{}'); }
+  catch { return {}; }
+}
 
 const ASSET_ICONS: Record<string, typeof Film> = {
   source_video: Film,
@@ -35,8 +40,8 @@ export function AssetPanel() {
     return assets.filter((a) => {
       if (filterType && a.assetType !== filterType) return false;
       if (search) {
-        const meta = JSON.parse(a.metadata || '{}');
-        const name = (meta.originalName || a.gcsPath || '').toLowerCase();
+        const meta = safeParseMeta(a.metadata);
+        const name = (String(meta.originalName || a.gcsPath || '')).toLowerCase();
         if (!name.includes(search.toLowerCase())) return false;
       }
       return true;
@@ -63,24 +68,26 @@ export function AssetPanel() {
       visible: true,
     });
 
-    // Slight delay to let the track be created
-    setTimeout(() => {
-      const meta = JSON.parse(asset.metadata || '{}');
-      addClip({
-        trackId: '', // will be set by the first available track of matching type
-        assetId: asset.id,
-        label: meta.originalName || asset.assetType,
-        startMs: 0,
-        durationMs: asset.durationMs || 30000,
-        sourceOffsetMs: 0,
-        sourceDurationMs: asset.durationMs || 30000,
-        opacity: 1,
-        volume: 1,
-        speed: 1,
-        locked: false,
-        muted: false,
-      });
-    }, 50);
+    // Zustand set is synchronous — read the new track immediately
+    const state = timelineStore.getState();
+    const newTrack = state.tracks[state.tracks.length - 1];
+    if (!newTrack) return;
+
+    const meta = safeParseMeta(asset.metadata);
+    addClip({
+      trackId: newTrack.id,
+      assetId: asset.id,
+      label: (meta.originalName as string) || asset.assetType,
+      startMs: 0,
+      durationMs: asset.durationMs || 30000,
+      sourceOffsetMs: 0,
+      sourceDurationMs: asset.durationMs || 30000,
+      opacity: 1,
+      volume: 1,
+      speed: 1,
+      locked: false,
+      muted: false,
+    });
   };
 
   return (
@@ -142,8 +149,8 @@ export function AssetPanel() {
           <div className="space-y-1">
             {filtered.map((asset) => {
               const Icon = ASSET_ICONS[asset.assetType] ?? FileText;
-              const meta = JSON.parse(asset.metadata || '{}');
-              const name = meta.originalName || asset.assetType;
+              const meta = safeParseMeta(asset.metadata);
+              const name = String(meta.originalName || asset.assetType);
 
               return (
                 <div

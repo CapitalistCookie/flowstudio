@@ -13,11 +13,7 @@ import {
   Maximize2,
 } from 'lucide-react';
 
-interface VideoPreviewProps {
-  projectId: string;
-}
-
-export function VideoPreview({ projectId }: VideoPreviewProps) {
+export function VideoPreview() {
   const { isPlaying, playheadMs, durationMs, toggle, seek } = usePlayback();
   const toggleFullscreen = useUIStore((s) => s.togglePreviewFullscreen);
   const videoRef = useRef<HTMLVideoElement>(null);

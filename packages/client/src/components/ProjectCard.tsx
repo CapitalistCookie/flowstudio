@@ -5,7 +5,7 @@ import { ProjectStatus } from '@flowstudio/shared';
 interface ProjectCardProject {
   id: string;
   name: string;
-  status: string;
+  status: ProjectStatus | string;
   createdAt: number;
 }
 

@@ -14,21 +14,17 @@ import {
 
 interface PreviewModalProps {
   onClose: () => void;
-  projectId: string;
 }
 
-export function PreviewModal({ onClose, projectId }: PreviewModalProps) {
+export function PreviewModal({ onClose }: PreviewModalProps) {
   const { isPlaying, playheadMs, durationMs, toggle, seek } = usePlayback();
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
-      if (e.key === ' ') {
-        e.preventDefault();
-        toggle();
-      }
+      // Space for play/pause is handled by useStudioShortcuts — no duplicate handler
     },
-    [onClose, toggle]
+    [onClose]
   );
 
   useEffect(() => {
@@ -50,7 +46,10 @@ export function PreviewModal({ onClose, projectId }: PreviewModalProps) {
 
       {/* Video area */}
       <div className="flex-1 flex items-center justify-center">
-        <div className="aspect-video max-h-[80vh] max-w-[90vw] rounded-lg flex items-center justify-center bg-gray-900">
+        <div
+          className="aspect-video max-h-[80vh] max-w-[90vw] rounded-lg flex items-center justify-center"
+          style={{ backgroundColor: 'var(--color-background)' }}
+        >
           <Play className="h-16 w-16 opacity-30" style={{ color: 'var(--color-muted)' }} />
         </div>
       </div>

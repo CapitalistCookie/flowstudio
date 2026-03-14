@@ -75,7 +75,7 @@ export default function StudioPage({ params }: StudioPageProps) {
 
               {/* Video preview */}
               <Panel defaultSize={assetPanelCollapsed && propertiesPanelCollapsed ? 100 : 55} minSize={30}>
-                <VideoPreview projectId={id} />
+                <VideoPreview />
               </Panel>
 
               {/* Properties */}
@@ -102,7 +102,7 @@ export default function StudioPage({ params }: StudioPageProps) {
 
       {/* Preview modal */}
       {previewFullscreen && (
-        <PreviewModal onClose={togglePreviewFullscreen} projectId={id} />
+        <PreviewModal onClose={togglePreviewFullscreen} />
       )}
     </div>
   );

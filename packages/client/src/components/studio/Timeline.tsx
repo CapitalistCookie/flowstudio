@@ -77,7 +77,11 @@ export function Timeline() {
     snapResolutionMs,
   };
 
-  // Render loop
+  // Use ref for renderer to avoid recreating callbacks on every state change
+  const stateRef = useRef(timelineState);
+  stateRef.current = timelineState;
+
+  // Render loop — stable callback via stateRef
   const render = useCallback(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -101,16 +105,16 @@ export function Timeline() {
       dpr,
     };
 
-    renderTimeline(rc, timelineState);
-  }, [timelineState]);
+    renderTimeline(rc, stateRef.current);
+  }, []);
 
   // Render on state changes
   useEffect(() => {
     rafRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [render]);
+  }, [render, tracks, clips, playheadMs, durationMs, pxPerMs, scrollOffsetMs, selectedClipIds, markInMs, markOutMs, isPlaying, snapEnabled, snapResolutionMs]);
 
-  // Resize observer
+  // Resize observer — stable because render is stable
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;

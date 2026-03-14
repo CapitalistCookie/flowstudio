@@ -106,7 +106,7 @@ export function TrackHeader({ track }: TrackHeaderProps) {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => removeTrack(track.id)}
-            className="text-red-400"
+            style={{ color: 'var(--color-error)' }}
           >
             <Trash2 className="h-3 w-3 mr-2" />
             Delete Track

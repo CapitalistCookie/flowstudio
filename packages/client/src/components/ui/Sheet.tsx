@@ -41,7 +41,7 @@ export function Sheet({ open, onClose, side = 'right', title, children, classNam
           {title && <h2 className="text-lg font-semibold">{title}</h2>}
           <button
             onClick={onClose}
-            className="rounded-sm opacity-70 hover:opacity-100"
+            className="ml-auto rounded-sm opacity-70 hover:opacity-100"
           >
             <X className="h-4 w-4" />
           </button>

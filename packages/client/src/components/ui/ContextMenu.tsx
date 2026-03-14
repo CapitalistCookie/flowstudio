@@ -60,16 +60,17 @@ export function ContextMenu({ items, children, className }: ContextMenuProps) {
           {items.map((item, i) =>
             item.separator ? (
               <div
-                key={i}
+                key={`sep-${i}`}
                 className="my-1 h-px"
                 style={{ backgroundColor: 'rgba(148, 163, 184, 0.2)' }}
               />
             ) : (
               <button
-                key={i}
+                key={item.label || `sep-${i}`}
+                disabled={item.disabled}
                 className={cn(
                   'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-white/10',
-                  item.disabled && 'opacity-50 pointer-events-none'
+                  item.disabled && 'opacity-50'
                 )}
                 style={{
                   color: item.destructive ? 'var(--color-error)' : 'var(--color-text)',
