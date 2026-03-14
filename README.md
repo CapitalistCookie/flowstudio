@@ -28,14 +28,14 @@ An AI-powered video editing platform that automatically transforms screen record
 
 FlowStudio is a TypeScript monorepo that processes video files through a 13-stage AI pipeline. The system extracts audio, samples video frames, detects UI changes, analyzes cursor and keyboard interactions, then uses LLMs (Claude and Gemini) to build an intent graph, create a narrative plan, produce an edit decision list, assemble a timeline, and render the final output with FFmpeg.
 
-SpacetimeDB v2 (a real-time database running as a WASM module on a GCE VM) replaces the traditional Postgres + Redis + Celery stack. It handles task coordination, state subscriptions, and automatic task chaining. Workers run as Cloud Run services that poll SpacetimeDB for pending tasks. The Next.js frontend connects over WebSocket for real-time project and pipeline status updates.
+SpacetimeDB v2 (a real-time database running as a WASM module on a GCE VM) replaces the traditional Postgres + Redis + Celery stack. It handles task coordination, state management, and automatic task chaining. Workers run as Cloud Run services that poll SpacetimeDB for pending tasks via HTTP. The Next.js frontend uses HTTP polling (3s intervals) against SpacetimeDB's SQL and reducer endpoints for project and pipeline status updates. This HTTP bridge architecture is a temporary measure until the SpacetimeDB TypeScript SDK's BSATN support matures, at which point it can be swapped for real-time WebSocket subscriptions with minimal code changes.
 
 ### High-Level Architecture
 
 ```
                      Browser (Next.js 15)
                             |
-                            | WebSocket (wss://)
+                            | HTTP polling (3s)
                             v
                    +-----------------------+
                    |  SpacetimeDB v2       |
@@ -49,7 +49,7 @@ SpacetimeDB v2 (a real-time database running as a WASM module on a GCE VM) repla
                    |  - watchdog schedule  |
                    +-----------+-----------+
                                |
-                   WebSocket + HTTP (via VPC connector)
+                   HTTP (via VPC connector)
                                |
          +---------------------+---------------------+
          |          |          |          |           |
@@ -74,7 +74,7 @@ SpacetimeDB v2 (a real-time database running as a WASM module on a GCE VM) repla
 | Runtime | Node.js | >= 20.18.0 |
 | Package Manager | pnpm (workspaces) | >= 9.0.0 |
 | Frontend | Next.js + React + Tailwind CSS | 15.3.2 / 19.1.0 / 4.1.4 |
-| Database | SpacetimeDB v2 (WASM module) | 2.0.1 |
+| Database | SpacetimeDB v2 (WASM module, HTTP polling) | 2.0.1 |
 | Object Storage | Google Cloud Storage | -- |
 | Workers | Cloud Run (one service per worker type) | -- |
 | AI / LLM | Anthropic Claude, Google Gemini | claude-sonnet-4-20250514, gemini-1.5-flash |
@@ -187,8 +187,8 @@ FlowStudio/
 │   │       │   ├── PipelineStatus.tsx      # Task list with status icons and failure reasons
 │   │       │   └── CreateProjectDialog.tsx # Modal dialog for creating new projects
 │   │       └── lib/
-│   │           ├── stdb.ts                 # StdbConnection class: WebSocket + HTTP reducer calls
-│   │           └── hooks.ts                # useProjects, useProjectTasks, useReducer, useConnectionStatus
+│   │           ├── stdbConnection.ts        # HTTP bridge: initConnection, callReducer, queryTable, disconnect
+│   │           └── stdbHooks.ts             # useStdbReducer, useConnectionStatus
 │   └── workers/
 │       ├── shared/                         # @flowstudio/worker-shared — base worker framework
 │       │   ├── package.json
@@ -198,7 +198,7 @@ FlowStudio/
 │       │       ├── base-worker.ts          # BaseWorker abstract class (poll, claim, process, complete)
 │       │       ├── config.ts               # WorkerConfig + loadConfig() from env vars
 │       │       ├── gcs-client.ts           # GcsClient: upload, download, exists, signed URLs, retry
-│       │       ├── stdb-client.ts          # StdbClient: WebSocket subscribe + HTTP reducer calls
+│       │       ├── stdb-client.ts          # StdbClient: HTTP-only reducer calls + SQL table queries
 │       │       ├── semaphore.ts            # Counting semaphore for concurrency control
 │       │       ├── health.ts               # HTTP health check server (/health on port 8080)
 │       │       └── logger.ts               # Structured JSON logger (stdout/stderr)
@@ -263,7 +263,7 @@ pnpm --filter @flowstudio/worker-shared run build
 pnpm --filter @flowstudio/frontend run dev
 ```
 
-The client starts at `http://localhost:3000`. It requires a running SpacetimeDB instance (local or remote) to function. Set `NEXT_PUBLIC_STDB_HOST` to `ws://localhost:3000` for local development.
+The client starts at `http://localhost:3000`. It requires a running SpacetimeDB instance (local or remote) to function. Set `NEXT_PUBLIC_STDB_HOST` to `http://localhost:3000` for local development.
 
 ### Typecheck Everything
 
@@ -348,7 +348,7 @@ This is the CI gate. Zero errors required before merge.
 | `TaskData` | Interface: id, projectId, taskType, inputAssetIds, config |
 | `TaskResult` | Interface: outputAssetIds, signals array |
 | `GcsClient` | Upload/download/exists with exponential backoff retry (3 attempts) |
-| `StdbClient` | WebSocket subscription + HTTP reducer calls to SpacetimeDB |
+| `StdbClient` | HTTP-only reducer calls + SQL table queries to SpacetimeDB |
 | `Semaphore` | Counting semaphore for concurrent task limiting |
 | `Logger` | Structured JSON logger with levels (debug, info, warn, error) |
 | `loadConfig()` | Load WorkerConfig from environment variables |
@@ -401,7 +401,7 @@ packages/workers/{worker-name}/
 
 **File:** `packages/stdb-module/src/index.ts`
 
-SpacetimeDB is an in-memory database that runs application logic as WASM modules. It provides real-time subscriptions over WebSocket and reducer calls via HTTP. The module defines 7 tables and 11 reducers.
+SpacetimeDB is an in-memory database that runs application logic as WASM modules. It exposes reducer calls and SQL queries via HTTP endpoints. (The WebSocket subscription API exists but is not currently used -- the client and workers communicate via HTTP polling until SDK BSATN support matures.) The module defines 7 tables and 11 reducers.
 
 #### Tables
 
@@ -495,14 +495,13 @@ TYPING_DETECT  ─────┘                              │
 ```
 start()
   ├── Start HTTP health server on port 8080 (/health endpoint)
-  ├── Connect to SpacetimeDB via WebSocket
+  ├── Connect to SpacetimeDB via HTTP
   ├── Register worker config (heartbeat)
-  ├── Subscribe to task table updates
   ├── Begin poll loop
   │     └── Every WORKER_POLL_INTERVAL_MS (default 1000ms):
   │           ├── Check semaphore capacity
-  │           ├── Call findAndClaimTask reducer
-  │           └── On success: handleClaimedTask() is triggered via subscription
+  │           ├── Call findAndClaimTask reducer via HTTP
+  │           └── On success: handleClaimedTask()
   │
   └── Listen for SIGTERM/SIGINT -> graceful shutdown
 
@@ -617,7 +616,7 @@ Every worker starts an HTTP server (file: `packages/workers/shared/src/health.ts
 }
 ```
 
-`healthy` is `true` when the worker is running AND connected to SpacetimeDB.
+`healthy` is `true` when the worker is running. (The HTTP client is stateless, so connectivity is confirmed by successful reducer/SQL calls.)
 
 #### GCS Client
 
@@ -642,24 +641,22 @@ Methods: `upload(path, data, contentType)`, `download(path)`, `exists(path)`, `g
 
 #### SpacetimeDB Connection Management
 
-File: `finalFrontend/src/lib/stdb.ts`
+File: `finalFrontend/src/lib/stdbConnection.ts`
 
-A singleton `StdbConnection` manages the WebSocket connection. It connects to `{NEXT_PUBLIC_STDB_HOST}/database/subscribe/{module}` for real-time table subscriptions, and uses HTTP POST to `{host}/database/call/{module}/{reducer}` for reducer calls.
+A functional module that manages the SpacetimeDB connection via HTTP. Reducer calls go through `POST /v1/database/{module}/call/{reducer}`, and table reads go through `POST /v1/database/{module}/sql`. The `stdbSdkSync.ts` service polls these endpoints every 3 seconds to keep the Zustand stores in sync (with `forceSync()` called immediately after mutations for UI responsiveness). Exported functions: `initConnection`, `callReducer`, `queryTable`, `disconnect`, `isConnected`. This HTTP bridge is designed for easy migration to the SpacetimeDB SDK's WebSocket push model when BSATN bindings are available.
 
-- Automatic reconnect on disconnect (3s delay)
-- Singleton pattern via `getConnection()` in `hooks.ts`
-- Parse errors are logged via `console.warn` (not silently swallowed)
+- `initConnection()` probes the module with a trivial SQL query to confirm reachability
+- `queryTable()` reads full tables via the SQL endpoint with snake_case-to-camelCase conversion
+- `callReducer()` invokes reducers via the HTTP `/call/` endpoint
 
 #### Hooks
 
-File: `finalFrontend/src/lib/hooks.ts`
+File: `finalFrontend/src/lib/stdbHooks.ts`
 
 | Hook | Returns | Description |
 |------|---------|-------------|
-| `useProjects()` | `{ projects, loading, error }` | Subscribe to `projects` table. 10s timeout if no data received. |
-| `useProjectTasks(projectId)` | `{ tasks, loading, error }` | Subscribe to `tasks` table, filtered by projectId. 10s timeout. |
-| `useReducer()` | `{ callReducer }` | Call any SpacetimeDB reducer by name with args. |
-| `useConnectionStatus()` | `boolean` | Polls connection state every 1s. |
+| `useStdbReducer()` | `{ callReducer }` | Call any SpacetimeDB reducer by name with args. Triggers `forceSync()` after each call. |
+| `useConnectionStatus()` | `boolean` | Polls connection state every 1s via `isConnected()`. |
 
 #### Component Hierarchy
 
@@ -927,7 +924,7 @@ pnpm --filter @flowstudio/worker-shared run build
 pnpm --filter @flowstudio/frontend run dev
 ```
 
-Requires `NEXT_PUBLIC_STDB_HOST` and `NEXT_PUBLIC_STDB_MODULE` to be set. For local development, point to a local SpacetimeDB instance at `ws://localhost:3000`.
+Requires `NEXT_PUBLIC_STDB_HOST` and `NEXT_PUBLIC_STDB_MODULE` to be set. For local development, point to a local SpacetimeDB instance at `http://localhost:3000`.
 
 ### Build and Deploy a Single Worker
 
@@ -998,7 +995,7 @@ Follow the step-by-step guide in [Section 6b: How to Create a New Worker](#how-t
 | `ANTHROPIC_MODEL` | LLM Workers | No | `claude-sonnet-4-20250514` | Claude model ID override |
 | `GOOGLE_AI_MODEL` | video-understanding | No | `gemini-1.5-flash` | Gemini model ID override |
 | **Client** | | | | |
-| `NEXT_PUBLIC_STDB_HOST` | Client | Yes | `wss://stdb.flowstudio.ai` | WebSocket URL for SpacetimeDB (baked at build time) |
+| `NEXT_PUBLIC_STDB_HOST` | Client | Yes | `https://stdb.flowstudio.ai` | HTTP URL for SpacetimeDB (baked at build time; converted to HTTP base URL internally) |
 | `NEXT_PUBLIC_STDB_MODULE` | Client | No | `flowstudio` | SpacetimeDB module name (baked at build time) |
 | `NEXT_PUBLIC_UPLOAD_FUNCTION_URL` | Client | Yes | -- | Cloud Function URL for upload URL generation (baked at build time) |
 | **Infrastructure** | | | | |
@@ -1019,10 +1016,10 @@ Follow the step-by-step guide in [Section 6b: How to Create a New Worker](#how-t
 | Problem | Cause | Solution |
 |---------|-------|---------|
 | Client shows "Disconnected" | SpacetimeDB is not running or unreachable | Check GCE VM status: `gcloud compute instances describe flowstudio-stdb --zone=us-east4-c`. Verify Nginx is running. Check `NEXT_PUBLIC_STDB_HOST` points to correct URL. |
-| Client shows "Connection timeout" | WebSocket fails to connect within 10s | Verify DNS for `stdb.flowstudio.ai` resolves to the correct IP. Check TLS cert is valid. Check VPC connector if running locally. |
+| Client shows "Connection timeout" | HTTP probe fails to reach SpacetimeDB | Verify DNS for `stdb.flowstudio.ai` resolves to the correct IP. Check TLS cert is valid. Check VPC connector if running locally. |
 | Upload fails with "Failed to get upload URL" | Cloud Function unreachable or `NEXT_PUBLIC_UPLOAD_FUNCTION_URL` not set | Verify the Cloud Function is deployed. Check the env var was set at build time (not runtime). |
 | Worker logs "Missing required env var" | Environment not configured | Check Cloud Run service env vars in Terraform. Verify Secret Manager secrets have versions. |
-| Worker logs "WebSocket connection failed" | Worker cannot reach SpacetimeDB | Verify VPC connector is created. Check `STDB_INTERNAL_HOST` matches the GCE VM's internal IP (from `terraform output stdb_internal_ip`). |
+| Worker logs "HTTP connection failed" | Worker cannot reach SpacetimeDB | Verify VPC connector is created. Check `STDB_INTERNAL_HOST` matches the GCE VM's internal IP (from `terraform output stdb_internal_ip`). |
 | Task stuck in "claimed" status | Worker crashed mid-task | Watchdog runs every 30s. Tasks claimed > 5 minutes are automatically reset to pending (up to 3 retries). Wait for watchdog cycle. |
 | Task stuck in "pending" | No worker of that type is running | Check Cloud Run service is deployed and has instances scaled up. Check `gcloud run services describe flowstudio-{worker} --region=us-east4`. |
 | Pipeline stops after initial 4 tasks | Downstream tasks not created | Verify task chaining: all dependencies must complete. Check if cursor-processor or typing-detector failed (they handle missing data gracefully, but check). Inspect `project_state.completedTasks` in SpacetimeDB. |
@@ -1032,7 +1029,7 @@ Follow the step-by-step guide in [Section 6b: How to Create a New Worker](#how-t
 
 ### How to Debug a Stuck Pipeline
 
-1. **Check task states in SpacetimeDB.** Connect to the WebSocket and inspect the `tasks` table for the project. Look for tasks in `failed` or `stale` status.
+1. **Check task states in SpacetimeDB.** Query the `tasks` table for the project via the SQL endpoint or the `spacetime sql` CLI. Look for tasks in `failed` or `stale` status.
 
 2. **Check worker logs.** View Cloud Run logs:
    ```bash
@@ -1061,7 +1058,7 @@ curl http://{worker-internal-ip}:8080/health
 
 ### How to Inspect SpacetimeDB State
 
-Connect to SpacetimeDB using the WebSocket URL and subscribe to tables. The client application already shows project and task state. For direct inspection, use the SpacetimeDB CLI on the GCE VM:
+The client application already shows project and task state (via HTTP polling). For direct inspection, use the SpacetimeDB CLI on the GCE VM:
 
 ```bash
 gcloud compute ssh flowstudio-stdb --zone=us-east4-c

@@ -18,12 +18,12 @@ a developer must understand to safely modify the codebase.
                    |                  BROWSER                        |
                    |                                                 |
                    |   Next.js Client (port 3000)                    |
-                   |   - WebSocket subscription for live updates     |
+                   |   - HTTP polling (3s) for table reads           |
                    |   - HTTP calls for reducer invocations          |
                    |   - Direct GCS upload via signed URL            |
                    +---------+---+----------+------------------------+
                              |   |          |
-                    WebSocket|   |HTTP      |HTTP PUT (signed URL)
+                    HTTP poll|   |HTTP      |HTTP PUT (signed URL)
                              |   |          |
                +-------------+   |     +----v-----------+
                |                 |     | Cloud Function  |
@@ -42,7 +42,7 @@ a developer must understand to safely modify the codebase.
      |  - Watchdog timer  |                    |
      +---^-----^-----^---+                    |
          |     |     |                        |
-    WebSocket  |  WebSocket        GCS upload/download
+       HTTP    |   HTTP             GCS upload/download
          |     |     |                        |
    +-----+  +-+--+  +------+          +------+------+
    |W1   |  |W2  |  |W13   |          |             |
@@ -57,8 +57,8 @@ a developer must understand to safely modify the codebase.
 | Process | Runtime | Port | Access | Purpose |
 |---------|---------|------|--------|---------|
 | Next.js Client | Cloud Run | 3000 | Public | Dashboard + project UI |
-| SpacetimeDB v2.0.1 | GCE VM (Docker) | 3000 (proxied via Nginx 80/443) | Public (WebSocket/HTTP) | Tables, reducers, task orchestration |
-| Nginx | GCE VM | 80, 443 | Public | TLS termination, WebSocket proxy, blocks `/v1/publish` |
+| SpacetimeDB v2.0.1 | GCE VM (Docker) | 3000 (proxied via Nginx 80/443) | Public (HTTP) | Tables, reducers, task orchestration |
+| Nginx | GCE VM | 80, 443 | Public | TLS termination, HTTP proxy, blocks `/v1/publish` |
 | audio-extract worker | Cloud Run | 8080 | Private (VPC) | FFmpeg audio extraction |
 | video-sample worker | Cloud Run | 8080 | Private (VPC) | FFmpeg frame sampling |
 | cursor-processor worker | Cloud Run | 8080 | Private (VPC) | Cursor event analysis |
@@ -76,12 +76,20 @@ a developer must understand to safely modify the codebase.
 
 ### 1c. Communication Patterns
 
-- **WebSocket** -- Client and all 13 workers maintain persistent WebSocket connections to
-  SpacetimeDB for table subscriptions. The client subscribes to `projects` and `tasks`
-  tables; workers subscribe to the `tasks` table to detect newly claimed tasks.
+- **HTTP polling** -- Client and all 13 workers use HTTP polling against SpacetimeDB's
+  REST API instead of WebSocket subscriptions. The client polls every **3 seconds** via
+  `stdbSdkSync.ts`; workers poll every **1 second** via `base-worker.ts` `pollLoop`.
+  Table reads use `POST /v1/database/{module}/sql` with `SELECT * FROM {tableName}`.
+  After any reducer call, `forceSync()` triggers an immediate re-poll for UI
+  responsiveness, providing near-real-time UX despite not using WebSocket push.
+
+  **Why HTTP polling instead of WebSocket subscriptions:** SpacetimeDB's SDK WebSocket
+  protocol requires BSATN binary serialization format, which is not available in the
+  current JavaScript SDK. HTTP polling serves as a bridge until the SDK matures and
+  `spacetime generate` produces typed bindings with push subscription support.
 
 - **HTTP POST** -- Reducer calls (e.g., `createProject`, `completeTask`) are made via
-  HTTP POST to `{stdbHost}/database/call/{module}/{reducerName}`. Both the client and
+  HTTP POST to `{stdbHost}/v1/database/{module}/call/{reducerName}`. Both the client and
   workers use this mechanism.
 
 - **GCS** -- All binary data (video, audio, frames, rendered output) and inter-worker
@@ -121,7 +129,7 @@ Corresponding copies exist in `@flowstudio/shared` for use by workers and client
   `completeTask` (update on final stage), `updateProjectState`.
 - **Relationships:** One-to-many with `assets`, `tasks`, `signals`. One-to-one with
   `project_state`.
-- **Public:** Yes (subscribed by client).
+- **Public:** Yes (polled by client via HTTP SQL).
 
 #### `assets`
 
@@ -172,7 +180,7 @@ Corresponding copies exist in `@flowstudio/shared` for use by workers and client
   completed deps, check existing tasks), `failTask` (read retry info),
   `watchdog_schedule` (scan for stale).
 - **Relationships:** Belongs to `projects`. Associated with `signals` via `taskId`.
-- **Public:** Yes (subscribed by client and workers).
+- **Public:** Yes (polled by client and workers via HTTP SQL).
 
 #### `signals`
 
@@ -192,7 +200,7 @@ Corresponding copies exist in `@flowstudio/shared` for use by workers and client
   SpacetimeDB (for the client) and as JSON files in GCS (for downstream workers).
 - **Written by:** `writeSignal` (insert, called by `BaseWorker.handleClaimedTask`),
   `ingestInteractionBatch` (batch insert for cursor/typing data).
-- **Read by:** Not directly read by other reducers. Client can subscribe for display.
+- **Read by:** Not directly read by other reducers. Client can poll for display.
 - **Relationships:** Belongs to `projects` and `tasks`.
 - **Public:** Yes.
 
@@ -582,11 +590,9 @@ death (no error to record on the original), while `failTask` records a specific 
     |
     +---> startHealthServer(port 8080)   [HTTP /health endpoint]
     |
-    +---> stdb.connect()                 [WebSocket to SpacetimeDB]
+    +---> stdb.connect()                 [HTTP connectivity check to SpacetimeDB]
     |
-    +---> registerWorker()               [calls updateWorkerConfig reducer]
-    |
-    +---> stdb.onTableUpdate('tasks', handleTaskTableUpdate)
+    +---> registerWorker()               [calls updateWorkerConfig reducer via HTTP]
     |
     +---> pollLoop()  <------ runs while this.running === true
     |       |
@@ -596,7 +602,8 @@ death (no error to record on the original), while `failTask` records a specific 
     |       |       |
     |       |       +---> stdb.callReducer('findAndClaimTask', ...)
     |       |       |       |
-    |       |       |       +-- success: subscription fires handleTaskTableUpdate
+    |       |       |       +-- success: query tasks table via SQL to find
+    |       |       |       |   claimed task, then dispatch for processing
     |       |       |       +-- failure: no pending task, wait for next poll
     |       |       |
     |       |       +---> sleep(pollIntervalMs)  [default 1000ms]
@@ -611,48 +618,38 @@ death (no error to record on the original), while `failTask` records a specific 
                               +---> process.exit(0)
 
 
-  handleTaskTableUpdate(update)
-    |
-    +---> extractRows(update)  [handles inserts/updates/rows formats]
-    |
-    +---> for each row where:
-    |       status === 'claimed' AND
-    |       workerId === this.config.workerId AND
-    |       taskType === this.taskType AND
-    |       NOT in inFlightTaskIds
+  handleClaimedTask(taskData)
     |
     +---> inFlightTaskIds.add(taskId)
     |
-    +---> handleClaimedTask(taskData)
-            |
-            +---> semaphore.run(async () => {
-            |       |
-            |       +---> activeTasks++
-            |       |
-            |       +---> processTask(task)    [abstract -- implemented by each worker]
-            |       |       |
-            |       |       +-- returns TaskResult { outputAssetIds, signals }
-            |       |
-            |       +---> for each signal: stdb.callReducer('writeSignal', ...)
-            |       |
-            |       +---> stdb.callReducer('completeTask', { taskId, outputAssetIds })
-            |       |
-            |       +---> activeTasks--
-            |     })
-            |
-            +---> on error:
-            |       +---> stdb.callReducer('failTask', { taskId, failureReason })
-            |       +---> activeTasks--
-            |
-            +---> finally:
-                    +---> inFlightTaskIds.delete(taskId)
+    +---> semaphore.run(async () => {
+    |       |
+    |       +---> activeTasks++
+    |       |
+    |       +---> processTask(task)    [abstract -- implemented by each worker]
+    |       |       |
+    |       |       +-- returns TaskResult { outputAssetIds, signals }
+    |       |
+    |       +---> for each signal: stdb.callReducer('writeSignal', ...)
+    |       |
+    |       +---> stdb.callReducer('completeTask', { taskId, outputAssetIds })
+    |       |
+    |       +---> activeTasks--
+    |     })
+    |
+    +---> on error:
+    |       +---> stdb.callReducer('failTask', { taskId, failureReason })
+    |       +---> activeTasks--
+    |
+    +---> finally:
+            +---> inFlightTaskIds.delete(taskId)
 ```
 
 ### 3b. Task Claiming Protocol
 
-The task claiming flow has two phases:
+The task claiming flow uses HTTP polling exclusively:
 
-**Phase 1: Polling (HTTP)**
+**Step 1: Claim attempt (HTTP POST)**
 - The worker polls every `pollIntervalMs` (default 1000ms) by calling the
   `findAndClaimTask` reducer via HTTP POST.
 - If no pending task exists for this worker's `taskType`, the reducer throws and the
@@ -660,21 +657,18 @@ The task claiming flow has two phases:
 - If a pending task exists, the reducer atomically transitions it to `'claimed'` with
   this worker's ID.
 
-**Phase 2: Subscription notification (WebSocket)**
-- The worker subscribes to the `tasks` table via WebSocket.
-- When `findAndClaimTask` successfully claims a task, SpacetimeDB broadcasts a table
-  update to all subscribers.
-- The `handleTaskTableUpdate` callback checks each row for tasks that match:
+**Step 2: Discover claimed task (HTTP SQL query)**
+- After a successful `findAndClaimTask` call, the worker queries the `tasks` table
+  via `SELECT * FROM tasks` (HTTP POST to the SQL endpoint) to find tasks matching:
   `status === 'claimed' AND workerId === this.config.workerId AND taskType === this.taskType`.
-- If a match is found and the task ID is NOT in `inFlightTaskIds`, it is dispatched for
-  processing.
+- Matching tasks that are NOT in `inFlightTaskIds` are dispatched for processing.
 
 **`inFlightTaskIds` deduplication:**
 - A `Set<string>` that tracks task IDs currently being processed.
 - Before dispatching, the worker checks `!this.inFlightTaskIds.has(taskId)`.
 - After dispatch completes (success or failure), the ID is removed.
-- This prevents duplicate processing if the subscription fires multiple times for the
-  same task (e.g., due to other field updates on the same row).
+- This prevents duplicate processing if the same task is seen across multiple poll
+  cycles before processing completes.
 
 **Race condition safety:**
 - SpacetimeDB reducers execute **serially** within a module. Two workers calling
@@ -762,7 +756,7 @@ A minimal HTTP server that responds to `GET /health` with a JSON status object.
 ```
 
 **Health criteria:** `healthy = this.running && this.stdb.isConnected`. A worker is
-unhealthy if it has been stopped or lost its SpacetimeDB WebSocket connection.
+unhealthy if it has been stopped or lost connectivity to SpacetimeDB.
 
 **Cloud Run integration:** Workers declare a startup probe in Terraform:
 ```hcl
@@ -1226,63 +1220,56 @@ grep -rn 'signals/' packages/workers/ --include='*.ts'
 
 ### 6a. SpacetimeDB Connection
 
-**Source:** `/home/user/FlowStudio/finalFrontend/src/lib/stdb.ts`
+**Source:** `/home/user/FlowStudio/finalFrontend/src/lib/stdbConnection.ts`
 
-**Single global connection pattern:** A module-level variable `globalConnection` holds the
-single `StdbConnection` instance. The `getConnection()` function lazily creates and
-connects it on first use. All hooks share this connection.
+**HTTP bridge pattern:** A functional module (no class) exports `initConnection`,
+`callReducer`, `queryTable`, `disconnect`, and `isConnected`. All communication uses HTTP
+-- no WebSocket. Once `spacetime generate` produces typed SDK bindings, this module will
+be swapped for a real `DbConnection.builder().build()` with push subscriptions.
 
 ```typescript
-let globalConnection: StdbConnection | null = null;
+export async function initConnection(
+  onConnect?: () => void,
+  onDisconnect?: () => void,
+): Promise<void> { /* probe via SQL endpoint */ }
 
-function getConnection(): StdbConnection {
-  if (!globalConnection) {
-    globalConnection = new StdbConnection(STDB_CONFIG);
-    globalConnection.connect();
-  }
-  return globalConnection;
-}
+export async function queryTable(tableName: string): Promise<Record<string, unknown>[]> { ... }
+export async function callReducer(name: string, args: Record<string, unknown>): Promise<void> { ... }
+export function disconnect(): void { ... }
+export function isConnected(): boolean { ... }
 ```
 
-**WebSocket subscription model:** The client connects to
-`{host}/database/subscribe/{module}` via WebSocket. SpacetimeDB sends table updates as
-`{ tableUpdate: { tableName, rows } }` messages. The `StdbConnection` dispatches these
-to registered callbacks.
+**Table reads:** `queryTable()` issues `SELECT * FROM {table}` via HTTP POST to
+`/v1/database/{module}/sql`. Column names are converted from snake_case to camelCase.
+BigInt values are converted to Number.
 
-**HTTP reducer calls:** Reducers are invoked via HTTP POST to
-`{httpHost}/database/call/{module}/{reducerName}` with JSON body. The `StdbConnection`
-converts `ws://` to `http://` (or `wss://` to `https://`) for the HTTP URL.
+**Reducer calls:** `callReducer()` posts to `/v1/database/{module}/call/{reducerName}`
+with a JSON body. Reducer names are converted from camelCase to snake_case.
 
-**Reconnection behavior:** On WebSocket close (if not intentional), the client waits 3
-seconds then calls `connect()` again. A `reconnectTimer` prevents multiple concurrent
-reconnect attempts. On intentional disconnect, the timer is cleared.
+**Connection probe:** `initConnection()` sends `SELECT 1` to the SQL endpoint. Any
+non-5xx response (including 400) counts as reachable, since SpacetimeDB may reject
+the query if no table exists.
 
 ### 6b. State Management
 
-**No external state library.** All state comes from SpacetimeDB subscriptions.
+**No external state library.** All state comes from SpacetimeDB via HTTP polling.
 
-**Hook:** `useProjects()` (`/home/user/FlowStudio/finalFrontend/src/lib/hooks.ts:23`)
-- Subscribes to `projects` table updates.
-- Replaces entire project list on each update (SpacetimeDB sends full table snapshots).
-- 10-second timeout sets error state if no data arrives.
-- Uses functional updater `setLoading((current) => { ... })` to avoid stale closure bugs
-  (fix V2).
-
-**Hook:** `useProjectTasks(projectId)` (`hooks.ts:54`)
-- Subscribes to `tasks` table updates.
-- Filters client-side to only tasks matching the given `projectId`.
-- Same 10-second timeout pattern.
-
-**Hook:** `useReducer()` (`hooks.ts:86`)
-- Returns a `callReducer` function that proxies to the global connection.
+**Hook:** `useStdbReducer()` (`/home/user/FlowStudio/finalFrontend/src/lib/stdbHooks.ts`)
+- Returns a `callReducer` function that proxies to `stdbConnection.callReducer()`.
+- After each reducer call, triggers `forceSync()` from `stdbSdkSync.ts` for immediate UI refresh.
 - Memoized with `useCallback` (empty deps -- stable reference).
 
-**Hook:** `useConnectionStatus()` (`hooks.ts:96`)
-- Polls `connection.isConnected` every 1 second via `setInterval`.
+**Hook:** `useConnectionStatus()` (`stdbHooks.ts`)
+- Polls `isConnected()` every 1 second via `setInterval`.
 - Returns a boolean for the Header connection indicator.
 
-**Data flow:** SpacetimeDB table update (WebSocket) --> `StdbConnection.handleMessage` -->
-dispatches to registered `TableUpdateCallback` --> React `useState` setter --> re-render.
+**Sync service:** `stdbSdkSync.ts` (`/home/user/FlowStudio/finalFrontend/src/core/services/stdbSdkSync.ts`)
+- Polls all tables (projects, folders, assets, tasks, signals) via `queryTable()` on a 3s interval.
+- Maps rows to typed objects and pushes into Zustand stores.
+- `forceSync()` triggers an immediate poll cycle (called after reducer mutations).
+
+**Data flow:** `stdbSdkSync` poll timer --> `queryTable()` HTTP SQL --> parse rows -->
+Zustand store setter --> React re-render via `useStore()` selectors.
 
 ### 6c. Upload Flow
 
@@ -1366,7 +1353,7 @@ layout.tsx                          (RootLayout -- HTML shell, metadata from BRA
                        |
            +-----------+-----------+
            |                       |
-     HTTPS/WSS (443)         HTTP PUT (signed URL)
+       HTTPS (443)           HTTP PUT (signed URL)
            |                       |
      +-----v------+         +-----v------+
      | Nginx      |         | GCS Bucket |
@@ -1399,7 +1386,7 @@ layout.tsx                          (RootLayout -- HTML shell, metadata from BRA
 | Rule | Protocol | Ports | Source | Target | Purpose |
 |------|----------|-------|--------|--------|---------|
 | `flowstudio-allow-internal` | TCP | 0-65535 | `10.128.0.0/20`, `10.8.0.0/28` | tag: `stdb` | Workers -> SpacetimeDB |
-| `flowstudio-allow-web` | TCP | 80, 443 | `0.0.0.0/0` | tag: `stdb` | Public HTTPS/WSS |
+| `flowstudio-allow-web` | TCP | 80, 443 | `0.0.0.0/0` | tag: `stdb` | Public HTTPS |
 | `flowstudio-allow-ssh` | TCP | 22 | `35.235.240.0/20` | tag: `stdb` | IAP SSH only |
 
 **Source:** `/home/user/FlowStudio/infra/terraform/network.tf`
@@ -1441,7 +1428,7 @@ layout.tsx                          (RootLayout -- HTML shell, metadata from BRA
 
 **What's public:**
 - Client Cloud Run service (unauthenticated access for all users)
-- SpacetimeDB via Nginx (WebSocket + HTTP, no auth on reducers)
+- SpacetimeDB via Nginx (HTTP, no auth on reducers)
 - Cloud Function for upload URL generation (no auth, CORS wildcard `*`)
 
 **What's private:**
@@ -1552,7 +1539,7 @@ variable in the script).
     |                        |              |                      |    (poll from worker)
     |                        |              |                      |                 |
     |                        |              |                      |-- task claimed   |
-    |                        |              |                      |  (WS update) -->|
+    |                        |              |                      |  (next poll) -->|
     |                        |              |                      |                 |
     |                        |              |<---------- download source video ------|
     |                        |              |----------- upload audio.wav ---------->|
@@ -1567,7 +1554,7 @@ variable in the script).
     |                        |              |              [RENDER completes]         |
     |                        |              |              project.status = 'ready'   |
     |                        |              |                      |                 |
-    |<-- WS: projects table update (status=ready) -----------------|                 |
+    |<-- HTTP poll: projects table (status=ready) -----------------|                 |
 ```
 
 ### 8b. Failure and Retry
@@ -1590,7 +1577,7 @@ variable in the script).
     |                                |
     |                     [New pending task created]
     |                                |
-    |<-- WS: tasks table update -----|
+    |<-- HTTP poll: tasks table -----|
     |                                |
     |-- findAndClaimTask ----------->|
     |   (claims the retry task)      |
@@ -1664,14 +1651,23 @@ variable in the script).
 ### Why SpacetimeDB instead of Postgres + Redis + Celery
 
 SpacetimeDB provides three capabilities in one:
-1. **Relational storage** (tables with primary keys, queries via iterators)
+1. **Relational storage** (tables with primary keys, queries via SQL and iterators)
 2. **Atomic task queue** (reducers execute serially -- no need for advisory locks or
    SELECT FOR UPDATE)
-3. **Real-time subscriptions** (WebSocket table updates replace polling or pub/sub)
+3. **Real-time subscriptions** (designed for WebSocket push via BSATN binary protocol)
 
 This eliminates three separate infrastructure components and their coordination complexity.
 The tradeoff is that SpacetimeDB is beta software (v2.0.1) with limited production track
 record and in-memory-only storage.
+
+**Current state:** The WebSocket subscription capability (point 3) is not currently used.
+The SpacetimeDB SDK's WebSocket protocol requires BSATN binary serialization, which is
+not available in the current JavaScript SDK. Instead, the system uses HTTP polling as a
+bridge: the client polls tables every 3 seconds via `stdbSdkSync.ts`, and workers poll
+every 1 second via `base-worker.ts`. Calls to `forceSync()` after reducer invocations
+trigger immediate re-polls, providing near-real-time UX. Once `spacetime generate`
+produces typed SDK bindings with BSATN support, the HTTP polling layer (`stdbSdkSync.ts`,
+`stdb-client.ts`) will be replaced with native push subscriptions.
 
 ### Why task chaining in the reducer instead of a separate orchestrator
 
@@ -1695,17 +1691,19 @@ display) and GCS JSON files (for downstream worker consumption). Workers read fr
 because it supports downloading large files as buffers, while SpacetimeDB table iteration
 is not designed for bulk data transfer.
 
-### Why polling instead of push-based task assignment
+### Why HTTP polling for task discovery
 
-Workers poll SpacetimeDB via `findAndClaimTask` every second. An alternative would be for
-the `completeTask` reducer to directly assign tasks to specific workers. Polling was chosen
-because:
+Workers poll SpacetimeDB via `findAndClaimTask` every second using HTTP POST. Both task
+claiming (reducer calls) and task discovery (SQL queries) happen over HTTP. Polling was
+chosen because:
 1. SpacetimeDB reducers cannot make outbound HTTP calls to workers.
 2. Workers may crash and restart with different IDs -- push assignment would require a
    registry.
 3. Polling is self-healing: a newly started worker automatically picks up pending tasks.
 4. The 1-second poll interval is fast enough for a video processing pipeline where tasks
    take seconds to minutes.
+5. The SpacetimeDB JS SDK does not yet support BSATN-based WebSocket subscriptions, so
+   HTTP polling is the only viable mechanism for table reads in the current stack.
 
 ### Why no authentication layer yet
 

@@ -52,7 +52,7 @@ finalFrontend/src/
 │   │   ├── signalStore.ts
 │   │   └── uiStore.ts
 │   ├── services/
-│   │   ├── stdbSync.ts     ← SpacetimeDB → store bridge
+│   │   ├── stdbSdkSync.ts  ← SpacetimeDB → store bridge
 │   │   ├── capture.ts      ← CaptureEngine (MediaRecorder)
 │   │   ├── playbackSync.ts ← Video ↔ timeline sync
 │   │   ├── shortcuts.ts    ← Keyboard shortcut manager
@@ -68,8 +68,8 @@ finalFrontend/src/
 │   │   └── thumbnailWorker.ts
 │   └── types.ts            ← All core type definitions
 └── lib/
-    ├── stdb.ts             ← SpacetimeDB HTTP client (EXISTING, don't modify)
-    ├── hooks.ts            ← DEPRECATED (old hooks, being replaced)
+    ├── stdbConnection.ts   ← SpacetimeDB HTTP client (EXISTING, don't modify)
+    ├── stdbHooks.ts        ← SpacetimeDB React hooks (current hooks file)
     └── utils.ts            ← cn() utility for shadcn
 ```
 
@@ -86,14 +86,14 @@ finalFrontend/src/
 
 ## Existing Code To Preserve
 
-- `lib/stdb.ts` — SpacetimeDB HTTP client. Already framework-agnostic. Don't modify.
+- `lib/stdbConnection.ts` — SpacetimeDB HTTP client. Already framework-agnostic. Don't modify.
 - `packages/shared/src/` — All shared types, enums, constants. Don't modify (read from it).
 - `components/PipelineStatus.tsx` — Can be reused in studio overlay.
 - `globals.css` — CSS variables. Extend with shadcn mappings, don't replace.
 
 ## Existing Code To Replace
 
-- `lib/hooks.ts` — Old per-component polling hooks. Replaced by `hooks/` directory + `core/services/stdbSync.ts`.
+- `lib/hooks.ts` — Old per-component polling hooks. Replaced by `hooks/` directory + `core/services/stdbSdkSync.ts`.
 - `app/page.tsx` — Current dashboard. Replace with enhanced version using new stores.
 - `app/project/[id]/page.tsx` — Current upload-only page. Replace with full studio.
 - `components/Header.tsx` — Add navigation links.
@@ -112,7 +112,7 @@ pnpm --filter @flowstudio/frontend add @radix-ui/react-dialog @radix-ui/react-dr
 
 ## SpacetimeDB Contract (Backend API)
 
-### Tables (subscribe via HTTP polling)
+### Tables (query via HTTP polling)
 - `projects` — id, name, status, createdAt, updatedAt, ownerId, metadata
 - `tasks` — id, projectId, taskType, status, workerId, inputAssetIds, outputAssetIds, config, failureReason, retryCount
 - `assets` — id, projectId, assetType, gcsPath, sizeBytes, mimeType, durationMs, metadata

@@ -215,7 +215,7 @@ cd /home/user/FlowStudio && git add finalFrontend/src/core/ && git commit -m "fe
 
 **Files:**
 - Create: `finalFrontend/src/core/stores/projectStore.ts`
-- Modify: `finalFrontend/src/lib/stdb.ts` (already framework-agnostic, keep as-is)
+- Modify: `finalFrontend/src/lib/stdbConnection.ts` (already framework-agnostic, keep as-is)
 
 **Step 1: Write the store**
 
@@ -224,7 +224,7 @@ Create `finalFrontend/src/core/stores/projectStore.ts`:
 ```typescript
 import { createStore } from 'zustand/vanilla';
 import type { Project, Task, ProjectState, Asset, Signal } from '@flowstudio/shared';
-import { StdbConnection } from '../../lib/stdb';
+import { callReducer, queryTable } from '../../lib/stdbConnection';
 
 export interface ProjectStoreState {
   // Data
@@ -1337,80 +1337,52 @@ cd /home/user/FlowStudio && git add finalFrontend/src/hooks/ && git commit -m "f
 ### Task 1.8: Set Up SpacetimeDB → Store Sync
 
 **Files:**
-- Create: `finalFrontend/src/core/services/stdbSync.ts`
+- Already exists: `finalFrontend/src/core/services/stdbSdkSync.ts`
 
-This service connects the existing `StdbConnection` to the new Zustand stores, replacing the per-component polling in the old hooks.
+This service connects the `stdbConnection` module to the Zustand stores via HTTP SQL polling, replacing the per-component subscription hooks.
 
 **Step 1: Write sync service**
 
-Create `finalFrontend/src/core/services/stdbSync.ts`:
+Already implemented at `finalFrontend/src/core/services/stdbSdkSync.ts`:
 
 ```typescript
-import { StdbConnection, type StdbConfig } from '../../lib/stdb';
-import { projectStore } from '../stores/projectStore';
-import { signalStore } from '../stores/signalStore';
+import { queryTable } from '../../lib/stdbConnection';
+import type { StoreApi } from 'zustand';
+import type { ProjectStore } from '../stores/projectStore';
+import type { SignalStoreType } from '../stores/signalStore';
 
-const STDB_CONFIG: StdbConfig = {
-  host: (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_STDB_HOST) ?? 'ws://localhost:3000',
-  module: (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_STDB_MODULE) ?? 'flowstudio',
-};
+interface SyncConfig {
+  projectStore: StoreApi<ProjectStore>;
+  signalStore: StoreApi<SignalStoreType>;
+  pollInterval?: number;
+}
 
-let connection: StdbConnection | null = null;
-let unsubscribers: Array<() => void> = [];
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+let syncFn: (() => Promise<void>) | null = null;
 
-export function getStdbConnection(): StdbConnection {
-  if (!connection) {
-    connection = new StdbConnection(STDB_CONFIG);
+export function startSdkSync(config: SyncConfig) {
+  const { projectStore, signalStore, pollInterval = 3000 } = config;
+
+  const sync = async () => {
+    // Polls projects, folders, assets, tasks, signals via queryTable()
+    // Maps rows to typed objects, pushes into Zustand stores
+  };
+
+  syncFn = sync;
+  sync();                                // Initial sync
+  pollTimer = setInterval(sync, pollInterval); // Periodic poll
+}
+
+/** Force an immediate sync (called after mutations for UI responsiveness) */
+export async function forceSync() {
+  if (syncFn) await syncFn();
+}
+
+export function stopSdkSync() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
   }
-  return connection;
-}
-
-/** Start syncing all tables to stores. Call once at app mount. */
-export function startSync(): void {
-  const conn = getStdbConnection();
-
-  unsubscribers.push(
-    conn.subscribeTable('projects', (rows) => {
-      projectStore.getState().syncProjects(rows);
-      projectStore.getState().setConnected(true);
-    }),
-    conn.subscribeTable('tasks', (rows) => {
-      projectStore.getState().syncTasks(rows);
-    }),
-    conn.subscribeTable('project_state', (rows) => {
-      projectStore.getState().syncProjectStates(rows);
-    }),
-    conn.subscribeTable('assets', (rows) => {
-      projectStore.getState().syncAssets(rows);
-    }),
-  );
-}
-
-/** Start syncing signals for a specific project. Returns unsubscribe. */
-export function startSignalSync(projectId: string): () => void {
-  const conn = getStdbConnection();
-  return conn.subscribeTable('signals', (rows) => {
-    const projectSignals = rows.filter(r => r.projectId === projectId);
-    signalStore.getState().syncSignals(projectId, projectSignals);
-  });
-}
-
-/** Call a reducer and refresh affected tables */
-export async function callReducer(name: string, args: Record<string, unknown>): Promise<void> {
-  const conn = getStdbConnection();
-  await conn.callReducer(name, args);
-  await conn.refreshTable('projects');
-  await conn.refreshTable('tasks');
-  await conn.refreshTable('project_state');
-  await conn.refreshTable('assets');
-}
-
-/** Stop all syncing */
-export function stopSync(): void {
-  for (const unsub of unsubscribers) unsub();
-  unsubscribers = [];
-  connection?.disconnect();
-  connection = null;
 }
 ```
 
@@ -1423,7 +1395,7 @@ cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend run typecheck
 **Step 3: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/core/services/stdbSync.ts && git commit -m "feat: add SpacetimeDB → Zustand store sync service"
+cd /home/user/FlowStudio && git add finalFrontend/src/core/services/stdbSdkSync.ts && git commit -m "feat: add SpacetimeDB → Zustand store sync service"
 ```
 
 ---

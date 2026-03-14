@@ -68,8 +68,8 @@ After each phase completes, verify:
 - All framework-agnostic code goes in `finalFrontend/src/core/` (permanent layer)
 - React hook adapters go in `finalFrontend/src/hooks/` (swappable layer)
 - Use CSS variables (`var(--color-*)`) for all colors, not hardcoded hex values
-- SpacetimeDB client (`lib/stdb.ts`) is already framework-agnostic — don't modify it
-- The existing `lib/hooks.ts` is DEPRECATED — new code uses `hooks/` directory instead
+- SpacetimeDB client (`lib/stdbConnection.ts`) is already framework-agnostic — don't modify it
+- The existing `lib/stdbHooks.ts` contains the current SpacetimeDB React hooks — new code uses `hooks/` directory instead
 - Tailwind v4 uses `@import "tailwindcss"` not `@tailwind base/components/utilities`
 
 ## Start

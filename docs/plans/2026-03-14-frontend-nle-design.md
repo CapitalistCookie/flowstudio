@@ -28,7 +28,7 @@ Complete frontend redesign for FlowStudio: 4 views (Dashboard, Recording, Studio
 ├─────────────────────────────────────┤
 │  Core Layer (framework-agnostic)    │  ← stays
 │  Zustand stores (vanilla mode)      │
-│  SpacetimeDB client (stdb.ts)       │
+│  SpacetimeDB client (stdbConnection.ts) │
 │  Canvas timeline renderer           │
 │  MediaRecorder capture engine       │
 │  GCS upload service                 │
@@ -84,7 +84,7 @@ Lazy loading: `/record` lazy-loads MediaRecorder APIs, `/project/[id]` lazy-load
 
 ## 3. Dashboard (`/`)
 
-Project cards grid with thumbnails, status badges, progress bars from `project_state`. Quick actions: "New Project" and "New Recording". Live "Processing Now" section showing active pipelines with task progress. Data via SpacetimeDB subscription on `projects` + `project_state` tables.
+Project cards grid with thumbnails, status badges, progress bars from `project_state`. Quick actions: "New Project" and "New Recording". Live "Processing Now" section showing active pipelines with task progress. Data via SpacetimeDB HTTP polling on `projects` + `project_state` tables.
 
 Components: extended `ProjectCard`, existing `CreateProjectDialog`, new `ProcessingBanner`, `QuickActions`.
 
