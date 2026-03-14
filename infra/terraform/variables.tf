@@ -17,7 +17,7 @@ variable "zone" {
 }
 
 variable "stdb_domain" {
-  description = "Domain for SpacetimeDB (via proxy)"
+  description = "Domain for SpacetimeDB (Nginx HTTPS terminator on GCE VM)"
   type        = string
   default     = "flowstudio-stdb-proxy-s2vq7emwcq-uk.a.run.app"
 }
