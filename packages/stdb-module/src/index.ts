@@ -194,16 +194,20 @@ export const onConnect = stdb.clientConnected((ctx: any) => {
 
 export const onDisconnect = stdb.clientDisconnected((ctx: any) => {
   console.log(`[FlowStudio] Client disconnected: ${ctx.sender}`);
-  // Mark worker inactive and release stale claimed tasks
-  for (const worker of ctx.db.workerConfigs.iter()) {
-    // Note: in future, match worker to identity
-  }
+  // TODO: Mark worker inactive and release stale claimed tasks.
+  // Currently, workers do not store their identity mapping, so we cannot directly
+  // match a disconnected client identity to a workerConfigs entry. The watchdog
+  // reducer (runWatchdog) handles stale claimed tasks by checking all tasks with
+  // claimedAt timestamps older than STALE_TASK_THRESHOLD_MS and resets them to pending.
+  // This design ensures cleanup happens consistently even if clientDisconnected is not
+  // called (e.g., network abrupt failure without explicit disconnect).
 });
 
 // Phase 2.4: Watchdog reducer
 export const runWatchdog = stdb.reducer(
   { arg: watchdogSchedule.rowType },
   (ctx: any, { arg }: any) => {
+    console.log('[runWatchdog] checking for stale tasks');
     const now = nowMs(ctx);
     let resetCount = 0;
     // Iterate all tasks and check for stale claimed ones
