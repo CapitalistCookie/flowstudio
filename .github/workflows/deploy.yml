@@ -1,0 +1,63 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1)'
+        required: true
+      services:
+        description: 'Services to deploy (comma-separated, or "all")'
+        required: true
+        default: 'all'
+
+env:
+  GCP_PROJECT_ID: lyrical-epigram-484715-v6
+  GCP_REGION: us-east4
+  REGISTRY: us-east4-docker.pkg.dev/lyrical-epigram-484715-v6/flowstudio
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build and deploy
+        run: |
+          chmod +x infra/scripts/*.sh
+          if [ "${{ inputs.services }}" = "all" ]; then
+            ./infra/scripts/deploy-all.sh ${{ inputs.version }}
+          else
+            IFS=',' read -ra SERVICES <<< "${{ inputs.services }}"
+            for service in "${SERVICES[@]}"; do
+              service=$(echo "$service" | xargs)
+              ./infra/scripts/build-and-push.sh "$service" ${{ inputs.version }}
+              ./infra/scripts/deploy-worker.sh "$service" ${{ inputs.version }}
+            done
+          fi

@@ -1,0 +1,43 @@
+FROM node:20.18-slim
+
+# Install FFmpeg conditionally
+ARG NEEDS_FFMPEG=false
+RUN if [ "$NEEDS_FFMPEG" = "true" ]; then \
+      apt-get update && apt-get install -y --no-install-recommends ffmpeg && \
+      rm -rf /var/lib/apt/lists/*; \
+    fi
+
+WORKDIR /app
+
+# Copy workspace config
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY tsconfig.base.json ./
+
+# Copy shared packages
+COPY packages/shared/ packages/shared/
+COPY packages/workers/shared/ packages/workers/shared/
+
+# Copy specific worker
+ARG WORKER_NAME
+COPY packages/workers/${WORKER_NAME}/ packages/workers/${WORKER_NAME}/
+
+# Install dependencies
+RUN npm install -g pnpm@9
+RUN pnpm install --frozen-lockfile --filter @flowstudio/shared --filter @flowstudio/worker-shared --filter @flowstudio/worker-${WORKER_NAME}
+
+# Build
+RUN pnpm --filter @flowstudio/shared run build
+RUN pnpm --filter @flowstudio/worker-shared run build
+RUN pnpm --filter @flowstudio/worker-${WORKER_NAME} run build
+
+# Clean up source files (keep dist only)
+RUN rm -rf packages/shared/src packages/workers/shared/src packages/workers/${WORKER_NAME}/src
+
+ENV NODE_ENV=production
+ENV WORKER_NAME=${WORKER_NAME}
+
+# Use entrypoint script for proper signal forwarding
+RUN printf '#!/bin/sh\nexec node packages/workers/$WORKER_NAME/dist/entrypoint.js\n' > /entrypoint.sh && chmod +x /entrypoint.sh
+
+EXPOSE 8080
+ENTRYPOINT ["/entrypoint.sh"]

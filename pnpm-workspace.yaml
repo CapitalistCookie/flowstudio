@@ -1,0 +1,5 @@
+packages:
+  - "packages/shared"
+  - "packages/stdb-module"
+  - "packages/client"
+  - "packages/workers/*"

@@ -1,0 +1,20 @@
+{
+  "name": "@flowstudio/worker-ui-change-detector",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/entrypoint.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@flowstudio/shared": "workspace:*",
+    "@flowstudio/worker-shared": "workspace:*",
+    "sharp": "0.33.5"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.3",
+    "typescript": "5.7.3"
+  }
+}

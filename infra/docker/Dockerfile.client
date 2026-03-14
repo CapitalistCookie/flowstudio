@@ -1,0 +1,38 @@
+FROM node:20.18-slim AS base
+WORKDIR /app
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY tsconfig.base.json ./
+COPY packages/shared/ packages/shared/
+COPY packages/client/ packages/client/
+
+RUN npm install -g pnpm@9
+RUN pnpm install --frozen-lockfile --filter @flowstudio/shared --filter @flowstudio/client
+
+ARG NEXT_PUBLIC_STDB_HOST=wss://stdb.flowstudio.ai
+ARG NEXT_PUBLIC_STDB_MODULE=flowstudio
+ARG NEXT_PUBLIC_UPLOAD_FUNCTION_URL=
+ENV NEXT_PUBLIC_STDB_HOST=$NEXT_PUBLIC_STDB_HOST
+ENV NEXT_PUBLIC_STDB_MODULE=$NEXT_PUBLIC_STDB_MODULE
+ENV NEXT_PUBLIC_UPLOAD_FUNCTION_URL=$NEXT_PUBLIC_UPLOAD_FUNCTION_URL
+
+RUN pnpm --filter @flowstudio/shared run build
+RUN pnpm --filter @flowstudio/client run build
+
+FROM node:20.18-slim AS production
+WORKDIR /app
+
+# Copy standalone output (includes server.js + bundled node_modules)
+COPY --from=base /app/packages/client/.next/standalone ./
+# Copy static assets
+COPY --from=base /app/packages/client/.next/static ./packages/client/.next/static
+
+# Ensure ESM support — standalone server.js uses import statements
+RUN node -e "const p=require('./package.json');p.type='module';require('fs').writeFileSync('./package.json',JSON.stringify(p,null,2))"
+
+ENV NODE_ENV=production
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
+EXPOSE 3000
+
+CMD ["node", "packages/client/server.js"]

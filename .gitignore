@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!*.tfvars.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# WASM build artifacts
+packages/stdb-module/target/
+
+# GCS credentials
+service-account-key.json
+lyrical-epigram-484715-v6-f865e736b70b.json
+service_account.json
+DEPLOY_PROMPT.md
+
+examples
+archive
