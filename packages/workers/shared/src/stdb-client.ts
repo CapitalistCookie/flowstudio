@@ -20,6 +20,7 @@ export class StdbClient {
   private readonly logger: Logger;
   private ws: WebSocket | null = null;
   private connected = false;
+  private intentionalDisconnect = false;
   private subscriptionCallbacks = new Map<string, Array<(row: unknown) => void>>();
 
   constructor(config: StdbClientConfig) {
@@ -54,7 +55,10 @@ export class StdbClient {
 
       this.ws.onclose = () => {
         this.connected = false;
-        this.logger.warn('SpacetimeDB WebSocket closed');
+        this.logger.warn('SpacetimeDB WebSocket closed, reconnecting in 3s...');
+        if (!this.intentionalDisconnect) {
+          setTimeout(() => this.reconnect(), 3000);
+        }
       };
 
       this.ws.onmessage = (event) => {
@@ -87,13 +91,26 @@ export class StdbClient {
     this.subscriptionCallbacks.set(tableName, existing);
   }
 
-  /** Disconnect */
+  /** Disconnect intentionally (no reconnect) */
   disconnect(): void {
+    this.intentionalDisconnect = true;
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
     this.connected = false;
+  }
+
+  /** Reconnect after unexpected disconnect */
+  private reconnect(): void {
+    if (this.intentionalDisconnect) return;
+    this.logger.info('Attempting WebSocket reconnection...');
+    this.connect().catch((err) => {
+      this.logger.error('Reconnection failed, retrying in 5s...', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setTimeout(() => this.reconnect(), 5000);
+    });
   }
 
   get isConnected(): boolean {

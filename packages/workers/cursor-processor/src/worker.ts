@@ -18,12 +18,21 @@ export class CursorProcessorWorker extends BaseWorker {
 
   async processTask(task: TaskData): Promise<TaskResult> {
     const inputAssetId = task.inputAssetIds[0];
-    if (!inputAssetId) throw new Error('No input asset ID provided');
+    if (!inputAssetId) {
+      this.logger.info('No cursor data available, completing with empty signals');
+      return { outputAssetIds: [], signals: [] };
+    }
 
-    // Download cursor data from GCS
-    const dataPath = `projects/${task.projectId}/source_video/${inputAssetId}`;
-    const rawData = await this.gcs.download(dataPath);
-    const events: CursorEvent[] = JSON.parse(rawData.toString('utf-8'));
+    // Try to download cursor data from GCS — gracefully handle missing data
+    let events: CursorEvent[];
+    try {
+      const dataPath = `projects/${task.projectId}/cursor_data/${inputAssetId}`;
+      const rawData = await this.gcs.download(dataPath);
+      events = JSON.parse(rawData.toString('utf-8'));
+    } catch {
+      this.logger.info('No cursor data found, completing with empty signals');
+      return { outputAssetIds: [], signals: [] };
+    }
 
     if (events.length === 0) {
       return { outputAssetIds: [], signals: [] };

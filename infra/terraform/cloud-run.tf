@@ -75,6 +75,11 @@ locals {
 
   # Workers with higher resource needs
   heavy_workers = toset(["render", "video-understanding", "intent-graph"])
+
+  # API key requirements per worker
+  deepgram_workers  = toset(["speech-transcription"])
+  google_ai_workers = toset(["video-understanding"])
+  anthropic_workers = toset(["intent-graph", "narrative-planner", "edit-planner"])
 }
 
 resource "google_cloud_run_v2_service" "workers" {
@@ -115,11 +120,60 @@ resource "google_cloud_run_v2_service" "workers" {
         value = var.project_id
       }
 
+      # Inject API keys from Secret Manager for workers that need them
+      dynamic "env" {
+        for_each = contains(local.deepgram_workers, each.key) ? [1] : []
+        content {
+          name = "DEEPGRAM_API_KEY"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.deepgram_api_key.secret_id
+              version = "latest"
+            }
+          }
+        }
+      }
+
+      dynamic "env" {
+        for_each = contains(local.google_ai_workers, each.key) ? [1] : []
+        content {
+          name = "GOOGLE_AI_API_KEY"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.google_ai_api_key.secret_id
+              version = "latest"
+            }
+          }
+        }
+      }
+
+      dynamic "env" {
+        for_each = contains(local.anthropic_workers, each.key) ? [1] : []
+        content {
+          name = "ANTHROPIC_API_KEY"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.anthropic_api_key.secret_id
+              version = "latest"
+            }
+          }
+        }
+      }
+
       resources {
         limits = {
           cpu    = contains(local.heavy_workers, each.key) ? "2" : "1"
           memory = contains(local.heavy_workers, each.key) ? "2Gi" : "1Gi"
         }
+      }
+
+      startup_probe {
+        http_get {
+          path = "/health"
+        }
+        initial_delay_seconds = 5
+        period_seconds        = 5
+        failure_threshold     = 3
       }
     }
 

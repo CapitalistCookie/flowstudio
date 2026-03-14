@@ -59,9 +59,11 @@ const TASK_DEPENDENCIES: Record<string, string[]> = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Generate a unique ID (no node:crypto in WASM) */
+/** Generate a unique ID (no node:crypto in WASM). Uses counter + random for collision safety. */
+let idCounter = 0;
 function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  idCounter++;
+  return Date.now().toString(36) + '-' + idCounter.toString(36) + '-' + Math.random().toString(36).slice(2, 10);
 }
 
 /** Current Unix ms timestamp */
@@ -341,6 +343,43 @@ stdb.reducer(
 );
 
 /**
+ * findAndClaimTask — Find a PENDING task of a given type and atomically claim it.
+ * Workers call this instead of claimTask when they don't know the task ID.
+ */
+stdb.reducer(
+  'findAndClaimTask',
+  {
+    taskType: t.string(),
+    workerId: t.string(),
+  },
+  (ctx, args) => {
+    const taskType = args.taskType as string;
+    const workerId = args.workerId as string;
+    const now = nowMs();
+
+    // Find the first pending task of this type
+    let foundId: string | null = null;
+    for (const task of ctx.db.tasks.iter()) {
+      if (task.taskType === taskType && task.status === 'pending') {
+        foundId = task.id as string;
+        break;
+      }
+    }
+
+    if (!foundId) {
+      throw new Error(`findAndClaimTask: no pending ${taskType} tasks`);
+    }
+
+    // Atomically claim it
+    ctx.db.tasks.updateByPrimaryKey(foundId, {
+      status: 'claimed',
+      workerId,
+      claimedAt: now,
+    });
+  },
+);
+
+/**
  * completeTask — Mark a task as COMPLETED, record output assets, then run task
  * chaining: for each downstream task type whose dependencies are ALL met,
  * create a new PENDING task.
@@ -392,6 +431,19 @@ stdb.reducer(
     // ------ Task chaining ------
     const downstreamTypes = TASK_CHAIN_DAG[completedType];
     if (!downstreamTypes || downstreamTypes.length === 0) {
+      // No downstream tasks — this is the final stage (RENDER).
+      // Mark project as ready.
+      ctx.db.project_state.updateByPrimaryKey(projectId, {
+        currentPhase: 'ready',
+        lastUpdated: now,
+      });
+      const project = ctx.db.projects.findByPrimaryKey(projectId);
+      if (project) {
+        ctx.db.projects.updateByPrimaryKey(projectId, {
+          status: 'ready',
+          updatedAt: now,
+        });
+      }
       return;
     }
 
@@ -430,6 +482,27 @@ stdb.reducer(
         continue;
       }
 
+      // Collect output asset IDs from all completed upstream tasks
+      const upstreamAssetIds: string[] = [];
+      for (const row of ctx.db.tasks.iter()) {
+        if (
+          row.projectId === projectId &&
+          row.status === 'completed' &&
+          deps.includes(row.taskType as string)
+        ) {
+          try {
+            const outputs = JSON.parse(row.outputAssetIds as string);
+            if (Array.isArray(outputs)) {
+              for (const id of outputs) {
+                upstreamAssetIds.push(id as string);
+              }
+            }
+          } catch {
+            // ignore parse errors
+          }
+        }
+      }
+
       // All dependencies met and task doesn't exist yet — create it
       ctx.db.tasks.insert({
         id: generateId(),
@@ -437,7 +510,7 @@ stdb.reducer(
         taskType: dsType,
         status: 'pending',
         workerId: '',
-        inputAssetIds: '[]',
+        inputAssetIds: JSON.stringify(upstreamAssetIds),
         outputAssetIds: '[]',
         config: '{}',
         createdAt: now,
@@ -684,10 +757,7 @@ stdb.reducer('watchdog_schedule', {}, (ctx, _args) => {
 stdb.reducer('__init__', {}, (ctx, _args) => {
   ctx.db.watchdog_schedule.insert({
     scheduledId: 0,
-    scheduledAt: { __brand: 'ScheduleAt' } as ScheduleAt,
-    // SpacetimeDB interprets the scheduledAt field. At runtime, the WASM host
-    // resolves ScheduleAt.interval(Duration.from_secs(WATCHDOG_INTERVAL_SECS)).
-    // For type-checking purposes we use the branded type.
+    scheduledAt: ScheduleAt.interval(WATCHDOG_INTERVAL_SECS * 1000),
   });
 });
 

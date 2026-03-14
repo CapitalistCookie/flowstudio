@@ -11,8 +11,10 @@ RUN pnpm install --frozen-lockfile --filter @flowstudio/shared --filter @flowstu
 
 ARG NEXT_PUBLIC_STDB_HOST=wss://stdb.flowstudio.ai
 ARG NEXT_PUBLIC_STDB_MODULE=flowstudio
+ARG NEXT_PUBLIC_UPLOAD_FUNCTION_URL=
 ENV NEXT_PUBLIC_STDB_HOST=$NEXT_PUBLIC_STDB_HOST
 ENV NEXT_PUBLIC_STDB_MODULE=$NEXT_PUBLIC_STDB_MODULE
+ENV NEXT_PUBLIC_UPLOAD_FUNCTION_URL=$NEXT_PUBLIC_UPLOAD_FUNCTION_URL
 
 RUN pnpm --filter @flowstudio/shared run build
 RUN pnpm --filter @flowstudio/client run build
@@ -30,4 +32,4 @@ WORKDIR /app/packages/client
 ENV NODE_ENV=production
 EXPOSE 3000
 
-CMD ["npx", "next", "start"]
+CMD ["node_modules/.bin/next", "start"]

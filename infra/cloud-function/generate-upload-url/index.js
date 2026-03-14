@@ -1,0 +1,44 @@
+const { Storage } = require('@google-cloud/storage');
+
+const storage = new Storage();
+const BUCKET = process.env.GCS_BUCKET || 'flowstudio-assets';
+
+/**
+ * Cloud Function: Generate a signed GCS upload URL for source video uploads.
+ * Fallback for when SpacetimeDB procedures are unavailable.
+ */
+exports.generateUploadUrl = async (req, res) => {
+  // CORS headers
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    res.status(405).send('Method not allowed');
+    return;
+  }
+
+  const { projectId, filename, contentType } = req.body;
+
+  if (!projectId || !filename) {
+    res.status(400).json({ error: 'Missing projectId or filename' });
+    return;
+  }
+
+  const gcsPath = `projects/${projectId}/source_video/${filename}`;
+  const file = storage.bucket(BUCKET).file(gcsPath);
+
+  const [url] = await file.getSignedUrl({
+    version: 'v4',
+    action: 'write',
+    expires: Date.now() + 15 * 60 * 1000,
+    contentType: contentType || 'video/mp4',
+  });
+
+  res.json({ url, gcsPath: `gs://${BUCKET}/${gcsPath}` });
+};

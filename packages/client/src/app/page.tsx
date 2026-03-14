@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Header } from '../components/Header.js';
 import { ProjectCard } from '../components/ProjectCard.js';
 import { CreateProjectDialog } from '../components/CreateProjectDialog.js';
@@ -9,9 +10,10 @@ import { useProjects } from '../lib/hooks.js';
 export default function DashboardPage() {
   const { projects, loading } = useProjects();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const router = useRouter();
 
   const handleProjectClick = (id: string) => {
-    window.location.href = `/project/${id}`;
+    router.push(`/project/${id}`);
   };
 
   return (

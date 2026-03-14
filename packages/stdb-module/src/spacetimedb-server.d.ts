@@ -9,6 +9,13 @@ declare module 'spacetimedb/server' {
     __brand: 'ScheduleAt';
   }
 
+  export const ScheduleAt: {
+    /** Create a repeating interval schedule (milliseconds) */
+    interval(ms: number): ScheduleAt;
+    /** Create a one-shot schedule at a specific time (Unix ms) */
+    at(timestampMs: number): ScheduleAt;
+  };
+
   /** Opaque column definition marker */
   export interface ColumnDef<T = unknown> {
     /** Mark this column as the primary key */

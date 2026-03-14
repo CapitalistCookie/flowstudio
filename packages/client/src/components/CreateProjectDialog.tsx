@@ -20,7 +20,7 @@ export function CreateProjectDialog({ open, onClose }: CreateProjectDialogProps)
     if (!name.trim()) return;
     setLoading(true);
     try {
-      await callReducer('createProject', { name: name.trim(), ownerId: 'anonymous' });
+      await callReducer('createProject', { name: name.trim(), ownerId: 'anonymous', metadata: '{}' });
       setName('');
       onClose();
     } catch (err) {

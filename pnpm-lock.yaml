@@ -52,10 +52,6 @@ importers:
         version: 5.7.3
 
   packages/stdb-module:
-    dependencies:
-      '@flowstudio/shared':
-        specifier: workspace:*
-        version: link:../shared
     devDependencies:
       typescript:
         specifier: 5.7.3
@@ -129,9 +125,6 @@ importers:
       '@flowstudio/worker-shared':
         specifier: workspace:*
         version: link:../shared
-      '@google/generative-ai':
-        specifier: 0.24.0
-        version: 0.24.0
     devDependencies:
       '@types/node':
         specifier: 22.15.3

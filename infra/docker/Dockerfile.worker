@@ -40,11 +40,23 @@ RUN if [ "$NEEDS_FFMPEG" = "true" ]; then \
     fi
 
 WORKDIR /app
-COPY --from=base /app/ ./
+
+# Copy only what's needed for production
+COPY --from=base /app/node_modules ./node_modules
+COPY --from=base /app/packages/shared/dist ./packages/shared/dist
+COPY --from=base /app/packages/shared/package.json ./packages/shared/
+COPY --from=base /app/packages/workers/shared/dist ./packages/workers/shared/dist
+COPY --from=base /app/packages/workers/shared/package.json ./packages/workers/shared/
+ARG WORKER_NAME
+COPY --from=base /app/packages/workers/${WORKER_NAME}/dist ./packages/workers/${WORKER_NAME}/dist
+COPY --from=base /app/packages/workers/${WORKER_NAME}/package.json ./packages/workers/${WORKER_NAME}/
+COPY --from=base /app/package.json ./
 
 ENV NODE_ENV=production
-ARG WORKER_NAME
 ENV WORKER_NAME=${WORKER_NAME}
 
+# Use entrypoint script for proper signal forwarding
+RUN printf '#!/bin/sh\nexec node packages/workers/$WORKER_NAME/dist/entrypoint.js\n' > /entrypoint.sh && chmod +x /entrypoint.sh
+
 EXPOSE 8080
-CMD node packages/workers/$WORKER_NAME/dist/entrypoint.js
+ENTRYPOINT ["/entrypoint.sh"]

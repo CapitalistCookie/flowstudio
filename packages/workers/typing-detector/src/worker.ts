@@ -26,12 +26,21 @@ export class TypingDetectorWorker extends BaseWorker {
 
   async processTask(task: TaskData): Promise<TaskResult> {
     const inputAssetId = task.inputAssetIds[0];
-    if (!inputAssetId) throw new Error('No input asset ID provided');
+    if (!inputAssetId) {
+      this.logger.info('No keyboard data available, completing with empty signals');
+      return { outputAssetIds: [], signals: [] };
+    }
 
-    // Download keyboard event data
-    const dataPath = `projects/${task.projectId}/source_video/${inputAssetId}`;
-    const rawData = await this.gcs.download(dataPath);
-    const events: KeyEvent[] = JSON.parse(rawData.toString('utf-8'));
+    // Try to download keyboard event data — gracefully handle missing data
+    let events: KeyEvent[];
+    try {
+      const dataPath = `projects/${task.projectId}/keyboard_data/${inputAssetId}`;
+      const rawData = await this.gcs.download(dataPath);
+      events = JSON.parse(rawData.toString('utf-8'));
+    } catch {
+      this.logger.info('No keyboard data found, completing with empty signals');
+      return { outputAssetIds: [], signals: [] };
+    }
 
     // Filter to keydown events only
     const keydowns = events.filter(e => e.type === 'keydown');
