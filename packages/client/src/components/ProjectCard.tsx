@@ -1,10 +1,16 @@
 'use client';
 
-import type { Project } from '@flowstudio/shared';
 import { ProjectStatus } from '@flowstudio/shared';
 
+interface ProjectCardProject {
+  id: string;
+  name: string;
+  status: string;
+  createdAt: number;
+}
+
 interface ProjectCardProps {
-  project: Project;
+  project: ProjectCardProject;
   onClick: (id: string) => void;
 }
 
