@@ -1,9 +1,13 @@
 'use client';
 
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { INITIAL_TASK_TYPES } from '@flowstudio/shared';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useCapture } from '@/hooks/useCapture';
+import { useReducer as useStdbReducer } from '@/lib/hooks';
 import { formatTime } from '@/lib/utils';
 import {
   Video,
@@ -16,9 +20,18 @@ import {
   Camera,
   Mic,
   MicOff,
+  Upload,
 } from 'lucide-react';
 
 export default function RecordPage() {
+  return (
+    <Suspense fallback={null}>
+      <RecordPageContent />
+    </Suspense>
+  );
+}
+
+function RecordPageContent() {
   const {
     status,
     elapsedMs,
@@ -34,6 +47,81 @@ export default function RecordPage() {
     setSourceType,
     toggleAudio,
   } = useCapture();
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const projectId = searchParams.get('projectId');
+  const { callReducer } = useStdbReducer();
+
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+
+  const handleUseRecording = async () => {
+    if (!blobUrl || !projectId) return;
+
+    setUploading(true);
+    setUploadProgress('Preparing recording...');
+
+    try {
+      // Fetch the blob from the object URL
+      const response = await fetch(blobUrl);
+      const blob = await response.blob();
+      const filename = `recording-${Date.now()}.webm`;
+      const file = new File([blob], filename, { type: blob.type || 'video/webm' });
+
+      setUploadProgress('Requesting upload URL...');
+      const uploadFnUrl = process.env.NEXT_PUBLIC_UPLOAD_FUNCTION_URL ?? 'http://localhost:8081';
+      const urlRes = await fetch(`${uploadFnUrl}/generate-upload-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, filename: file.name, contentType: file.type }),
+      });
+      if (!urlRes.ok) throw new Error('Failed to get upload URL');
+      const { url, gcsPath } = (await urlRes.json()) as { url: string; gcsPath: string };
+
+      setUploadProgress('Uploading recording...');
+      const uploadRes = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      });
+      if (!uploadRes.ok) throw new Error('Upload failed');
+
+      setUploadProgress('Registering asset...');
+      await callReducer('createAsset', {
+        projectId,
+        assetType: 'source_video',
+        gcsPath,
+        sizeBytes: file.size,
+        mimeType: file.type,
+        durationMs: elapsedMs,
+        metadata: JSON.stringify({ originalName: file.name, source: 'screen_recording' }),
+      });
+
+      for (const taskType of INITIAL_TASK_TYPES) {
+        await callReducer('createTask', {
+          projectId,
+          taskType,
+          inputAssetIds: JSON.stringify([gcsPath]),
+          config: '{}',
+          maxRetries: 3,
+        });
+      }
+
+      await callReducer('updateProjectState', {
+        projectId,
+        currentPhase: 'processing',
+        status: 'processing',
+      });
+
+      discard();
+      router.push(`/project/${projectId}`);
+    } catch (err) {
+      setUploadProgress(`Error: ${err instanceof Error ? err.message : 'Upload failed'}`);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -164,15 +252,45 @@ export default function RecordPage() {
                   controls
                   className="w-full rounded-xl max-h-80"
                 />
+
+                {uploadProgress && (
+                  <p className="text-sm" style={{ color: 'var(--color-muted)' }}>
+                    {uploadProgress}
+                  </p>
+                )}
+
                 <div className="flex items-center justify-center gap-3">
-                  <Button onClick={start} className="gap-2">
-                    <Circle className="h-4 w-4" />
-                    Record Again
-                  </Button>
-                  <Button variant="outline" onClick={discard} className="gap-2">
-                    <Trash2 className="h-4 w-4" />
-                    Discard
-                  </Button>
+                  {projectId ? (
+                    <>
+                      <Button
+                        onClick={handleUseRecording}
+                        disabled={uploading}
+                        className="gap-2"
+                      >
+                        <Upload className="h-4 w-4" />
+                        {uploading ? 'Uploading...' : 'Use This Recording'}
+                      </Button>
+                      <Button variant="outline" onClick={start} className="gap-2">
+                        <Circle className="h-4 w-4" />
+                        Record Again
+                      </Button>
+                      <Button variant="outline" onClick={discard} className="gap-2">
+                        <Trash2 className="h-4 w-4" />
+                        Discard
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button onClick={start} className="gap-2">
+                        <Circle className="h-4 w-4" />
+                        Record Again
+                      </Button>
+                      <Button variant="outline" onClick={discard} className="gap-2">
+                        <Trash2 className="h-4 w-4" />
+                        Discard
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             )}

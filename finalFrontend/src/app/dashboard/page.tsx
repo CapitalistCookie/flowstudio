@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { ProjectCard } from '@/components/ProjectCard';
-import { CreateProjectDialog } from '@/components/CreateProjectDialog';
+import { NewProjectDialog } from '@/components/NewProjectDialog';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useProjectStore } from '@/hooks/useStores';
@@ -65,16 +65,10 @@ export default function DashboardPage() {
         {/* Quick actions */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold">Recent Projects</h2>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => router.push('/record')} className="gap-2">
-              <Video className="h-4 w-4" />
-              Record
-            </Button>
-            <Button onClick={() => setDialogOpen(true)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              New Project
-            </Button>
-          </div>
+          <Button onClick={() => setDialogOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Start New Project
+          </Button>
         </div>
 
         {/* Projects grid */}
@@ -96,7 +90,7 @@ export default function DashboardPage() {
             </p>
             <Button onClick={() => setDialogOpen(true)} className="gap-2">
               <Plus className="h-4 w-4" />
-              New Project
+              Start New Project
             </Button>
           </div>
         ) : (
@@ -111,7 +105,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <CreateProjectDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
+        <NewProjectDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
       </main>
     </div>
   );

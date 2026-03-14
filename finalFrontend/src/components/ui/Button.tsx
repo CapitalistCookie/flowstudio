@@ -10,7 +10,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'hover-glow-amber',
+        default: 'hover-glow-teal',
         outline: 'border backdrop-blur-sm hover-glow-amber',
         ghost: 'backdrop-blur-sm',
         destructive: '',
@@ -42,8 +42,8 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variantStyles: Record<string, React.CSSProperties> = {
       default: {
-        background: 'linear-gradient(135deg, #F5A623 0%, #E09420 100%)',
-        color: 'var(--color-text)',
+        background: 'linear-gradient(135deg, #1A9E8F 0%, #168A7D 100%)',
+        color: '#FFFFFF',
       },
       outline: {
         borderColor: 'rgba(230, 225, 215, 0.6)',

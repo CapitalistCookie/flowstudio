@@ -5,7 +5,7 @@
 
 :root {
   /* FluxStudio — liquid glass warm studio */
-  --background: #FAF8F5;
+  --background: #FFFEF2;
   --foreground: #1A1916;
   --card: rgba(255, 255, 255, 0.55);
   --card-foreground: #1A1916;
@@ -23,7 +23,7 @@
   --destructive-foreground: #FFFFFF;
   --border: rgba(230, 225, 215, 0.6);
   --input: rgba(255, 255, 255, 0.5);
-  --ring: #F5A623;
+  --ring: #1A9E8F;
   --radius: 1rem;
 
   /* Sidebar — translucent */
@@ -59,7 +59,7 @@
   --glass-refraction: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 50%, rgba(255,255,255,0.05) 100%);
 
   /* Glow tokens */
-  --glow-amber: 0 0 20px rgba(245, 166, 35, 0.15), 0 0 40px rgba(245, 166, 35, 0.05);
+  --glow-amber: 0 0 20px rgba(245, 166, 35, 0.25), 0 0 40px rgba(245, 166, 35, 0.12);
   --glow-teal: 0 0 20px rgba(26, 158, 143, 0.15), 0 0 40px rgba(26, 158, 143, 0.05);
   --glow-gold: 0 0 20px rgba(212, 165, 74, 0.15), 0 0 40px rgba(212, 165, 74, 0.05);
 
@@ -125,7 +125,7 @@
   }
   body {
     @apply text-foreground antialiased;
-    background: linear-gradient(165deg, #FAF8F5 0%, #F5EDE0 35%, #FFF8EE 65%, #FAF8F5 100%);
+    background: linear-gradient(165deg, #FFFEF2 0%, #FFF8E8 35%, #FFFEF2 65%, #FFFEF2 100%);
     background-attachment: fixed;
     font-feature-settings: "ss01", "ss02", "cv01", "cv02";
   }
@@ -200,8 +200,8 @@
     transition: box-shadow 250ms ease, border-color 250ms ease;
   }
   .glass-card:hover {
-    box-shadow: var(--glow-amber);
-    border-color: rgba(245, 166, 35, 0.25);
+    box-shadow: var(--glow-teal);
+    border-color: rgba(26, 158, 143, 0.25);
   }
 
   /* ── Glow utilities ── */
@@ -313,7 +313,7 @@
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 45%;
-  background: linear-gradient(to bottom, #FAF8F5 0%, transparent 100%);
+  background: linear-gradient(to bottom, var(--background) 0%, transparent 100%);
   pointer-events: none;
   z-index: 2;
 }

@@ -5,11 +5,10 @@ import { usePathname } from 'next/navigation';
 import { BRANDING } from '@flowstudio/shared';
 import { cn } from '@/lib/utils';
 import { FluxLogo } from '@/components/FluxLogo';
-import { Video, FolderOpen, LayoutDashboard } from 'lucide-react';
+import { FolderOpen, LayoutDashboard } from 'lucide-react';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/record', label: 'Record', icon: Video },
   { href: '/projects', label: 'Projects', icon: FolderOpen },
 ] as const;
 

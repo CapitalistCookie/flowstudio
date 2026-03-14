@@ -256,9 +256,9 @@ export default function LandingPage() {
           transition={{ duration: 0.9, delay: 0.8, ease: [0.22, 1, 0.36, 1] }}
           className="relative mt-16 w-full max-w-5xl"
         >
-          <div className="pointer-events-none absolute inset-x-0 -top-px z-10 h-16 bg-gradient-to-b from-[#FAF8F5] to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 -top-px z-10 h-16 bg-gradient-to-b from-[#FFFEF2] to-transparent" />
           <FakeEditorPreview />
-          <div className="pointer-events-none absolute inset-x-0 -bottom-px z-10 h-24 bg-gradient-to-t from-[#FAF8F5] to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 -bottom-px z-10 h-24 bg-gradient-to-t from-[#FFFEF2] to-transparent" />
         </motion.div>
       </motion.section>
 

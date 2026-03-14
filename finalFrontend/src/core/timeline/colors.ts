@@ -7,7 +7,7 @@ import type { TrackType } from '../types';
 
 export const TRACK_COLORS: Record<TrackType, { bg: string; clip: string; clipSelected: string; text: string }> = {
   video: {
-    bg: '#FAF8F5',
+    bg: '#FFFEF2',
     clip: '#F5A623',
     clipSelected: '#E09420',
     text: '#1A1916',
@@ -28,12 +28,12 @@ export const TRACK_COLORS: Record<TrackType, { bg: string; clip: string; clipSel
     bg: '#FAF8F3',
     clip: '#8A8780',
     clipSelected: '#6E6C67',
-    text: '#FAF8F5',
+    text: '#FFFEF2',
   },
 };
 
 export const TIMELINE_COLORS = {
-  background: '#FAF8F5',
+  background: '#FFFEF2',
   ruler: '#F0EDE8',
   rulerText: '#8A8780',
   playhead: '#F5A623',
