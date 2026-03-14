@@ -22,7 +22,7 @@ if [ "$SERVICE" = "client" ]; then
   DOCKER_BUILDKIT=1 docker build \
     -f infra/docker/Dockerfile.client \
     -t "${REGISTRY}/client:${VERSION}" \
-    --build-arg NEXT_PUBLIC_STDB_HOST="${NEXT_PUBLIC_STDB_HOST:-wss://stdb.flowstudio.ai}" \
+    --build-arg NEXT_PUBLIC_STDB_HOST="${NEXT_PUBLIC_STDB_HOST:-https://stdb.flowstudio.ai}" \
     --build-arg NEXT_PUBLIC_STDB_MODULE="${NEXT_PUBLIC_STDB_MODULE:-flowstudio}" \
     --build-arg NEXT_PUBLIC_UPLOAD_FUNCTION_URL="${NEXT_PUBLIC_UPLOAD_FUNCTION_URL:-}" \
     .
