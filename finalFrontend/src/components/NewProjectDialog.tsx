@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useReducer, getConnection } from '../lib/hooks';
+import { useStdbReducer } from '../lib/stdbHooks';
+import { queryTable } from '../lib/stdbConnection';
 import {
   Dialog,
   DialogContent,
@@ -23,7 +24,7 @@ export function NewProjectDialog({ open, onClose }: NewProjectDialogProps) {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { callReducer } = useReducer();
+  const { callReducer } = useStdbReducer();
   const router = useRouter();
 
   useEffect(() => {
@@ -48,8 +49,7 @@ export function NewProjectDialog({ open, onClose }: NewProjectDialogProps) {
       });
 
       // Query the DB directly to find the newly created project
-      const conn = getConnection();
-      const rows = await conn.queryTable('projects');
+      const rows = await queryTable('projects');
       const matching = rows.filter((r) => r.name === trimmedName);
       const sorted = matching.sort(
         (a, b) => (b.createdAt as number) - (a.createdAt as number)

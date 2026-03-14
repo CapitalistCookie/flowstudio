@@ -19,7 +19,7 @@ import {
   Scissors,
   Film,
 } from 'lucide-react';
-import { useReducer as useStdbReducer } from '@/lib/hooks';
+import { useStdbReducer } from '@/lib/stdbHooks';
 
 interface ProjectPageProps {
   params: Promise<{ id: string }>;

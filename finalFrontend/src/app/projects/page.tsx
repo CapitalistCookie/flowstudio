@@ -13,7 +13,7 @@ import { FolderCard } from '@/components/FolderCard';
 import { CreateFolderDialog } from '@/components/CreateFolderDialog';
 import { MoveToFolderDialog } from '@/components/MoveToFolderDialog';
 import { useProjectStore } from '@/hooks/useStores';
-import { useReducer as useStdbReducer } from '@/lib/hooks';
+import { useStdbReducer } from '@/lib/stdbHooks';
 import { ProjectStatus } from '@flowstudio/shared';
 import {
   Search,

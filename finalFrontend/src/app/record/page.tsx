@@ -7,7 +7,7 @@ import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useCapture } from '@/hooks/useCapture';
-import { useReducer as useStdbReducer } from '@/lib/hooks';
+import { useStdbReducer } from '@/lib/stdbHooks';
 import { formatTime } from '@/lib/utils';
 import {
   Video,
@@ -51,7 +51,7 @@ function RecordPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = searchParams.get('projectId');
-  const { callReducer } = useStdbReducer();
+  const { callReducer } = useStdbReducer();  // SDK-shaped hook
 
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);

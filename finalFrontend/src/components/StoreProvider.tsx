@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Toaster, toast } from 'sonner';
 import {
   StoreContext,
@@ -12,12 +12,14 @@ import {
 } from '../hooks/useStores';
 import { subscribeNotifications } from '../core/services/notifications';
 import { startListening, stopListening } from '../core/services/shortcuts';
-import { startSync, stopSync } from '../core/services/stdbSync';
-import { getConnection } from '../lib/hooks';
+import { initConnection, disconnect } from '../lib/stdbConnection';
+import { startSdkSync, stopSdkSync } from '../core/services/stdbSdkSync';
 
 export function StoreProvider({ children }: { children: ReactNode }) {
+  const [connected, setConnected] = useState(false);
+
   useEffect(() => {
-    // Wire notifications → sonner
+    // Wire notifications -> sonner
     const unsubNotifs = subscribeNotifications((notification) => {
       const opts = { duration: notification.durationMs, description: notification.description };
       switch (notification.type) {
@@ -38,19 +40,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // Start keyboard shortcut listener
     startListening();
 
-    // Start SpacetimeDB → store sync (uses shared singleton connection)
-    const conn = getConnection();
-    startSync({
-      projectStore,
-      signalStore,
-      connection: conn,
-      pollInterval: 3000,
-    });
+    // Connect to SpacetimeDB and start store sync
+    initConnection(
+      () => setConnected(true),
+      () => setConnected(false),
+    )
+      .then(() => {
+        startSdkSync({ projectStore, signalStore, pollInterval: 3000 });
+      })
+      .catch((err) => {
+        console.error('[StoreProvider] STDB connection failed:', err);
+        // Start sync anyway — individual poll attempts will retry
+        startSdkSync({ projectStore, signalStore, pollInterval: 3000 });
+      });
 
     return () => {
       unsubNotifs();
       stopListening();
-      stopSync();
+      stopSdkSync();
+      disconnect();
     };
   }, []);
 
