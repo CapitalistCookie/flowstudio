@@ -120,6 +120,7 @@ export function resumeCapture(captureStore: StoreApi<CaptureStoreType>) {
 
 export function stopCapture(captureStore: StoreApi<CaptureStoreType>) {
   captureStore.getState().setStatus('stopping');
+  cleanupTimer();
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop();
   }

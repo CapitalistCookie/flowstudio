@@ -148,11 +148,9 @@ export const createTimelineStore = () =>
           set((s) => {
             const clips = s.clips.map((c) => {
               if (c.id !== clipId) return c;
-              // Adjust sourceOffsetMs when left edge moves right (standard NLE trim)
+              // Adjust sourceOffsetMs when left edge moves (standard NLE trim)
               const deltaMs = startMs - c.startMs;
-              const sourceOffsetMs = deltaMs > 0
-                ? c.sourceOffsetMs + deltaMs * c.speed
-                : c.sourceOffsetMs;
+              const sourceOffsetMs = Math.max(0, c.sourceOffsetMs + deltaMs * c.speed);
               return { ...c, startMs, durationMs, sourceOffsetMs };
             });
             return { clips, durationMs: recalcDuration(clips) };

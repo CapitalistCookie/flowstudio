@@ -21,15 +21,18 @@ export function PreviewModal({ onClose }: PreviewModalProps) {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-      // Space for play/pause is handled by useStudioShortcuts — no duplicate handler
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation(); // Prevent shortcuts service from also handling Escape
+        onClose();
+      }
     },
     [onClose]
   );
 
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    // Use capture phase to intercept before shortcuts service
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [handleKeyDown]);
 
   return (
