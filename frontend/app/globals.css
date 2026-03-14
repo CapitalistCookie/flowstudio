@@ -293,33 +293,33 @@ body.custom-cursor-active * {
 
   .projects-streak-bg {
     background-image:
-      linear-gradient(145deg, rgba(26, 158, 143, 0.1) 0%, rgba(26, 158, 143, 0) 26%, rgba(245, 166, 35, 0.1) 64%, rgba(245, 166, 35, 0) 100%),
-      repeating-linear-gradient(112deg, rgba(245, 166, 35, 0.12) 0px, rgba(245, 166, 35, 0.12) 2px, transparent 2px, transparent 32px),
-      repeating-linear-gradient(74deg, rgba(26, 158, 143, 0.1) 0px, rgba(26, 158, 143, 0.1) 1px, transparent 1px, transparent 28px);
+      linear-gradient(145deg, rgba(26, 158, 143, 0.07) 0%, rgba(26, 158, 143, 0) 30%, rgba(245, 166, 35, 0.1) 68%, rgba(245, 166, 35, 0) 100%),
+      repeating-linear-gradient(112deg, rgba(245, 166, 35, 0.11) 0px, rgba(245, 166, 35, 0.11) 2px, transparent 2px, transparent 30px),
+      repeating-linear-gradient(74deg, rgba(26, 158, 143, 0.05) 0px, rgba(26, 158, 143, 0.05) 1px, transparent 1px, transparent 26px);
     background-repeat: no-repeat, repeat, repeat;
     background-size: cover, auto, auto;
   }
 
   .dark .projects-streak-bg {
     background-image:
-      linear-gradient(145deg, rgba(26, 158, 143, 0.08) 0%, rgba(26, 158, 143, 0) 26%, rgba(245, 166, 35, 0.08) 64%, rgba(245, 166, 35, 0) 100%),
-      repeating-linear-gradient(112deg, rgba(245, 166, 35, 0.1) 0px, rgba(245, 166, 35, 0.1) 2px, transparent 2px, transparent 32px),
-      repeating-linear-gradient(74deg, rgba(26, 158, 143, 0.08) 0px, rgba(26, 158, 143, 0.08) 1px, transparent 1px, transparent 28px);
+      linear-gradient(145deg, rgba(26, 158, 143, 0.1) 0%, rgba(26, 158, 143, 0) 26%, rgba(245, 166, 35, 0.1) 64%, rgba(245, 166, 35, 0) 100%),
+      repeating-linear-gradient(112deg, rgba(245, 166, 35, 0.14) 0px, rgba(245, 166, 35, 0.14) 2px, transparent 2px, transparent 28px),
+      repeating-linear-gradient(74deg, rgba(26, 158, 143, 0.1) 0px, rgba(26, 158, 143, 0.1) 1px, transparent 1px, transparent 24px);
   }
 
   .dashboard-grid-fade {
     background-image:
-      linear-gradient(to right, rgba(245, 166, 35, 0.075) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(245, 166, 35, 0.075) 1px, transparent 1px);
+      linear-gradient(to right, rgba(245, 166, 35, 0.2) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(245, 166, 35, 0.2) 1px, transparent 1px);
     background-size: 54px 54px;
-    mask-image: radial-gradient(ellipse at center, black 56%, transparent 100%);
-    -webkit-mask-image: radial-gradient(ellipse at center, black 56%, transparent 100%);
+    mask-image: radial-gradient(ellipse at center, black 74%, transparent 100%);
+    -webkit-mask-image: radial-gradient(ellipse at center, black 74%, transparent 100%);
   }
 
   .dark .dashboard-grid-fade {
     background-image:
-      linear-gradient(to right, rgba(245, 166, 35, 0.11) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(245, 166, 35, 0.11) 1px, transparent 1px);
+      linear-gradient(to right, rgba(245, 166, 35, 0.24) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(245, 166, 35, 0.24) 1px, transparent 1px);
   }
 }
 

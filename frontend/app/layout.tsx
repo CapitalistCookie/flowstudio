@@ -5,7 +5,6 @@ import { DM_Sans, JetBrains_Mono } from "next/font/google"
 import { Toaster } from "sonner"
 import { CustomCursor } from "@/components/custom-cursor"
 import { ThemeProvider } from "@/components/theme-provider"
-import { ThemeControls } from "@/components/theme-controls"
 import "./globals.css"
 
 const dmSans = DM_Sans({
@@ -41,7 +40,6 @@ export default function RootLayout({
         <body className="font-sans antialiased grain-overlay" suppressHydrationWarning>
           <ThemeProvider>
             <div className="pointer-events-none fixed inset-0 z-[-1] grid-texture opacity-50" />
-            <ThemeControls />
             <CustomCursor />
             {children}
             <Toaster position="bottom-right" richColors />

@@ -8,7 +8,7 @@ import { FluxLogo } from "@/components/flux-logo"
 import { useProjectStore } from "@/lib/stores/project-store"
 
 interface WorkspaceSidebarProps {
-  active: "dashboard" | "projects"
+  active: "dashboard" | "projects" | "settings"
   showProjectList?: boolean
 }
 
@@ -86,7 +86,8 @@ export function WorkspaceSidebar({ active, showProjectList = true }: WorkspaceSi
         <SidebarItem
           icon={<Settings size={20} />}
           label="Settings"
-          onClick={() => router.push("/projects")}
+          active={active === "settings"}
+          onClick={() => router.push("/settings")}
         />
       </div>
 

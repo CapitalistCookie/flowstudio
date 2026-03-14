@@ -9,7 +9,7 @@ interface TrailPoint {
   radius: number
   vx: number
   vy: number
-  grow: number
+  twinkle: number
 }
 
 export function CustomCursor() {
@@ -24,7 +24,6 @@ export function CustomCursor() {
   const trailRef = useRef<TrailPoint[]>([])
   const rafRef = useRef<number | null>(null)
   const lastPointRef = useRef({ x: -100, y: -100 })
-  const interactiveRef = useRef(false)
 
   useEffect(() => {
     const media = window.matchMedia("(hover: hover) and (pointer: fine)")
@@ -54,6 +53,8 @@ export function CustomCursor() {
     window.addEventListener("resize", resize)
 
     const move = (e: MouseEvent) => {
+      setVisible(true)
+
       if (dotRef.current) {
         dotRef.current.style.left = `${e.clientX}px`
         dotRef.current.style.top = `${e.clientY}px`
@@ -68,17 +69,15 @@ export function CustomCursor() {
       const dy = e.clientY - lastPointRef.current.y
       const dist = Math.sqrt(dx * dx + dy * dy)
       if (dist > 2.5) {
-        const nx = dist > 0 ? dx / dist : 0
-        const ny = dist > 0 ? dy / dist : 0
-        const drift = 0.28
+        const safeDist = dist || 1
         trailRef.current.push({
           x: e.clientX,
           y: e.clientY,
           alpha: 0.58,
-          radius: 1.9 + Math.random() * 1.2,
-          vx: nx * drift + (Math.random() - 0.5) * 0.18,
-          vy: ny * drift + (Math.random() - 0.5) * 0.18,
-          grow: 0.02 + Math.random() * 0.04,
+          radius: 2,
+          vx: dx / safeDist,
+          vy: dy / safeDist,
+          twinkle: Math.random() * 0.65 + 0.35,
         })
         lastPointRef.current = { x: e.clientX, y: e.clientY }
       }
@@ -91,10 +90,7 @@ export function CustomCursor() {
           "button, a, [role='button'], [role='menuitem'], input, textarea, select, summary, [data-cursor='interactive']"
         )
       )
-      if (interactive !== interactiveRef.current) {
-        interactiveRef.current = interactive
-        setIsInteractive(interactive)
-      }
+      setIsInteractive(interactive)
     }
 
     const down = () => setIsPressed(true)
@@ -110,37 +106,53 @@ export function CustomCursor() {
 
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      const maxTrail = 240
+      const maxTrail = 120
       if (trailRef.current.length > maxTrail) {
         trailRef.current.splice(0, trailRef.current.length - maxTrail)
       }
 
       trailRef.current = trailRef.current
-        .map((pt) => {
-          const nx = pt.x + pt.vx
-          const ny = pt.y + pt.vy
-          const nvx = pt.vx * 0.985 + (Math.random() - 0.5) * 0.01
-          const nvy = pt.vy * 0.985 + (Math.random() - 0.5) * 0.01
-          const nradius = pt.radius + pt.grow
-          const alpha = pt.alpha
-          const radius = Math.max(0.8, nradius)
+        .map((pt, i) => {
+          const progress = i / Math.max(1, trailRef.current.length)
+          const alpha = pt.alpha * progress
+          const width = Math.max(0.6, pt.radius * progress)
+          const streakLength = 18 * progress + 5
+          const tailX = pt.x - pt.vx * streakLength
+          const tailY = pt.y - pt.vy * streakLength
 
-          const glow = ctx.createRadialGradient(nx, ny, 0, nx, ny, radius * 4.8)
-          glow.addColorStop(0, `rgba(245,166,35,${alpha * 0.42})`)
-          glow.addColorStop(0.28, `rgba(245,166,35,${alpha * 0.22})`)
-          glow.addColorStop(1, "rgba(245,166,35,0)")
-
-          ctx.beginPath()
-          ctx.arc(nx, ny, radius * 4.8, 0, Math.PI * 2)
-          ctx.fillStyle = glow
-          ctx.fill()
+          const streakGradient = ctx.createLinearGradient(pt.x, pt.y, tailX, tailY)
+          streakGradient.addColorStop(0, `rgba(255, 195, 84, ${alpha * 0.85})`)
+          streakGradient.addColorStop(0.35, `rgba(245, 166, 35, ${alpha * 0.42})`)
+          streakGradient.addColorStop(1, "rgba(245, 166, 35, 0)")
 
           ctx.beginPath()
-          ctx.arc(nx, ny, radius * 0.75, 0, Math.PI * 2)
-          ctx.fillStyle = `rgba(245,166,35,${alpha * 0.5})`
-          ctx.fill()
+          ctx.moveTo(pt.x, pt.y)
+          ctx.lineTo(tailX, tailY)
+          ctx.strokeStyle = streakGradient
+          ctx.lineWidth = width
+          ctx.lineCap = "round"
+          ctx.stroke()
 
-          return { ...pt, x: nx, y: ny, vx: nvx, vy: nvy, radius: nradius, alpha: pt.alpha - 0.0022 }
+          const sparkleSize = (1.2 + progress * 2.6) * pt.twinkle
+          ctx.strokeStyle = `rgba(255, 232, 168, ${alpha * 0.55})`
+          ctx.lineWidth = Math.max(0.45, width * 0.45)
+
+          // 4-point star sparkle (no dot particles).
+          ctx.beginPath()
+          ctx.moveTo(pt.x - sparkleSize, pt.y)
+          ctx.lineTo(pt.x + sparkleSize, pt.y)
+          ctx.moveTo(pt.x, pt.y - sparkleSize)
+          ctx.lineTo(pt.x, pt.y + sparkleSize)
+          ctx.stroke()
+
+          ctx.beginPath()
+          ctx.moveTo(pt.x - sparkleSize * 0.65, pt.y - sparkleSize * 0.65)
+          ctx.lineTo(pt.x + sparkleSize * 0.65, pt.y + sparkleSize * 0.65)
+          ctx.moveTo(pt.x + sparkleSize * 0.65, pt.y - sparkleSize * 0.65)
+          ctx.lineTo(pt.x - sparkleSize * 0.65, pt.y + sparkleSize * 0.65)
+          ctx.stroke()
+
+          return { ...pt, alpha: pt.alpha - 0.0022 }
         })
         .filter((pt) => pt.alpha > 0.01)
 
