@@ -963,13 +963,8 @@ export function Timeline() {
                 className={`flex h-12 border-b transition-all relative ${
                   dropTargetTrack === track 
                     ? "bg-blue-500/20 border-blue-400 shadow-inner ring-1 ring-blue-400/50 ring-inset" 
-                    : "border-border"
+                    : `${index < 2 ? "bg-[oklch(0.95_0.006_84)] dark:bg-[rgba(14,13,11,0.88)]" : "bg-[oklch(0.93_0.008_82)] dark:bg-[rgba(16,14,12,0.92)]"} border-border`
                 }`}
-                style={{
-                  background: dropTargetTrack === track 
-                    ? undefined 
-                    : index < 2 ? "oklch(0.97 0.006 84)" : "oklch(0.95 0.008 82)",
-                }}
                 onDragOver={(e) => handleTrackDragOver(e, track)}
                 onDragLeave={handleTrackDragLeave}
                 onDrop={(e) => handleTrackDrop(e, track)}
@@ -987,7 +982,7 @@ export function Timeline() {
                     const numSegments = Math.ceil(maxTimelineSeconds / secondsPerSegment)
                     
                     return Array.from({ length: numSegments }).map((_, i) => (
-                      <div key={i} className="shrink-0 border-r border-border/30" style={{ width: `${segmentWidth}px` }} />
+                      <div key={i} className="shrink-0 border-r border-border/35 dark:border-white/10" style={{ width: `${segmentWidth}px` }} />
                     ))
                   })()}
                 </div>

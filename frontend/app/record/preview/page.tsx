@@ -20,7 +20,7 @@ function formatTime(seconds: number): string {
 export default function RecordingPreviewPage() {
   const router = useRouter()
   const { elapsedSeconds } = useRecordingStore()
-  const [pendingAction, setPendingAction] = useState<"auto" | "tweak" | null>(null)
+  const [pendingAction, setPendingAction] = useState<"auto" | "refine" | null>(null)
   const [isAutoProcessing, setIsAutoProcessing] = useState(false)
   const [autoProgress, setAutoProgress] = useState(0)
   const [isAutoComplete, setIsAutoComplete] = useState(false)
@@ -65,9 +65,13 @@ export default function RecordingPreviewPage() {
     }
   }
 
-  const goToStudioTweak = () => {
-    setPendingAction("tweak")
-    router.push("/studio?edits=tweak")
+  const goToStudioRefine = () => {
+    setPendingAction("refine")
+    router.push("/studio?edits=refine")
+  }
+
+  const goToStudioAuto = () => {
+    router.push("/studio?edits=auto")
   }
 
   const goToDashboard = () => {
@@ -147,7 +151,7 @@ export default function RecordingPreviewPage() {
               <button
                 type="button"
                 onClick={handleAutoApply}
-                disabled={pendingAction === "tweak" || isAutoComplete}
+                disabled={pendingAction === "refine" || isAutoComplete}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/10 px-5 text-sm font-semibold text-white transition duration-200 hover:scale-[1.01] hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isAutoProcessing && !isAutoComplete ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
@@ -155,13 +159,23 @@ export default function RecordingPreviewPage() {
               </button>
               <button
                 type="button"
-                onClick={goToStudioTweak}
+                onClick={goToStudioRefine}
                 disabled={pendingAction !== null}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#F5A623] px-5 text-sm font-semibold text-[#1A1916] shadow-lg transition duration-200 hover:scale-[1.01] hover:bg-[#E79A21] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {pendingAction === "tweak" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                Apply + Tweak
+                {pendingAction === "refine" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                Apply + Refine
               </button>
+
+              {isAutoProcessing && (
+                <button
+                  type="button"
+                  onClick={goToStudioAuto}
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/25 bg-transparent px-5 text-sm font-semibold text-white/90 transition duration-200 hover:bg-white/10"
+                >
+                  Open Studio
+                </button>
+              )}
 
               {isAutoProcessing && (
                 <button

@@ -4,6 +4,54 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* FlowStudio — light cinematic studio */
+  --background: #F6F3EC;
+  --foreground: #1D1A16;
+  --card: #FAF8F3;
+  --card-foreground: #1D1A16;
+  --popover: #FCFAF6;
+  --popover-foreground: #1D1A16;
+  --primary: #F5A623;
+  --primary-foreground: #1D1A16;
+  --secondary: #ECE6DC;
+  --secondary-foreground: #1D1A16;
+  --muted: #E8E1D6;
+  --muted-foreground: #7B7368;
+  --accent: #F5A623;
+  --accent-foreground: #1D1A16;
+  --destructive: #DC2626;
+  --destructive-foreground: #FFFFFF;
+  --border: #D9D1C3;
+  --input: #EFE8DC;
+  --ring: #F5A623;
+  --radius: 0.5rem;
+
+  /* Sidebar */
+  --sidebar: #F1EDE4;
+  --sidebar-foreground: #1D1A16;
+  --sidebar-primary: #F5A623;
+  --sidebar-primary-foreground: #1D1A16;
+  --sidebar-accent: #E8E1D5;
+  --sidebar-accent-foreground: #1D1A16;
+  --sidebar-border: #D9D1C3;
+  --sidebar-ring: #F5A623;
+
+  /* FlowStudio brand tokens */
+  --flux-amber: #F5A623;
+  --flux-amber-dim: rgba(245, 166, 35, 0.6);
+  --flux-amber-glow: rgba(245, 166, 35, 0.12);
+  --flux-amber-glow-strong: rgba(245, 166, 35, 0.25);
+  --flux-teal: #1A9E8F;
+  --flux-teal-glow: rgba(26, 158, 143, 0.12);
+  --flux-charcoal: #1D1A16;
+  --flux-surface: #FCFAF6;
+  --flux-surface-raised: #F4EFE7;
+  --flux-offwhite: #FCFAF6;
+  --flux-secondary-text: #7B7368;
+  --flux-tertiary-text: #4E4942;
+}
+
+.dark {
   /* FlowStudio — dark cinematic studio */
   --background: #0D0C0A;
   --foreground: #F0EDE8;
@@ -24,9 +72,7 @@
   --border: #272420;
   --input: #1E1C18;
   --ring: #F5A623;
-  --radius: 0.5rem;
 
-  /* Sidebar */
   --sidebar: #0F0E0B;
   --sidebar-foreground: #F0EDE8;
   --sidebar-primary: #F5A623;
@@ -36,7 +82,6 @@
   --sidebar-border: #272420;
   --sidebar-ring: #F5A623;
 
-  /* FlowStudio brand tokens */
   --flux-amber: #F5A623;
   --flux-amber-dim: rgba(245, 166, 35, 0.6);
   --flux-amber-glow: rgba(245, 166, 35, 0.12);
