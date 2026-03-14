@@ -1,18 +1,6 @@
-import { TaskType, SignalType } from '@flowstudio/shared';
+import { TaskType, SignalType, sanitizeText, buildSecurePrompt, validateOutput, PROMPT_REGISTRY, IntentGraphOutputSchema } from '@flowstudio/shared';
 import { BaseWorker, type TaskData, type TaskResult } from '@flowstudio/worker-shared';
 import { AnthropicVertex } from '@anthropic-ai/vertex-sdk';
-
-function extractJsonArray(text: string): string | null {
-  const start = text.indexOf('[');
-  if (start === -1) return null;
-  let depth = 0;
-  for (let i = start; i < text.length; i++) {
-    if (text[i] === '[') depth++;
-    else if (text[i] === ']') depth--;
-    if (depth === 0) return text.slice(start, i + 1);
-  }
-  return null;
-}
 
 interface UpstreamSignal {
   signalType: string;
@@ -57,7 +45,7 @@ export class IntentGraphWorker extends BaseWorker {
     // Sort by timestamp
     upstreamSignals.sort((a, b) => a.timestampMs - b.timestampMs);
 
-    // Build a summary of all signals for the LLM
+    // Build a sanitized summary of all signals for the LLM
     const signalSummary = upstreamSignals.map(s => ({
       type: s.signalType,
       time: `${(s.timestampMs / 1000).toFixed(1)}s`,
@@ -66,73 +54,51 @@ export class IntentGraphWorker extends BaseWorker {
       detail: this.summarizePayload(s),
     }));
 
+    // Read prompt overrides from task config, falling back to registry defaults
+    const registry = PROMPT_REGISTRY['intent-graph'];
+    if (!registry) throw new Error('Missing prompt registry entry for intent-graph');
+    const overrides = task.config.promptOverrides as Record<string, unknown> | undefined;
+    const systemPrompt = (overrides?.systemPrompt as string) ?? registry.systemPrompt;
+    const maxTokens = (overrides?.maxTokens as number) ?? registry.defaultMaxTokens;
+
+    // Build secure prompt with system/user separation and XML-fenced data
+    const prompt = buildSecurePrompt({
+      systemPrompt,
+      dataBlocks: [{
+        label: 'upstream_signals',
+        content: JSON.stringify(signalSummary, null, 2),
+      }],
+    });
+
     const message = await anthropic.messages.create({
       model: this.config.anthropicModel ?? 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
-      messages: [{
-        role: 'user',
-        content: `You are analyzing a screen recording of someone using software. Based on these signals extracted from the video, build an intent graph — a hierarchy of what the user was trying to accomplish.
-
-Signals:
-${JSON.stringify(signalSummary, null, 2)}
-
-Build a tree of intents where:
-- Root intents are high-level goals (e.g., "Writing a blog post", "Debugging code")
-- Child intents are sub-tasks (e.g., "Formatting text", "Searching for function")
-- Each intent references the signal timestamps that support it
-
-Respond with JSON array of objects:
-{
-  "intentId": "string",
-  "parentIntentId": "string | null",
-  "action": "what the user is doing",
-  "reasoning": "why you think this",
-  "confidence": 0.0-1.0,
-  "startMs": number,
-  "endMs": number,
-  "relatedSignalIndices": [number]
-}`,
-      }],
+      max_tokens: maxTokens,
+      system: prompt.system,
+      messages: [{ role: 'user', content: prompt.user }],
     });
 
     const responseText = message.content[0]?.type === 'text' ? message.content[0].text : '';
 
-    // Parse intent graph from response
-    const signals: TaskResult['signals'] = [];
-    try {
-      const jsonMatch = extractJsonArray(responseText);
-      if (jsonMatch) {
-        const intents = JSON.parse(jsonMatch) as Array<{
-          intentId: string;
-          parentIntentId: string | null;
-          action: string;
-          reasoning: string;
-          confidence: number;
-          startMs: number;
-          endMs: number;
-          relatedSignalIndices: number[];
-        }>;
-
-        for (const intent of intents) {
-          signals.push({
-            signalType: SignalType.INTENT_NODE,
-            timestampMs: intent.startMs,
-            durationMs: intent.endMs - intent.startMs,
-            confidence: intent.confidence,
-            payload: {
-              intentId: intent.intentId,
-              parentIntentId: intent.parentIntentId,
-              action: intent.action,
-              reasoning: intent.reasoning,
-              confidence: intent.confidence,
-              relatedSignalIds: intent.relatedSignalIndices.map(i => String(i)),
-            },
-          });
-        }
-      }
-    } catch (err) {
-      throw new Error(`Failed to parse intent graph from LLM response: ${err instanceof Error ? err.message : String(err)}`);
+    // Validate output against Zod schema
+    const validation = validateOutput(responseText, IntentGraphOutputSchema);
+    if (!validation.parsed) {
+      throw new Error(`Failed to parse intent graph from LLM response: ${validation.errors?.join('; ')}`);
     }
+
+    const signals: TaskResult['signals'] = validation.parsed.map(intent => ({
+      signalType: SignalType.INTENT_NODE,
+      timestampMs: intent.startMs,
+      durationMs: intent.endMs - intent.startMs,
+      confidence: intent.confidence,
+      payload: {
+        intentId: intent.intentId,
+        parentIntentId: intent.parentIntentId,
+        action: intent.action,
+        reasoning: intent.reasoning,
+        confidence: intent.confidence,
+        relatedSignalIds: intent.relatedSignalIndices.map(i => String(i)),
+      },
+    }));
 
     // Save intent graph to GCS
     const graphPath = `projects/${task.projectId}/signals/intent_graph.json`;
@@ -145,19 +111,19 @@ Respond with JSON array of objects:
     const p = signal.payload;
     switch (signal.signalType) {
       case SignalType.SPEECH_SEGMENT:
-        return `Speech: "${(p.text as string)?.slice(0, 100)}"`;
+        return `Speech: "${sanitizeText((p.text as string) ?? '', 100)}"`;
       case SignalType.SCENE_CHANGE:
-        return `Scene: ${p.description as string}`;
+        return `Scene: ${sanitizeText((p.description as string) ?? '', 200)}`;
       case SignalType.UI_TRANSITION:
-        return `UI: ${p.transitionType} (${p.fromState} → ${p.toState})`;
+        return `UI: ${sanitizeText(String(p.transitionType ?? ''), 50)} (${sanitizeText(String(p.fromState ?? ''), 50)} → ${sanitizeText(String(p.toState ?? ''), 50)})`;
       case SignalType.CURSOR_MOVEMENT:
         return `Cursor: ${p.movementType}, ${(p.speed as number)?.toFixed(0)}px/s`;
       case SignalType.TYPING_EVENT:
-        return `Typing: "${(p.detectedText as string)?.slice(0, 50)}"`;
+        return `Typing: "${sanitizeText((p.detectedText as string) ?? '', 50)}"`;
       case SignalType.INTERACTION_CLUSTER:
-        return `Cluster: ${p.intent} (${p.clusterLabel})`;
+        return `Cluster: ${sanitizeText(String(p.intent ?? ''), 100)} (${sanitizeText(String(p.clusterLabel ?? ''), 50)})`;
       default:
-        return JSON.stringify(p).slice(0, 100);
+        return sanitizeText(JSON.stringify(p), 100);
     }
   }
 }

@@ -1,18 +1,6 @@
-import { TaskType, SignalType } from '@flowstudio/shared';
+import { TaskType, SignalType, buildSecurePrompt, validateOutput, PROMPT_REGISTRY, NarrativePlanOutputSchema } from '@flowstudio/shared';
 import { BaseWorker, type TaskData, type TaskResult } from '@flowstudio/worker-shared';
 import { AnthropicVertex } from '@anthropic-ai/vertex-sdk';
-
-function extractJsonArray(text: string): string | null {
-  const start = text.indexOf('[');
-  if (start === -1) return null;
-  let depth = 0;
-  for (let i = start; i < text.length; i++) {
-    if (text[i] === '[') depth++;
-    else if (text[i] === ']') depth--;
-    if (depth === 0) return text.slice(start, i + 1);
-  }
-  return null;
-}
 
 export class NarrativePlannerWorker extends BaseWorker {
   readonly taskType = TaskType.NARRATIVE_PLAN;
@@ -26,75 +14,53 @@ export class NarrativePlannerWorker extends BaseWorker {
     // Download intent graph
     const graphPath = `projects/${task.projectId}/signals/intent_graph.json`;
     const graphData = await this.gcs.download(graphPath);
-    const intents: unknown = JSON.parse(graphData.toString('utf-8'));
+    const intents = graphData.toString('utf-8');
 
-    const message = await anthropic.messages.create({
-      model: this.config.anthropicModel ?? 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
-      messages: [{
-        role: 'user',
-        content: `You are a video editor creating a narrative structure for an edited video from a screen recording.
+    // Read prompt overrides from task config, falling back to registry defaults
+    const registry = PROMPT_REGISTRY['narrative-planner'];
+    if (!registry) throw new Error('Missing prompt registry entry for narrative-planner');
+    const overrides = task.config.promptOverrides as Record<string, unknown> | undefined;
+    const systemPrompt = (overrides?.systemPrompt as string) ?? registry.systemPrompt;
+    const maxTokens = (overrides?.maxTokens as number) ?? registry.defaultMaxTokens;
 
-Intent graph (what the user was doing):
-${JSON.stringify(intents, null, 2)}
-
-Create a sequence of narrative beats that would make a compelling, clear edited video:
-- Each beat is a segment of the final video
-- Beats should flow logically (setup → action → result)
-- Remove dead time, repetition, and errors
-- Highlight key moments and achievements
-
-Respond with a JSON array:
-{
-  "beatIndex": number,
-  "beatType": "setup" | "action" | "result" | "transition" | "highlight",
-  "title": "short title",
-  "description": "what happens in this beat",
-  "suggestedDurationMs": number,
-  "startMs": number,
-  "endMs": number,
-  "relatedIntentIds": ["string"]
-}`,
+    // Build secure prompt with system/user separation and XML-fenced data
+    const prompt = buildSecurePrompt({
+      systemPrompt,
+      dataBlocks: [{
+        label: 'intent_graph',
+        content: intents,
       }],
     });
 
+    const message = await anthropic.messages.create({
+      model: this.config.anthropicModel ?? 'claude-sonnet-4-20250514',
+      max_tokens: maxTokens,
+      system: prompt.system,
+      messages: [{ role: 'user', content: prompt.user }],
+    });
+
     const responseText = message.content[0]?.type === 'text' ? message.content[0].text : '';
-    const signals: TaskResult['signals'] = [];
 
-    try {
-      const jsonMatch = extractJsonArray(responseText);
-      if (jsonMatch) {
-        const beats = JSON.parse(jsonMatch) as Array<{
-          beatIndex: number;
-          beatType: string;
-          title: string;
-          description: string;
-          suggestedDurationMs: number;
-          startMs: number;
-          endMs: number;
-          relatedIntentIds: string[];
-        }>;
-
-        for (const beat of beats) {
-          signals.push({
-            signalType: SignalType.NARRATIVE_BEAT,
-            timestampMs: beat.startMs,
-            durationMs: beat.endMs - beat.startMs,
-            confidence: 0.85,
-            payload: {
-              beatIndex: beat.beatIndex,
-              beatType: beat.beatType,
-              title: beat.title,
-              description: beat.description,
-              suggestedDurationMs: beat.suggestedDurationMs,
-              relatedIntentIds: beat.relatedIntentIds,
-            },
-          });
-        }
-      }
-    } catch (err) {
-      throw new Error(`Failed to parse narrative beats from LLM response: ${err instanceof Error ? err.message : String(err)}`);
+    // Validate output against Zod schema
+    const validation = validateOutput(responseText, NarrativePlanOutputSchema);
+    if (!validation.parsed) {
+      throw new Error(`Failed to parse narrative beats from LLM response: ${validation.errors?.join('; ')}`);
     }
+
+    const signals: TaskResult['signals'] = validation.parsed.map(beat => ({
+      signalType: SignalType.NARRATIVE_BEAT,
+      timestampMs: beat.startMs,
+      durationMs: beat.endMs - beat.startMs,
+      confidence: 0.85,
+      payload: {
+        beatIndex: beat.beatIndex,
+        beatType: beat.beatType,
+        title: beat.title,
+        description: beat.description,
+        suggestedDurationMs: beat.suggestedDurationMs,
+        relatedIntentIds: beat.relatedIntentIds,
+      },
+    }));
 
     const outputPath = `projects/${task.projectId}/signals/narrative_plan.json`;
     await this.gcs.upload(outputPath, Buffer.from(JSON.stringify(signals, null, 2)), 'application/json');

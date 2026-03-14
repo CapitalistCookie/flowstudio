@@ -5,3 +5,6 @@ export * from './types/signals.js';
 export * from './types/events.js';
 export * from './constants.js';
 export * from './utils.js';
+export * from './prompt-security.js';
+export * from './schemas.js';
+export * from './prompt-registry.js';

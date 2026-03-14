@@ -44,6 +44,7 @@ export abstract class BaseWorker {
   private running = false;
   private activeTasks = 0;
   private readonly startTime = Date.now();
+  private readonly processingTaskIds = new Set<string>();
 
   /** The task type this worker handles */
   abstract readonly taskType: TaskType;
@@ -136,7 +137,12 @@ export abstract class BaseWorker {
         taskType: this.taskType,
         workerId: this.config.workerId,
       });
+    } catch {
+      // No pending task — this is normal
+      return;
+    }
 
+    try {
       // Query the tasks table to find the task that was just claimed
       const tasks = await this.stdb.queryTable('tasks');
       const claimed = tasks.find(
@@ -146,19 +152,26 @@ export abstract class BaseWorker {
           t.taskType === this.taskType
       );
 
-      if (claimed) {
-        const taskData: TaskData = {
-          id: claimed.id as string,
-          projectId: claimed.projectId as string,
-          taskType: claimed.taskType as string,
-          inputAssetIds: JSON.parse((claimed.inputAssetIds as string) || '[]'),
-          config: JSON.parse((claimed.config as string) || '{}'),
-        };
-        await this.handleClaimedTask(taskData);
+      if (claimed && !this.processingTaskIds.has(claimed.id as string)) {
+        const taskId = claimed.id as string;
+        this.processingTaskIds.add(taskId);
+        try {
+          const taskData: TaskData = {
+            id: taskId,
+            projectId: claimed.projectId as string,
+            taskType: claimed.taskType as string,
+            inputAssetIds: JSON.parse((claimed.inputAssetIds as string) || '[]'),
+            config: JSON.parse((claimed.config as string) || '{}'),
+          };
+          await this.handleClaimedTask(taskData);
+        } finally {
+          this.processingTaskIds.delete(taskId);
+        }
       }
-    } catch {
-      // No task available or claim failed — this is normal
-      return;
+    } catch (err) {
+      this.logger.error('Failed to query/process task after claim', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 

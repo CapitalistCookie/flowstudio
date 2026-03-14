@@ -74,6 +74,11 @@ export async function initConnection(
  * BigInt values (u64) are converted to Number for store compatibility.
  */
 export async function queryTable(tableName: string): Promise<Record<string, unknown>[]> {
+  // Validate table name to prevent SQL injection
+  if (!/^[a-z_][a-z0-9_]*$/i.test(tableName)) {
+    throw new Error(`Invalid table name: ${tableName}`);
+  }
+
   const url = `${HTTP_HOST}/v1/database/${DB_NAME}/sql`;
   const response = await fetch(url, {
     method: 'POST',

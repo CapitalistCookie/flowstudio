@@ -61,6 +61,11 @@ export class StdbClient {
    * SDK migration: replace with ctx.db.tableName.iter() subscription callbacks.
    */
   async queryTable(tableName: string): Promise<Record<string, unknown>[]> {
+    // Validate table name to prevent SQL injection
+    if (!/^[a-z_][a-z0-9_]*$/i.test(tableName)) {
+      throw new Error(`Invalid table name: ${tableName}`);
+    }
+
     const url = `${this.baseUrl}/v1/database/${this.moduleName}/sql`;
 
     const response = await fetch(url, {
