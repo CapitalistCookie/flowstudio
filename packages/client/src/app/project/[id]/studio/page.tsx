@@ -7,13 +7,13 @@ import {
   Group as PanelGroup,
   Separator as PanelResizeHandle,
 } from 'react-resizable-panels';
-import { Header } from '@/components/Header';
 import { AssetPanel } from '@/components/studio/AssetPanel';
 import { VideoPreview } from '@/components/studio/VideoPreview';
 import { PropertiesPanel } from '@/components/studio/PropertiesPanel';
 import { Timeline } from '@/components/studio/Timeline';
 import { PreviewModal } from '@/components/studio/PreviewModal';
 import { useProjectStore, useUIStore } from '@/hooks/useStores';
+import { useStudioShortcuts } from '@/components/studio/useStudioShortcuts';
 import { ArrowLeft } from 'lucide-react';
 
 interface StudioPageProps {
@@ -28,6 +28,8 @@ export default function StudioPage({ params }: StudioPageProps) {
   const togglePreviewFullscreen = useUIStore((s) => s.togglePreviewFullscreen);
   const assetPanelCollapsed = useUIStore((s) => s.assetPanelCollapsed);
   const propertiesPanelCollapsed = useUIStore((s) => s.propertiesPanelCollapsed);
+
+  useStudioShortcuts();
 
   useEffect(() => {
     setActiveProject(id);
@@ -69,7 +71,7 @@ export default function StudioPage({ params }: StudioPageProps) {
                   <Panel defaultSize={20} minSize={15} maxSize={35}>
                     <AssetPanel />
                   </Panel>
-                  <PanelResizeHandle className="w-1 hover:bg-blue-500/30 transition-colors" />
+                  <PanelResizeHandle className="w-1 hover:bg-[var(--color-primary)]/30 transition-colors" />
                 </>
               )}
 
@@ -81,7 +83,7 @@ export default function StudioPage({ params }: StudioPageProps) {
               {/* Properties */}
               {!propertiesPanelCollapsed && (
                 <>
-                  <PanelResizeHandle className="w-1 hover:bg-blue-500/30 transition-colors" />
+                  <PanelResizeHandle className="w-1 hover:bg-[var(--color-primary)]/30 transition-colors" />
                   <Panel defaultSize={25} minSize={15} maxSize={40}>
                     <PropertiesPanel />
                   </Panel>
@@ -91,7 +93,7 @@ export default function StudioPage({ params }: StudioPageProps) {
           </Panel>
 
           {/* Resize handle between preview and timeline */}
-          <PanelResizeHandle className="h-1 hover:bg-blue-500/30 transition-colors" />
+          <PanelResizeHandle className="h-1 hover:bg-[var(--color-primary)]/30 transition-colors" />
 
           {/* Timeline */}
           <Panel defaultSize={40} minSize={20} maxSize={70}>

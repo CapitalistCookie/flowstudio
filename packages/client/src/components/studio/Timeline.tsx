@@ -135,28 +135,29 @@ export function Timeline() {
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
+      const state = stateRef.current;
 
       // Click on ruler → seek
       if (y < 28) {
-        const ms = xToMs(x, timelineState);
+        const ms = xToMs(x, state);
         setPlayheadMs(Math.max(0, ms));
         setIsDragging(true);
         return;
       }
 
       // Hit test clips
-      const clip = hitTestClip(x, y, timelineState);
+      const clip = hitTestClip(x, y, state);
       if (clip) {
         selectClip(clip.id, e.shiftKey);
       } else {
         deselectAll();
         // Click on track area → seek
-        const ms = xToMs(x, timelineState);
+        const ms = xToMs(x, state);
         setPlayheadMs(Math.max(0, ms));
         setIsDragging(true);
       }
     },
-    [timelineState, selectClip, deselectAll, setPlayheadMs]
+    [selectClip, deselectAll, setPlayheadMs]
   );
 
   const handleMouseMove = useCallback(
@@ -166,10 +167,10 @@ export function Timeline() {
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
-      const ms = xToMs(x, timelineState);
+      const ms = xToMs(x, stateRef.current);
       setPlayheadMs(Math.max(0, ms));
     },
-    [isDragging, timelineState, setPlayheadMs]
+    [isDragging, setPlayheadMs]
   );
 
   const handleMouseUp = useCallback(() => {

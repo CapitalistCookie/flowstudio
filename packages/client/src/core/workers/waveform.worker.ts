@@ -15,7 +15,7 @@ interface WaveformResult {
 }
 
 self.onmessage = (e: MessageEvent<WaveformRequest>) => {
-  const { channelData, sampleRate, samplesPerPixel } = e.data;
+  const { channelData, samplesPerPixel } = e.data;
   const totalSamples = channelData.length;
   const numPeaks = Math.ceil(totalSamples / samplesPerPixel);
   const peaks = new Float32Array(numPeaks);
