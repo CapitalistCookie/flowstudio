@@ -155,13 +155,13 @@ export default function LandingPage() {
         <FluxLogo />
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => router.push("/projects")} className="text-muted-foreground hover:text-foreground">
-            Dashboard
+            Projects
           </Button>
           <Button
-            onClick={() => router.push("/projects")}
+            onClick={() => router.push("/dashboard")}
             className="gap-2 bg-foreground hover:bg-foreground/90 text-background"
           >
-            Open Studio
+            Open Dashboard
             <ArrowUpRight className="h-3.5 w-3.5" />
           </Button>
         </div>
@@ -206,7 +206,7 @@ export default function LandingPage() {
           transition={{ duration: 0.55, delay: 0.5 }}
           className="mt-7 max-w-lg text-center text-lg text-muted-foreground leading-relaxed"
         >
-          Record your product. FluxStudio analyzes intent signals, cuts dead time, schedules zooms, and hands you a polished timeline — before you touch the editor.
+          Record your product. FlowStudio analyzes intent signals, cuts dead time, schedules zooms, and hands you a polished timeline — before you touch the editor.
         </motion.p>
 
         {/* CTAs */}
@@ -219,19 +219,19 @@ export default function LandingPage() {
           <Button
             size="lg"
             className="h-12 gap-2 bg-[#F5A623] hover:bg-[#E09420] text-[#1A1916] font-medium px-7"
-            onClick={() => router.push("/record")}
+            onClick={() => router.push("/dashboard")}
           >
-            Start Recording
+            Open Dashboard
             <ArrowRight className="h-4 w-4" />
           </Button>
           <Button
             size="lg"
             variant="outline"
             className="h-12 gap-2 border-border px-7 text-foreground hover:bg-secondary"
-            onClick={() => router.push("/projects")}
+            onClick={() => router.push("/dashboard")}
           >
             <Play className="h-3.5 w-3.5" />
-            Open Studio
+            Get Started
           </Button>
         </motion.div>
 
@@ -385,15 +385,15 @@ export default function LandingPage() {
               <span className="text-muted-foreground">Done.</span>
             </h2>
             <p className="mt-6 text-muted-foreground max-w-md mx-auto leading-relaxed">
-              The editing step should feel like it never existed. FluxStudio makes that real.
+              The editing step should feel like it never existed. FlowStudio makes that real.
             </p>
             <div className="mt-10">
               <Button
                 size="lg"
                 className="h-12 gap-2 bg-[#F5A623] hover:bg-[#E09420] text-[#1A1916] font-medium px-8"
-                onClick={() => router.push("/record")}
+                onClick={() => router.push("/dashboard")}
               >
-                Start Recording Free
+                Get Started Free
                 <ArrowUpRight className="h-4 w-4" />
               </Button>
             </div>
@@ -406,11 +406,11 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl flex flex-col items-center justify-between gap-6 sm:flex-row">
           <div className="flex items-center gap-4">
             <FluxLogo size="sm" />
-            <span className="text-xs text-muted-foreground">© 2026 FluxStudio · GenAI Genesis Hackathon</span>
+            <span className="text-xs text-muted-foreground">© 2026 FlowStudio · GenAI Genesis Hackathon</span>
           </div>
           <div className="flex items-center gap-6 text-xs text-muted-foreground">
-            <button onClick={() => router.push("/projects")} className="hover:text-foreground transition-colors cursor-pointer">Dashboard</button>
-            <button onClick={() => router.push("/record")} className="hover:text-foreground transition-colors cursor-pointer">Record</button>
+            <button onClick={() => router.push("/dashboard")} className="hover:text-foreground transition-colors cursor-pointer">Dashboard</button>
+            <button onClick={() => router.push("/projects")} className="hover:text-foreground transition-colors cursor-pointer">Projects</button>
             <button onClick={() => router.push("/studio")} className="hover:text-foreground transition-colors cursor-pointer">Studio</button>
           </div>
         </div>

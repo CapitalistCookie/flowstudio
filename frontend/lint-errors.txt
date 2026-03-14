@@ -1,0 +1,162 @@
+﻿
+> frontend@0.1.0 lint
+> eslint
+
+
+C:\Users\33576\FlowStudio\frontend\app\page.tsx
+  5:42  warning  'Zap' is defined but never used       @typescript-eslint/no-unused-vars
+  5:47  warning  'Scissors' is defined but never used  @typescript-eslint/no-unused-vars
+  5:57  warning  'Mic2' is defined but never used      @typescript-eslint/no-unused-vars
+  5:63  warning  'Captions' is defined but never used  @typescript-eslint/no-unused-vars
+  5:73  warning  'Eye' is defined but never used       @typescript-eslint/no-unused-vars
+  5:78  warning  'Clock3' is defined but never used    @typescript-eslint/no-unused-vars
+
+C:\Users\33576\FlowStudio\frontend\components\auto-enhance-modal.tsx
+  59:47  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\33576\FlowStudio\frontend\components\editor-context.tsx
+  286:7  error    Error: Cannot access variable before it is declared
+
+`setCanPasteState` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+C:\Users\33576\FlowStudio\frontend\components\editor-context.tsx:286:7
+  284 |     if (clip) {
+  285 |       copiedClipRef.current = JSON.parse(JSON.stringify(clip))
+> 286 |       setCanPasteState(true)
+      |       ^^^^^^^^^^^^^^^^ `setCanPasteState` accessed before it is declared
+  287 |     }
+  288 |   }, [timelineClips])
+  289 |
+
+C:\Users\33576\FlowStudio\frontend\components\editor-context.tsx:308:25
+  306 |   }, [currentTime, saveToHistory])
+  307 |
+> 308 |   const [canPasteState, setCanPasteState] = useState(false)
+      |                         ^^^^^^^^^^^^^^^^ `setCanPasteState` is declared here
+  309 |
+  310 |   // Update canPaste state
+  311 |   useEffect(() => {  react-hooks/immutability
+  473:6  warning  React Hook useCallback has a missing dependency: 'saveToHistory'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          react-hooks/exhaustive-deps
+  607:9  warning  'playheadPixels' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+
+C:\Users\33576\FlowStudio\frontend\components\editor-shell.tsx
+  15:15  warning  'TimelineClipData' is defined but never used                                                                             @typescript-eslint/no-unused-vars
+  15:38  warning  'MediaFileData' is defined but never used                                                                                @typescript-eslint/no-unused-vars
+  15:58  warning  'ClipTransform' is defined but never used                                                                                @typescript-eslint/no-unused-vars
+  15:78  warning  'ClipEffects' is defined but never used                                                                                  @typescript-eslint/no-unused-vars
+  15:96  warning  'Caption' is defined but never used                                                                                      @typescript-eslint/no-unused-vars
+  57:6   warning  React Hook useEffect has a missing dependency: 'setProjectResolution'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\33576\FlowStudio\frontend\components\export-modal.tsx
+   77:6   warning  'VideoFrameCallbackMetadata' is defined but never used  @typescript-eslint/no-unused-vars
+  463:11  warning  'drawFrame' is assigned a value but never used          @typescript-eslint/no-unused-vars
+
+C:\Users\33576\FlowStudio\frontend\components\inspector-panel.tsx
+   28:11  warning  'selectedClipId' is assigned a value but never used                                                                                                                                              @typescript-eslint/no-unused-vars
+   28:27  warning  'currentTime' is assigned a value but never used                                                                                                                                                 @typescript-eslint/no-unused-vars
+   30:9   warning  'messagesContainerRef' is assigned a value but never used                                                                                                                                        @typescript-eslint/no-unused-vars
+   52:9   warning  'handleQuickAction' is assigned a value but never used                                                                                                                                           @typescript-eslint/no-unused-vars
+   56:9   warning  The 'startRecording' function makes the dependencies of useEffect Hook (at line 201) change on every render. To fix this, wrap the definition of 'startRecording' in its own useCallback() Hook  react-hooks/exhaustive-deps
+  143:9   warning  The 'stopRecording' function makes the dependencies of useEffect Hook (at line 201) change on every render. To fix this, wrap the definition of 'stopRecording' in its own useCallback() Hook    react-hooks/exhaustive-deps
+
+C:\Users\33576\FlowStudio\frontend\components\media-panel.tsx
+    5:99  warning  'Captions' is defined but never used                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+    8:15  warning  'TimelineClip' is defined but never used                                                                                                                                                                                                                                                 @typescript-eslint/no-unused-vars
+  590:41  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                          react/no-unescaped-entities
+  590:56  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                          react/no-unescaped-entities
+  590:59  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                          react/no-unescaped-entities
+  590:72  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                          react/no-unescaped-entities
+  679:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  800:35  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                          react/no-unescaped-entities
+  800:49  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                          react/no-unescaped-entities
+  842:29  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  977:5   warning  'mediaFiles' is assigned a value but never used                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+  978:5   warning  'showCaptions' is assigned a value but never used                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+  979:5   warning  'setShowCaptions' is assigned a value but never used                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  980:5   warning  'captionStyle' is assigned a value but never used                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+  981:5   warning  'setCaptionStyle' is assigned a value but never used                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+
+C:\Users\33576\FlowStudio\frontend\components\projects-dashboard.tsx
+   8:23  warning  'ArrowRight' is defined but never used  @typescript-eslint/no-unused-vars
+   8:41  warning  'TrendingUp' is defined but never used  @typescript-eslint/no-unused-vars
+   8:53  warning  'Download' is defined but never used    @typescript-eslint/no-unused-vars
+   8:63  warning  'Zap' is defined but never used         @typescript-eslint/no-unused-vars
+  63:30  warning  '_projectId' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\33576\FlowStudio\frontend\components\projects-view.tsx
+   3:28  warning  'useEffect' is defined but never used              @typescript-eslint/no-unused-vars
+   8:35  warning  'ChevronRight' is defined but never used           @typescript-eslint/no-unused-vars
+   8:49  warning  'ChevronDown' is defined but never used            @typescript-eslint/no-unused-vars
+  20:17  error    Unexpected any. Specify a different type           @typescript-eslint/no-explicit-any
+  63:9   warning  'toggleFolder' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\33576\FlowStudio\frontend\components\timeline.tsx
+    23:5   warning  'timelineEndTime' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @typescript-eslint/no-unused-vars
+    72:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\33576\FlowStudio\frontend\components\timeline.tsx:72:7
+  70 |   useEffect(() => {
+  71 |     if (!isPlaying) {
+> 72 |       setLocalPlayheadPosition(currentTime * pixelsPerSecond)
+     |       ^^^^^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  73 |     }
+  74 |   }, [currentTime, isPlaying, pixelsPerSecond])
+  75 |  react-hooks/set-state-in-effect
+   139:9   warning  The 'tracks' array makes the dependencies of useCallback Hook (at line 360) change on every render. To fix this, wrap the initialization of 'tracks' in its own useMemo() Hook                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       react-hooks/exhaustive-deps
+   401:37  warning  'e' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+   680:38  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `setIsScrubbing`, but the source dependencies were []. Inferred dependency not present in source.
+
+C:\Users\33576\FlowStudio\frontend\components\timeline.tsx:680:38
+  678 |
+  679 |   // Handle scrubbing mouseup
+> 680 |   const handleScrubEnd = useCallback(() => {
+      |                                      ^^^^^^^
+> 681 |     setIsScrubbing(false)
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^
+> 682 |   }, [])
+      | ^^^^ Could not preserve existing manual memoization
+  683 |
+  684 |   // Add/remove scrubbing event listeners
+  685 |   useEffect(() => {                                                                                                                                     react-hooks/preserve-manual-memoization
+   682:6   warning  React Hook useCallback has a missing dependency: 'setIsScrubbing'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  react-hooks/exhaustive-deps
+   690:64  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @typescript-eslint/no-explicit-any
+   694:32  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @typescript-eslint/no-explicit-any
+   706:34  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @typescript-eslint/no-explicit-any
+  1099:31  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @next/next/no-img-element
+
+C:\Users\33576\FlowStudio\frontend\components\video-preview.tsx
+   93:10  warning  'duration' is assigned a value but never used                                                                                                                           @typescript-eslint/no-unused-vars
+  372:6   warning  React Hook useEffect has a missing dependency: 'activeClip'. Either include it or remove the dependency array                                                           react-hooks/exhaustive-deps
+  404:6   warning  React Hook useEffect has missing dependencies: 'backgroundClip', 'backgroundClipTimeOffset', and 'backgroundMedia'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  666:11  warning  'backgroundVideo' is assigned a value but never used                                                                                                                    @typescript-eslint/no-unused-vars
+  667:11  warning  'canvas' is assigned a value but never used                                                                                                                             @typescript-eslint/no-unused-vars
+  811:43  warning  'e' is defined but never used                                                                                                                                           @typescript-eslint/no-unused-vars
+
+C:\Users\33576\FlowStudio\frontend\lib\projects.ts
+    1:15  warning  'EffectPreset' is defined but never used   @typescript-eslint/no-unused-vars
+    1:34  warning  'ClipTransform' is defined but never used  @typescript-eslint/no-unused-vars
+    1:54  warning  'ClipEffects' is defined but never used    @typescript-eslint/no-unused-vars
+    1:95  warning  'Caption' is defined but never used        @typescript-eslint/no-unused-vars
+   60:19  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+   72:19  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+   88:19  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  123:19  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  135:19  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  162:19  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+
+C:\Users\33576\FlowStudio\frontend\lib\storage.ts
+   71:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  100:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  118:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  148:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+Γ£û 79 problems (24 errors, 55 warnings)
+

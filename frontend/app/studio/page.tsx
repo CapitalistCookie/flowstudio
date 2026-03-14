@@ -1,12 +1,11 @@
 "use client"
 
-import dynamic from "next/dynamic"
-
-const EditorShell = dynamic(
-  () => import("@/components/editor-shell").then((mod) => mod.EditorShell),
-  { ssr: false }
-)
+import { EditorShell } from "@/components/editor-shell"
 
 export default function StudioPage() {
-  return <EditorShell />
+  return (
+    <div className="flex h-screen w-full flex-col bg-background font-sans overflow-hidden">
+      <EditorShell projectId="local-project" />
+    </div>
+  )
 }

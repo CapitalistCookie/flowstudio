@@ -1,21 +1,11 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { motion } from "framer-motion"
-import { ArrowLeft, Pause, Play, Square, MousePointer, Target, Keyboard, PauseCircle, Mic, Scan } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import { Play, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { FluxLogo } from "@/components/flux-logo"
 import { useRecordingStore } from "@/lib/stores/recording-store"
-
-const streamIcons: Record<string, React.ElementType> = {
-  "mouse-pointer": MousePointer,
-  target: Target,
-  keyboard: Keyboard,
-  "pause-circle": PauseCircle,
-  mic: Mic,
-  scan: Scan,
-}
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60).toString().padStart(2, "0")
@@ -25,16 +15,28 @@ function formatTime(seconds: number): string {
 
 export function RecordView() {
   const router = useRouter()
-  const { isRecording, isPaused, elapsedSeconds, streams, startRecording, pauseRecording, resumeRecording, stopRecording, tick } = useRecordingStore()
+  const { isRecording, isPaused, elapsedSeconds, startRecording, pauseRecording, resumeRecording, stopRecording, tick } = useRecordingStore()
   const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [previewTime, setPreviewTime] = useState(0)
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false)
 
   // Auto-start recording on mount
   useEffect(() => {
     startRecording()
+    // Prevent navigation while recording
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isRecording) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
     return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
       if (timerRef.current) clearInterval(timerRef.current)
     }
-  }, [startRecording])
+  }, [startRecording, isRecording])
 
   // Timer tick
   useEffect(() => {
@@ -48,153 +50,215 @@ export function RecordView() {
     }
   }, [isRecording, isPaused, tick])
 
-  const handleStop = () => {
+  const handleStopAndAnalyze = () => {
     stopRecording()
+    setShowPreviewModal(true)
+  }
+
+  const handleContinueToStudio = () => {
+    setShowPreviewModal(false)
     router.push("/studio")
   }
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-background">
-      {/* Top Bar */}
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-card px-4">
-        <div className="flex items-center gap-3">
-          <motion.div whileHover="hover" whileTap={{ scale: 0.97 }}>
-            <Button variant="ghost" size="sm" className="gap-2 cursor-pointer" onClick={() => router.push("/")}>
-              <motion.div
-                variants={{
-                  hover: { x: -3, transition: { type: "spring", stiffness: 400, damping: 20 } },
-                }}
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </motion.div>
-              Dashboard
-            </Button>
-          </motion.div>
-          <div className="h-4 w-px bg-border" />
-          <FluxLogo size="sm" />
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Recording indicator */}
-          <div className="flex items-center gap-2">
-            <div className="relative flex items-center justify-center">
-              <div className="h-3 w-3 rounded-full bg-[oklch(0.78_0.16_75)] animate-pulse-amber" />
-              {isRecording && !isPaused && (
-                <div className="absolute inset-0 h-3 w-3 rounded-full bg-[oklch(0.78_0.16_75)] animate-recording-ring" />
-              )}
-            </div>
-            <span className="text-sm font-medium text-[oklch(0.78_0.16_75)]">
-              {isPaused ? "Paused" : "Recording"}
-            </span>
-            <span className="font-mono text-sm text-muted-foreground">
-              {formatTime(elapsedSeconds)}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Recording Canvas */}
-        <motion.div
-          className="flex flex-1 flex-col items-center justify-center gap-8 p-8"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.4 }}
+    <>
+      <div className="relative flex h-screen w-screen flex-col overflow-hidden">
+        {/* Asteroid Splash Background - Full Screen */}
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{
+            backgroundImage: 'url(/assets/asteroid_splash.jpg)',
+            filter: 'brightness(0.85) contrast(1.1)'
+          }}
         >
-          <div className="text-center max-w-lg">
-            <motion.p
-              className="text-xs font-mono uppercase tracking-widest text-[oklch(0.78_0.16_75)] mb-3"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              Trust Moment
-            </motion.p>
-            <motion.h1
-              className="text-3xl font-bold text-foreground leading-tight"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-            >
-              Record naturally.{" "}
-              <span className="text-muted-foreground">We handle the structure.</span>
-            </motion.h1>
-            <motion.p
-              className="mt-4 text-sm text-muted-foreground leading-relaxed"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-            >
-              FluxStudio captures cursor movement, click targets, dwell behavior,
-              keyboard bursts, speech, and scene semantics — all while staying nearly invisible.
-            </motion.p>
-          </div>
+          {/* Top gradient fade */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#F5F2ED]/60 via-transparent to-transparent" style={{ height: '30%' }} />
+          {/* Overall warm overlay */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#F5F2ED]/20 to-[#EDE9E2]/30" />
+        </div>
 
-          {/* Controls */}
+        {/* Main Content - Centered */}
+        <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-12 p-8">
+          {/* Play Icon */}
           <motion.div
-            className="flex items-center gap-3"
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.5, type: "spring" }}
+            className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-[#F5A623]/20 bg-[#F5A623]/5 backdrop-blur-sm"
+          >
+            <Play className="h-8 w-8 text-[#F5A623] fill-[#F5A623] ml-1" />
+          </motion.div>
+
+          {/* Timer */}
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
+            transition={{ delay: 0.2 }}
+            className="font-mono text-7xl font-light tracking-tight text-[#1A1916]"
           >
+            {formatTime(elapsedSeconds)}
+          </motion.div>
+
+          {/* Recording Status */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="flex items-center gap-3"
+          >
+            <div className="relative flex items-center justify-center">
+              <div className="h-3 w-3 rounded-full bg-[#F5A623]" />
+              {isRecording && !isPaused && (
+                <div className="absolute inset-0 h-3 w-3 rounded-full bg-[#F5A623] animate-ping" />
+              )}
+            </div>
+            <span className="text-lg font-medium text-[#1A1916]">
+              {isPaused ? "Paused" : "Recording in progress"}
+            </span>
+          </motion.div>
+
+          {/* Buttons */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="flex items-center gap-4 mt-8"
+          >
+            {!isPaused && (
+              <Button
+                size="lg"
+                variant="outline"
+                className="h-14 px-8 rounded-full border-2 border-white/40 bg-white/20 backdrop-blur-md text-[#1A1916] hover:bg-white/30 hover:border-white/60"
+                onClick={() => pauseRecording()}
+              >
+                <Play className="h-5 w-5 mr-2 rotate-180" />
+                Pause
+              </Button>
+            )}
+            {isPaused && (
+              <Button
+                size="lg"
+                variant="outline"
+                className="h-14 px-8 rounded-full border-2 border-[#F5A623]/40 bg-[#F5A623]/20 backdrop-blur-md text-[#1A1916] hover:bg-[#F5A623]/30"
+                onClick={() => resumeRecording()}
+              >
+                <Play className="h-5 w-5 mr-2" />
+                Resume
+              </Button>
+            )}
             <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={() => (isPaused ? resumeRecording() : pauseRecording())}
+              size="lg"
+              className="h-14 px-8 rounded-full bg-[#1A1916] hover:bg-[#2E2C29] text-white shadow-lg"
+              onClick={handleStopAndAnalyze}
+              disabled={!isRecording && !isPaused}
             >
-              {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-              {isPaused ? "Resume" : "Pause"}
-            </Button>
-            <Button
-              size="sm"
-              className="gap-2 bg-[oklch(0.78_0.16_75)] hover:bg-[oklch(0.72_0.18_75)] text-[oklch(0.15_0.02_75)]"
-              onClick={handleStop}
-            >
-              <Square className="h-4 w-4" />
+              <Square className="h-5 w-5 mr-2" />
               Stop & Analyze
             </Button>
           </motion.div>
-        </motion.div>
+        </div>
 
-        {/* Intent Streams Panel */}
-        <motion.div
-          className="w-80 shrink-0 border-l border-border bg-card overflow-auto"
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.4, delay: 0.2 }}
-        >
-          <div className="p-4">
-            <h2 className="text-sm font-semibold text-foreground mb-4">Intent Streams</h2>
-            <div className="flex flex-col gap-2">
-              {streams.map((stream, index) => {
-                const Icon = streamIcons[stream.icon] || Scan
-                return (
-                  <motion.div
-                    key={stream.id}
-                    className="flex items-center gap-3 rounded-lg border border-border bg-background p-3 transition-colors hover:border-primary/30"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3 + index * 0.05 }}
-                  >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[oklch(0.78_0.16_75_/_0.1)]">
-                      <Icon className="h-4 w-4 text-[oklch(0.78_0.16_75)]" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-foreground">{stream.name}</div>
-                      <div className="text-xs text-muted-foreground truncate">{stream.description}</div>
-                    </div>
-                    <span className="font-mono text-xs font-medium text-[oklch(0.78_0.16_75)]">
-                      {stream.eventCount.toLocaleString()}
-                    </span>
-                  </motion.div>
-                )
-              })}
-            </div>
-          </div>
-        </motion.div>
+        {/* Waveform Visualization Hint */}
+        <div className="absolute bottom-0 left-0 right-0 h-24 pointer-events-none">
+          <svg viewBox="0 0 1200 100" className="w-full h-full opacity-20">
+            <path
+              d="M0,50 Q150,30 300,50 T600,50 T900,50 T1200,50"
+              stroke="#F5A623"
+              strokeWidth="2"
+              fill="none"
+              className="animate-pulse"
+            />
+          </svg>
+        </div>
       </div>
-    </div>
+
+      {/* Preview Modal */}
+      <AnimatePresence>
+        {showPreviewModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-8"
+            onClick={handleContinueToStudio}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 20 }}
+              className="relative max-w-4xl w-full bg-[#F5F2ED] rounded-2xl shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Video Player Placeholder */}
+              <div className="relative aspect-video bg-gradient-to-br from-[#2E2C29] to-[#1A1916]">
+                {/* Play/Pause Overlay */}
+                <button
+                  onClick={() => setIsPreviewPlaying(!isPreviewPlaying)}
+                  className="absolute inset-0 flex items-center justify-center group hover:bg-black/10 transition-colors cursor-pointer"
+                >
+                  {!isPreviewPlaying ? (
+                    <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#F5A623]/90 group-hover:bg-[#F5A623] transition-all group-hover:scale-110 shadow-lg">
+                      <Play className="h-10 w-10 text-[#1A1916] fill-[#1A1916] ml-1" />
+                    </div>
+                  ) : (
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm">
+                        <div className="flex gap-1.5">
+                          <div className="w-2 h-8 bg-white rounded-sm" />
+                          <div className="w-2 h-8 bg-white rounded-sm" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </button>
+
+                {/* Time Display */}
+                <div className="absolute top-4 right-4 font-mono text-sm text-[#F0EDE8] bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-md">
+                  {formatTime(previewTime)} / {formatTime(elapsedSeconds)}
+                </div>
+
+                {/* Scrubber Bar */}
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                  <div className="relative h-1.5 w-full rounded-full bg-white/20 group/scrubber cursor-pointer">
+                    <div
+                      className="absolute left-0 top-0 h-full rounded-full bg-[#F5A623] transition-all"
+                      style={{ width: `${(previewTime / elapsedSeconds) * 100}%` }}
+                    />
+                    <input
+                      type="range"
+                      min="0"
+                      max={elapsedSeconds}
+                      value={previewTime}
+                      onChange={(e) => setPreviewTime(Number(e.target.value))}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-white shadow-lg opacity-0 group-hover/scrubber:opacity-100 transition-opacity"
+                      style={{ left: `${(previewTime / elapsedSeconds) * 100}%`, transform: 'translate(-50%, -50%)' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Controls */}
+              <div className="p-6 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold text-[#1A1916]">Recording Complete</h3>
+                  <p className="text-sm text-[#8A8780] mt-1">Preview your recording before moving to the studio</p>
+                </div>
+                <Button
+                  size="lg"
+                  onClick={handleContinueToStudio}
+                  className="bg-[#F5A623] hover:bg-[#E09420] text-[#1A1916]"
+                >
+                  Continue to Studio
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   )
 }

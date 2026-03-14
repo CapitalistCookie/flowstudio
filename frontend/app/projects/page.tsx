@@ -2,11 +2,11 @@
 
 import dynamic from "next/dynamic"
 
-const ProjectsDashboard = dynamic(
-  () => import("@/components/projects-dashboard").then((mod) => mod.ProjectsDashboard),
+const ProjectsView = dynamic(
+  () => import("@/components/projects-view").then((mod) => mod.ProjectsView),
   { ssr: false }
 )
 
 export default function ProjectsPage() {
-  return <ProjectsDashboard />
+  return <ProjectsView />
 }

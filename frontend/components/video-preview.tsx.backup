@@ -3,7 +3,7 @@
 import { Play, Pause, SkipBack, SkipForward, Film, Maximize, Minimize } from "lucide-react"
 import { useRef, useEffect, useState, useCallback } from "react"
 import { useEditor, PIXELS_PER_SECOND, DEFAULT_CLIP_TRANSFORM, DEFAULT_CLIP_EFFECTS } from "./editor-context"
-import type { ClipEffects } from "@/lib/types"
+import type { ClipEffects } from "@/lib/projects"
 import { ChromakeyProcessor, type ChromakeyOptions } from "@/lib/chromakey"
 
 // Build CSS filter string from effects

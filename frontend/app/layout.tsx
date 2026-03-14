@@ -20,7 +20,7 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "FluxStudio",
+  title: "FlowStudio",
   description: "Record once. Ship a polished demo.",
   icons: {
     icon: [{ url: "/flux-icon.svg", type: "image/svg+xml" }],

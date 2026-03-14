@@ -31,7 +31,7 @@ export function FluxLogo({ size = "md", className }: FluxLogoProps) {
         />
       </svg>
       <span className="text-sm font-semibold text-foreground tracking-tight">
-        FluxStudio
+        FlowStudio
       </span>
     </div>
   )
