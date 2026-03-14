@@ -97,14 +97,14 @@ const sharpJpegCalls: Array<{ quality: number }> = [];
 
 /**
  * Per-frame raw pixel buffers returned by the diff path.
- * Key: hex of first 8 bytes of input buffer → output raw pixels.
+ * Key: full buffer content as string → output raw pixels.
  * When not found, returns a default "identical" buffer.
  */
 const rawPixelOverrides = new Map<string, Buffer>();
 const PIXELS_64x64 = 64 * 64;
 
 function bufferKey(buf: Buffer): string {
-  return buf.subarray(0, 8).toString('hex');
+  return buf.toString('utf8');
 }
 
 vi.mock('sharp', () => {
