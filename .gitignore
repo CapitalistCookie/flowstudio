@@ -37,3 +37,5 @@ packages/stdb-module/target/
 
 # GCS credentials
 service-account-key.json
+lyrical-epigram-484715-v6-f865e736b70b.json
+service_account.json
