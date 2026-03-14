@@ -1,0 +1,132 @@
+import type { Project, MediaAsset, TimelineTrack, IntentStream } from "./types"
+
+export const MOCK_PROJECTS: Project[] = [
+  {
+    id: "proj-1",
+    name: "Launch Video v4",
+    status: "ready",
+    resolution: "1920x1080",
+    frame_rate: 30,
+    duration: "01:52",
+    thumbnail: null,
+    confidence: 98,
+    created_at: "2026-03-10T10:00:00Z",
+    updated_at: "2026-03-13T14:30:00Z",
+    category: "Founder",
+  },
+  {
+    id: "proj-2",
+    name: "Onboarding Tutorial",
+    status: "analyzing",
+    resolution: "1920x1080",
+    frame_rate: 30,
+    duration: "04:11",
+    thumbnail: null,
+    confidence: 64,
+    created_at: "2026-03-08T09:00:00Z",
+    updated_at: "2026-03-12T11:00:00Z",
+    category: "Education",
+  },
+  {
+    id: "proj-3",
+    name: "Feature Teaser",
+    status: "review",
+    resolution: "1920x1080",
+    frame_rate: 60,
+    duration: "01:09",
+    thumbnail: null,
+    confidence: 82,
+    created_at: "2026-03-06T15:00:00Z",
+    updated_at: "2026-03-11T09:45:00Z",
+    category: "PM",
+  },
+  {
+    id: "proj-4",
+    name: "Support Walkthrough",
+    status: "recording",
+    resolution: "1920x1080",
+    frame_rate: 30,
+    duration: "02:36",
+    thumbnail: null,
+    confidence: 39,
+    created_at: "2026-03-12T08:00:00Z",
+    updated_at: "2026-03-13T16:00:00Z",
+    category: "CX",
+  },
+  {
+    id: "proj-5",
+    name: "API Demo Reel",
+    status: "exported",
+    resolution: "3840x2160",
+    frame_rate: 60,
+    duration: "03:22",
+    thumbnail: null,
+    confidence: 95,
+    created_at: "2026-03-01T12:00:00Z",
+    updated_at: "2026-03-09T17:30:00Z",
+    category: "Engineering",
+  },
+  {
+    id: "proj-6",
+    name: "Sales Deck Recording",
+    status: "ready",
+    resolution: "1920x1080",
+    frame_rate: 30,
+    duration: "02:15",
+    thumbnail: null,
+    confidence: 91,
+    created_at: "2026-03-05T14:00:00Z",
+    updated_at: "2026-03-10T10:15:00Z",
+    category: "Sales",
+  },
+]
+
+export const MOCK_MEDIA_ASSETS: MediaAsset[] = [
+  { id: "m-1", filename: "recording_take_07.webm", type: "video", size: "142 MB", duration: "04:11" },
+  { id: "m-2", filename: "narration_master.wav", type: "audio", size: "28 MB", duration: "03:58" },
+  { id: "m-3", filename: "captions_auto.srt", type: "subtitle", size: "4 KB" },
+  { id: "m-4", filename: "brand_sting.mov", type: "video", size: "8 MB", duration: "00:03" },
+  { id: "m-5", filename: "bg_music_ambient.mp3", type: "audio", size: "6 MB", duration: "02:00" },
+]
+
+export const MOCK_TIMELINE_TRACKS: TimelineTrack[] = [
+  {
+    id: "track-video",
+    type: "video",
+    label: "Video",
+    events: [
+      { id: "ev-1", type: "chapter", label: "Opening Context", startTime: 0, endTime: 18 },
+      { id: "ev-2", type: "chapter", label: "Product Overview", startTime: 18, endTime: 42 },
+      { id: "ev-3", type: "chapter", label: "Feature Deep Dive", startTime: 42, endTime: 78 },
+      { id: "ev-4", type: "chapter", label: "Closing & CTA", startTime: 78, endTime: 109 },
+    ],
+  },
+  {
+    id: "track-effects",
+    type: "effects",
+    label: "Effects",
+    events: [
+      { id: "ev-5", type: "zoom", label: "Auto-zoom: Login Form", startTime: 24, endTime: 32 },
+      { id: "ev-6", type: "zoom", label: "Auto-zoom: Dashboard", startTime: 55, endTime: 64 },
+      { id: "ev-7", type: "cut", label: "Dead time removed", startTime: 38, endTime: 42 },
+      { id: "ev-8", type: "highlight", label: "Key moment", startTime: 70, endTime: 75 },
+    ],
+  },
+  {
+    id: "track-caption",
+    type: "caption",
+    label: "Captions",
+    events: [
+      { id: "ev-9", type: "caption", label: "Auto-generated captions", startTime: 0, endTime: 109 },
+    ],
+  },
+]
+
+export const MOCK_INTENT_STREAMS: IntentStream[] = [
+  { id: "is-1", name: "Cursor Velocity", description: "Movement tracking + pathing", icon: "mouse-pointer", eventCount: 1247 },
+  { id: "is-2", name: "Click Targets", description: "Click events + priority map", icon: "target", eventCount: 34 },
+  { id: "is-3", name: "Keyboard Cadence", description: "Typing bursts + commands", icon: "keyboard", eventCount: 89 },
+  { id: "is-4", name: "Pause & Dwell", description: "Dwell time on UI elements", icon: "pause-circle", eventCount: 12 },
+  { id: "is-5", name: "Speech → Captions", description: "Real-time transcription", icon: "mic", eventCount: 156 },
+  { id: "is-6", name: "Scene Understanding", description: "TwelveLabs video analysis", icon: "scan", eventCount: 8 },
+]
