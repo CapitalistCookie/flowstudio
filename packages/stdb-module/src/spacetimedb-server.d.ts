@@ -3,18 +3,33 @@
  * The actual runtime is provided by the SpacetimeDB WASM host.
  * These stubs allow `tsc --noEmit` to validate our module code.
  */
-declare module 'spacetimedb/server' {
+
+/** Console is available in SpacetimeDB WASM runtime */
+declare var console: {
+  log(...args: any[]): void;
+  warn(...args: any[]): void;
+  error(...args: any[]): void;
+};
+
+declare module 'spacetimedb' {
   /** Schedule specification — interval or one-shot */
   export interface ScheduleAt {
     __brand: 'ScheduleAt';
   }
 
   export const ScheduleAt: {
-    /** Create a repeating interval schedule (milliseconds) */
-    interval(ms: number): ScheduleAt;
+    /** Create a repeating interval schedule (microseconds) */
+    interval(micros: bigint): ScheduleAt;
     /** Create a one-shot schedule at a specific time (Unix ms) */
     at(timestampMs: number): ScheduleAt;
   };
+}
+
+declare module 'spacetimedb/server' {
+  import type { ScheduleAt } from 'spacetimedb';
+
+  /** Re-export ScheduleAt for convenience */
+  export type { ScheduleAt };
 
   /** Opaque column definition marker */
   export interface ColumnDef<T = unknown> {
@@ -41,6 +56,18 @@ declare module 'spacetimedb/server' {
     [K in keyof TColumns]: TColumns[K] extends ColumnDef<infer U> ? U : never;
   };
 
+  /** BTree index definition */
+  interface IndexDef {
+    name: string;
+    algorithm: 'btree';
+    columns: string[];
+  }
+
+  /** Table index options */
+  interface TableIndexOptions {
+    indexes?: IndexDef[];
+  }
+
   /** Table handle with CRUD operations */
   export interface TableHandle<TRow> {
     insert(row: TRow): void;
@@ -48,6 +75,8 @@ declare module 'spacetimedb/server' {
     updateByPrimaryKey(key: string | number, updates: Partial<TRow>): void;
     deleteByPrimaryKey(key: string | number): void;
     iter(): Iterable<TRow>;
+    /** Index-based access — available via named indexes */
+    [indexName: string]: any;
   }
 
   /** Table options */
@@ -55,6 +84,8 @@ declare module 'spacetimedb/server' {
     name: string;
     public?: boolean;
     scheduledAt?: string;
+    /** Link a scheduled table to its trigger reducer */
+    scheduled?: () => any;
   }
 
   /** A table descriptor that carries its column definitions and resolved row type */
@@ -62,12 +93,15 @@ declare module 'spacetimedb/server' {
     readonly __tableName: TName;
     readonly __columns: TColumns;
     readonly __row: TRow;
+    /** Runtime row type reference for scheduled table reducers */
+    readonly rowType: any;
   }
 
   /** Define a table; returns a table descriptor */
   export function table<TName extends string, TColumns extends Record<string, ColumnDef<unknown>>>(
     opts: TableOptions & { name: TName },
     columns: TColumns,
+    indexOpts?: TableIndexOptions,
   ): TableDescriptor<TName, TColumns, RowOf<TColumns>>;
 
   /** Extract table name from descriptor */
@@ -85,7 +119,16 @@ declare module 'spacetimedb/server' {
   /** Reducer context — gives access to db tables */
   export interface ReducerContext<TDb> {
     db: TDb;
+    /** Sender identity */
+    sender: any;
+    /** Timestamp of the reducer invocation */
+    timestamp: {
+      microsSinceUnixEpoch: bigint;
+    };
   }
+
+  /** Reducer registration result */
+  type ReducerResult = (...args: any[]) => any;
 
   /** Schema builder — parameterised over the DB shape */
   export interface SchemaBuilder<TDb> {
@@ -93,7 +136,17 @@ declare module 'spacetimedb/server' {
       name: string,
       args: Record<string, ColumnDef<unknown>>,
       fn: (ctx: ReducerContext<TDb>, args: Record<string, unknown>) => void,
-    ): void;
+    ): ReducerResult;
+    reducer(
+      opts: { arg: any },
+      fn: (ctx: ReducerContext<TDb>, opts: { arg: any }) => void,
+    ): ReducerResult;
+    /** Register module initialization reducer */
+    init(fn: (ctx: ReducerContext<TDb>) => void): ReducerResult;
+    /** Register client connected handler */
+    clientConnected(fn: (ctx: ReducerContext<TDb>) => void): ReducerResult;
+    /** Register client disconnected handler */
+    clientDisconnected(fn: (ctx: ReducerContext<TDb>) => void): ReducerResult;
   }
 
   /** Build the schema from table descriptors */
