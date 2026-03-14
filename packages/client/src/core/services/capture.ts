@@ -68,6 +68,13 @@ export async function startCapture(
     mediaRecorder.onerror = () => {
       captureStore.getState().setError('Recording failed');
       cleanupTimer();
+      // Stop all tracks so browser recording indicator clears
+      const stream = captureStore.getState().stream;
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+      }
+      captureStore.getState().setStream(null);
+      mediaRecorder = null;
     };
 
     // Handle user stopping screen share via browser UI
@@ -104,6 +111,7 @@ export function resumeCapture(captureStore: StoreApi<CaptureStoreType>) {
     mediaRecorder.resume();
     captureStore.getState().setStatus('recording');
     startTime = Date.now() - captureStore.getState().elapsedMs;
+    cleanupTimer(); // Clear any existing timer to prevent interval leak
     timerInterval = setInterval(() => {
       captureStore.getState().setElapsedMs(Date.now() - startTime);
     }, 100);

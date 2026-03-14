@@ -26,15 +26,14 @@ function tick(timestamp: number) {
     const newMs = state.playheadMs + deltaMs;
 
     if (newMs >= state.durationMs && state.durationMs > 0) {
-      // Reached end — stop playback
-      store.getState().setPlayheadMs(state.durationMs);
-      store.getState().setIsPlaying(false);
+      // Reached end — stop playback (single setState to avoid intermediate re-renders)
+      store.setState({ playheadMs: state.durationMs, isPlaying: false });
       lastFrameTime = null;
       animFrameId = null;
       return;
     }
 
-    store.getState().setPlayheadMs(newMs);
+    store.setState({ playheadMs: newMs });
   }
 
   lastFrameTime = timestamp;
@@ -42,6 +41,11 @@ function tick(timestamp: number) {
 }
 
 export function startPlayback(timelineStore: StoreApi<TimelineStore>) {
+  // Cancel any existing animation frame to prevent double-speed playback
+  if (animFrameId !== null) {
+    cancelAnimationFrame(animFrameId);
+    animFrameId = null;
+  }
   store = timelineStore;
   const state = store.getState();
 
@@ -76,5 +80,7 @@ export function togglePlayback(timelineStore: StoreApi<TimelineStore>) {
 }
 
 export function seekTo(timelineStore: StoreApi<TimelineStore>, ms: number) {
-  timelineStore.getState().setPlayheadMs(Math.max(0, ms));
+  const { durationMs } = timelineStore.getState();
+  const clamped = Math.max(0, durationMs > 0 ? Math.min(ms, durationMs) : ms);
+  timelineStore.getState().setPlayheadMs(clamped);
 }

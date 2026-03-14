@@ -60,5 +60,8 @@ export const createProjectStore = () =>
       set((s) => ({
         projects: s.projects.filter((p) => p.id !== id),
         activeProjectId: s.activeProjectId === id ? null : s.activeProjectId,
+        ...(s.activeProjectId === id
+          ? { assets: [], tasks: [], projectState: null }
+          : {}),
       })),
   }));

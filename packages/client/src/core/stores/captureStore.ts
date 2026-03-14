@@ -29,7 +29,7 @@ const DEFAULT_CAPTURE: CaptureState = {
 };
 
 export const createCaptureStore = () =>
-  createStore<CaptureStoreType>((set) => ({
+  createStore<CaptureStoreType>((set, get) => ({
     ...DEFAULT_CAPTURE,
 
     setStatus: (status) => set({ status }),
@@ -43,5 +43,10 @@ export const createCaptureStore = () =>
     toggleCursorOverlay: () => set((s) => ({ cursorOverlay: !s.cursorOverlay })),
     toggleTypingDetection: () =>
       set((s) => ({ typingDetection: !s.typingDetection })),
-    reset: () => set(DEFAULT_CAPTURE),
+    reset: () => {
+      const s = get();
+      if (s.blobUrl) URL.revokeObjectURL(s.blobUrl);
+      if (s.stream) s.stream.getTracks().forEach((t) => t.stop());
+      set(DEFAULT_CAPTURE);
+    },
   }));

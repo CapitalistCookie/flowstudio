@@ -146,9 +146,15 @@ export const createTimelineStore = () =>
 
         trimClip: (clipId, startMs, durationMs) =>
           set((s) => {
-            const clips = s.clips.map((c) =>
-              c.id === clipId ? { ...c, startMs, durationMs } : c
-            );
+            const clips = s.clips.map((c) => {
+              if (c.id !== clipId) return c;
+              // Adjust sourceOffsetMs when left edge moves right (standard NLE trim)
+              const deltaMs = startMs - c.startMs;
+              const sourceOffsetMs = deltaMs > 0
+                ? c.sourceOffsetMs + deltaMs * c.speed
+                : c.sourceOffsetMs;
+              return { ...c, startMs, durationMs, sourceOffsetMs };
+            });
             return { clips, durationMs: recalcDuration(clips) };
           }),
 
@@ -168,7 +174,7 @@ export const createTimelineStore = () =>
             id: generateId(),
             startMs: atMs,
             durationMs: clip.durationMs - relativeMs,
-            sourceOffsetMs: clip.sourceOffsetMs + relativeMs / clip.speed,
+            sourceOffsetMs: clip.sourceOffsetMs + relativeMs * clip.speed,
           };
 
           set((s) => {

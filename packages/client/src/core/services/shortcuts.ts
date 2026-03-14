@@ -26,14 +26,24 @@ function parseKeys(keys: string): { key: string; ctrl: boolean; shift: boolean; 
   };
 }
 
+const isMac = typeof navigator !== 'undefined' && (
+  (navigator as { userAgentData?: { platform?: string } }).userAgentData?.platform === 'macOS' ||
+  navigator.platform?.includes('Mac')
+);
+
 function matchesEvent(keys: string, e: KeyboardEvent): boolean {
   const parsed = parseKeys(keys);
-  const isMac = typeof navigator !== 'undefined' && navigator.platform.includes('Mac');
   const modKey = isMac ? e.metaKey : e.ctrlKey;
 
+  // Positive checks: required modifier must be pressed
   if (parsed.ctrl && !modKey) return false;
   if (parsed.shift && !e.shiftKey) return false;
   if (parsed.alt && !e.altKey) return false;
+
+  // Negative checks: unrequired modifier must NOT be pressed
+  if (!parsed.ctrl && modKey) return false;
+  if (!parsed.shift && e.shiftKey) return false;
+  if (!parsed.alt && e.altKey) return false;
 
   const eventKey = e.key.toLowerCase();
   if (eventKey === ' ') return parsed.key === 'space';

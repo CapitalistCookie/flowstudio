@@ -241,8 +241,10 @@ function drawMarks(rc: RenderContext, state: TimelineState) {
   if (state.markInMs !== null && state.markOutMs !== null) {
     const x1 = msToX(state.markInMs, state);
     const x2 = msToX(state.markOutMs, state);
+    const left = Math.min(x1, x2);
+    const right = Math.max(x1, x2);
     ctx.fillStyle = TIMELINE_COLORS.selection;
-    ctx.fillRect(x1, RULER_HEIGHT, x2 - x1, height - RULER_HEIGHT);
+    ctx.fillRect(left, RULER_HEIGHT, right - left, height - RULER_HEIGHT);
   }
 }
 

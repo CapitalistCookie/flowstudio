@@ -66,10 +66,16 @@ export function loadDraft(
     if (!raw) return false;
 
     const draft = JSON.parse(raw);
-    if (draft.tracks && draft.clips) {
+    if (Array.isArray(draft.tracks) && Array.isArray(draft.clips)) {
+      // Recalculate durationMs from restored clips
+      const clips = draft.clips as Array<{ startMs: number; durationMs: number }>;
+      const durationMs = clips.length > 0
+        ? Math.max(...clips.map((c) => c.startMs + c.durationMs))
+        : 0;
       timelineStore.getState().setTimelineState({
         tracks: draft.tracks,
         clips: draft.clips,
+        durationMs,
       });
       return true;
     }

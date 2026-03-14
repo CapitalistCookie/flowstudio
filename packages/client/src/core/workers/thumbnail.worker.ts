@@ -32,13 +32,19 @@ self.onmessage = async (e: MessageEvent<ThumbnailRequest>) => {
       return;
     }
 
-    // For now, just render the first frame scaled for each timestamp
-    // Full implementation would use VideoDecoder API
-    const thumbnails = timestamps.map((ts) => {
+    // Render the poster frame for each timestamp and convert to data URL.
+    // Full per-timestamp seeking would require VideoDecoder API.
+    const thumbnails: Array<{ timestampMs: number; dataUrl: string }> = [];
+    for (const ts of timestamps) {
       ctx.drawImage(bitmap, 0, 0, width, height);
-      const imageData = canvas.convertToBlob({ type: 'image/jpeg', quality: 0.6 });
-      return { timestampMs: ts, dataUrl: '' };
-    });
+      const thumbBlob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.6 });
+      const buffer = await thumbBlob.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      bytes.forEach((b) => { binary += String.fromCharCode(b); });
+      const dataUrl = `data:image/jpeg;base64,${btoa(binary)}`;
+      thumbnails.push({ timestampMs: ts, dataUrl });
+    }
 
     const result: ThumbnailResult = { thumbnails };
     self.postMessage(result);
