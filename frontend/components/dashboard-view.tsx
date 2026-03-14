@@ -67,7 +67,9 @@ export function DashboardView() {
 
       {/* ── Main Content ── */}
       <main className="relative flex-1 overflow-y-auto bg-background/50">
-        <div className="mx-auto max-w-6xl px-8 py-12 lg:px-16 flex flex-col min-h-full">
+        <div className="dashboard-grid-fade pointer-events-none absolute inset-0 z-0 opacity-55" />
+
+        <div className="relative z-10 mx-auto max-w-6xl px-8 py-12 lg:px-16 flex flex-col min-h-full">
           
           {/* ── Top Greeting ── */}
           <motion.header
