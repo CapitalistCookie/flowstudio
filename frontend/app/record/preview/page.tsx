@@ -22,16 +22,11 @@ function formatTime(ms: number): string {
 
 export default function RecordingPreviewPage() {
   const router = useRouter()
-<<<<<<< HEAD
-  const searchParams = useSearchParams()
-  const projectId = searchParams.get("projectId")
-=======
   const { elapsedSeconds } = useRecordingStore()
   const [pendingAction, setPendingAction] = useState<"auto" | "refine" | null>(null)
   const [isAutoProcessing, setIsAutoProcessing] = useState(false)
   const [autoProgress, setAutoProgress] = useState(0)
   const [isAutoComplete, setIsAutoComplete] = useState(false)
->>>>>>> 8e7d71255acab9be82a2f8ce28c9c318486a27c6
 
   const blobUrl = useCaptureStore((s) => s.blobUrl)
   const elapsedMs = useCaptureStore((s) => s.elapsedMs)
@@ -79,10 +74,6 @@ export default function RecordingPreviewPage() {
     }
   }
 
-<<<<<<< HEAD
-  const goToStudioTweak = () => {
-    router.push(`/studio${projectId ? `?projectId=${projectId}` : ""}&edits=tweak`)
-=======
   const goToStudioRefine = () => {
     setPendingAction("refine")
     router.push("/studio?edits=refine")
@@ -90,7 +81,6 @@ export default function RecordingPreviewPage() {
 
   const goToStudioAuto = () => {
     router.push("/studio?edits=auto")
->>>>>>> 8e7d71255acab9be82a2f8ce28c9c318486a27c6
   }
 
   const goToDashboard = () => {
@@ -187,11 +177,7 @@ export default function RecordingPreviewPage() {
               <button
                 type="button"
                 onClick={handleAutoApply}
-<<<<<<< HEAD
-                disabled={!projectId || !blobUrl || uploadState !== "idle"}
-=======
                 disabled={pendingAction === "refine" || isAutoComplete}
->>>>>>> 8e7d71255acab9be82a2f8ce28c9c318486a27c6
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/10 px-5 text-sm font-semibold text-white transition duration-200 hover:scale-[1.01] hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {uploadState === "uploading" || uploadState === "processing" ? (
@@ -205,23 +191,6 @@ export default function RecordingPreviewPage() {
               </button>
               <button
                 type="button"
-<<<<<<< HEAD
-                onClick={goToStudioTweak}
-                disabled={uploadState === "uploading" || uploadState === "processing"}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#F5A623] px-5 text-sm font-semibold text-[#1A1916] shadow-lg transition duration-200 hover:scale-[1.01] hover:bg-[#E79A21] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Sparkles className="h-4 w-4" />
-                Apply + Tweak
-              </button>
-
-              <button
-                type="button"
-                onClick={goToDashboard}
-                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/25 bg-transparent px-5 text-sm font-semibold text-white/90 transition duration-200 hover:bg-white/10"
-              >
-                Back to dashboard
-              </button>
-=======
                 onClick={goToStudioRefine}
                 disabled={pendingAction !== null}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#F5A623] px-5 text-sm font-semibold text-[#1A1916] shadow-lg transition duration-200 hover:scale-[1.01] hover:bg-[#E79A21] disabled:cursor-not-allowed disabled:opacity-60"
@@ -249,7 +218,6 @@ export default function RecordingPreviewPage() {
                   Back to dashboard
                 </button>
               )}
->>>>>>> 8e7d71255acab9be82a2f8ce28c9c318486a27c6
             </div>
           </div>
         </div>
