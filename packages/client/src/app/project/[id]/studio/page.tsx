@@ -12,8 +12,10 @@ import { VideoPreview } from '@/components/studio/VideoPreview';
 import { PropertiesPanel } from '@/components/studio/PropertiesPanel';
 import { Timeline } from '@/components/studio/Timeline';
 import { PreviewModal } from '@/components/studio/PreviewModal';
-import { useProjectStore, useUIStore } from '@/hooks/useStores';
+import { useProjectStore, useUIStore, timelineStore } from '@/hooks/useStores';
 import { useStudioShortcuts } from '@/components/studio/useStudioShortcuts';
+import { startAutoSave, stopAutoSave, loadDraft, hasDraft } from '@/core/services/autoSave';
+import { toast } from 'sonner';
 import { ArrowLeft } from 'lucide-react';
 
 interface StudioPageProps {
@@ -35,6 +37,18 @@ export default function StudioPage({ params }: StudioPageProps) {
     setActiveProject(id);
     return () => setActiveProject(null);
   }, [id, setActiveProject]);
+
+  // Auto-save lifecycle
+  useEffect(() => {
+    if (hasDraft(id)) {
+      const restored = loadDraft(timelineStore, id);
+      if (restored) {
+        toast.info('Restored previous draft');
+      }
+    }
+    startAutoSave(timelineStore, id);
+    return () => stopAutoSave();
+  }, [id]);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
