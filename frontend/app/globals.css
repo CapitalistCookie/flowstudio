@@ -175,6 +175,11 @@
   }
 }
 
+body.custom-cursor-active,
+body.custom-cursor-active * {
+  cursor: none !important;
+}
+
 /* ── Glass panel utility ── */
 @layer utilities {
   .glass {
