@@ -341,8 +341,8 @@ function EditorContent({ projectId }: { projectId: string }) {
           </ResizablePanelGroup>
         </ResizablePanel>
 
-        {/* Invisible but functional resize handle */}
-        <ResizableHandle className="bg-transparent after:bg-transparent hover:bg-border/50 transition-colors" />
+        {/* Vertical drag handle — resize timeline height */}
+        <ResizableHandle withHandle className="bg-border/10 hover:bg-border/30 transition-all border-y border-border/5" />
 
         {/* Bottom Panel - Timeline */}
         <ResizablePanel defaultSize="35%" minSize="20%" maxSize="60%">
