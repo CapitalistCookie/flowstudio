@@ -20,9 +20,10 @@ function getConnection(): StdbConnection {
 }
 
 /** Hook: subscribe to project list */
-export function useProjects(): { projects: Project[]; loading: boolean } {
+export function useProjects(): { projects: Project[]; loading: boolean; error: string | null } {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const conn = getConnection();
@@ -32,16 +33,28 @@ export function useProjects(): { projects: Project[]; loading: boolean } {
         setLoading(false);
       }
     });
-    return unsubscribe;
+
+    const timeout = setTimeout(() => {
+      setLoading((current) => {
+        if (current) setError('Connection timeout — could not reach server');
+        return false;
+      });
+    }, 10000);
+
+    return () => {
+      unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
-  return { projects, loading };
+  return { projects, loading, error };
 }
 
 /** Hook: subscribe to tasks for a project */
-export function useProjectTasks(projectId: string): { tasks: Task[]; loading: boolean } {
+export function useProjectTasks(projectId: string): { tasks: Task[]; loading: boolean; error: string | null } {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const conn = getConnection();
@@ -52,10 +65,21 @@ export function useProjectTasks(projectId: string): { tasks: Task[]; loading: bo
         setLoading(false);
       }
     });
-    return unsubscribe;
+
+    const timeout = setTimeout(() => {
+      setLoading((current) => {
+        if (current) setError('Connection timeout — could not reach server');
+        return false;
+      });
+    }, 10000);
+
+    return () => {
+      unsubscribe();
+      clearTimeout(timeout);
+    };
   }, [projectId]);
 
-  return { tasks, loading };
+  return { tasks, loading, error };
 }
 
 /** Hook: call a reducer */

@@ -2,6 +2,18 @@ import { TaskType, SignalType } from '@flowstudio/shared';
 import { BaseWorker, type TaskData, type TaskResult } from '@flowstudio/worker-shared';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+function extractJsonArray(text: string): string | null {
+  const start = text.indexOf('[');
+  if (start === -1) return null;
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === '[') depth++;
+    else if (text[i] === ']') depth--;
+    if (depth === 0) return text.slice(start, i + 1);
+  }
+  return null;
+}
+
 /** How many frames to analyze per batch */
 const FRAMES_PER_BATCH = 4;
 
@@ -14,7 +26,7 @@ export class VideoUnderstandingWorker extends BaseWorker {
     }
 
     const genAI = new GoogleGenerativeAI(this.config.googleAiApiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: this.config.googleAiModel ?? 'gemini-1.5-flash' });
 
     // Download frame samples
     const frameAssetIds = task.inputAssetIds;
@@ -62,9 +74,9 @@ If no significant changes, return an empty array.`,
 
       // Parse JSON from response
       try {
-        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        const jsonMatch = extractJsonArray(text);
         if (jsonMatch) {
-          const changes = JSON.parse(jsonMatch[0]) as Array<{
+          const changes = JSON.parse(jsonMatch) as Array<{
             description: string;
             changeType: string;
             significance: number;
@@ -89,6 +101,16 @@ If no significant changes, return an empty array.`,
       } catch {
         this.logger.warn('Failed to parse Gemini response as JSON', { text: text.slice(0, 200) });
       }
+    }
+
+    // Write signals to GCS for downstream intent-graph worker
+    if (signals.length > 0) {
+      const gcsSignalPath = `projects/${task.projectId}/signals/scene_descriptions.json`;
+      await this.gcs.upload(
+        gcsSignalPath,
+        Buffer.from(JSON.stringify(signals, null, 2)),
+        'application/json',
+      );
     }
 
     return { outputAssetIds: [], signals };

@@ -74,6 +74,16 @@ export class CursorProcessorWorker extends BaseWorker {
       }
     }
 
+    // Write signals to GCS for downstream interaction-pattern worker
+    if (signals.length > 0) {
+      const gcsSignalPath = `projects/${task.projectId}/signals/cursor_movements.json`;
+      await this.gcs.upload(
+        gcsSignalPath,
+        Buffer.from(JSON.stringify(signals, null, 2)),
+        'application/json',
+      );
+    }
+
     return { outputAssetIds: [], signals };
   }
 

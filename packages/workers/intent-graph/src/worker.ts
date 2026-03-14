@@ -2,6 +2,18 @@ import { TaskType, SignalType } from '@flowstudio/shared';
 import { BaseWorker, type TaskData, type TaskResult } from '@flowstudio/worker-shared';
 import Anthropic from '@anthropic-ai/sdk';
 
+function extractJsonArray(text: string): string | null {
+  const start = text.indexOf('[');
+  if (start === -1) return null;
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === '[') depth++;
+    else if (text[i] === ']') depth--;
+    if (depth === 0) return text.slice(start, i + 1);
+  }
+  return null;
+}
+
 interface UpstreamSignal {
   signalType: string;
   timestampMs: number;
@@ -20,10 +32,28 @@ export class IntentGraphWorker extends BaseWorker {
 
     const anthropic = new Anthropic({ apiKey: this.config.anthropicApiKey });
 
-    // Download all upstream signals
-    const signalPath = `projects/${task.projectId}/signals/all_signals.json`;
-    const rawData = await this.gcs.download(signalPath);
-    const upstreamSignals: UpstreamSignal[] = JSON.parse(rawData.toString('utf-8'));
+    // Download all upstream signals from individual signal files
+    const signalFiles = [
+      `projects/${task.projectId}/signals/speech_segments.json`,
+      `projects/${task.projectId}/signals/scene_descriptions.json`,
+      `projects/${task.projectId}/signals/ui_transitions.json`,
+      `projects/${task.projectId}/signals/interaction_clusters.json`,
+    ];
+
+    const upstreamSignals: UpstreamSignal[] = [];
+    for (const signalPath of signalFiles) {
+      try {
+        const rawData = await this.gcs.download(signalPath);
+        const parsed = JSON.parse(rawData.toString('utf-8')) as UpstreamSignal[];
+        upstreamSignals.push(...parsed);
+      } catch {
+        this.logger.warn(`Signal file not found: ${signalPath}`);
+      }
+    }
+
+    if (upstreamSignals.length === 0) {
+      throw new Error('No upstream signals found — cannot build intent graph');
+    }
 
     // Sort by timestamp
     upstreamSignals.sort((a, b) => a.timestampMs - b.timestampMs);
@@ -38,7 +68,7 @@ export class IntentGraphWorker extends BaseWorker {
     }));
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: this.config.anthropicModel ?? 'claude-sonnet-4-20250514',
       max_tokens: 4096,
       messages: [{
         role: 'user',
@@ -71,9 +101,9 @@ Respond with JSON array of objects:
     // Parse intent graph from response
     const signals: TaskResult['signals'] = [];
     try {
-      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+      const jsonMatch = extractJsonArray(responseText);
       if (jsonMatch) {
-        const intents = JSON.parse(jsonMatch[0]) as Array<{
+        const intents = JSON.parse(jsonMatch) as Array<{
           intentId: string;
           parentIntentId: string | null;
           action: string;
@@ -101,8 +131,8 @@ Respond with JSON array of objects:
           });
         }
       }
-    } catch {
-      this.logger.warn('Failed to parse intent graph from LLM response');
+    } catch (err) {
+      throw new Error(`Failed to parse intent graph from LLM response: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     // Save intent graph to GCS

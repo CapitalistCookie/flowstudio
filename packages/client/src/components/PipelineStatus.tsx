@@ -10,7 +10,6 @@ interface PipelineStatusProps {
 const STATUS_ICONS: Record<string, string> = {
   [TaskStatus.PENDING]: '\u25CB',
   [TaskStatus.CLAIMED]: '\u25D0',
-  [TaskStatus.RUNNING]: '\u25CF',
   [TaskStatus.COMPLETED]: '\u2713',
   [TaskStatus.FAILED]: '\u2717',
   [TaskStatus.STALE]: '\u27F3',
@@ -19,7 +18,6 @@ const STATUS_ICONS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
   [TaskStatus.PENDING]: 'var(--color-muted)',
   [TaskStatus.CLAIMED]: 'var(--color-warning)',
-  [TaskStatus.RUNNING]: 'var(--color-primary)',
   [TaskStatus.COMPLETED]: 'var(--color-success)',
   [TaskStatus.FAILED]: 'var(--color-error)',
   [TaskStatus.STALE]: 'var(--color-warning)',
@@ -49,6 +47,15 @@ export function PipelineStatus({ tasks }: PipelineStatusProps) {
             <span className="text-xs" style={{ color: STATUS_COLORS[task.status] ?? 'var(--color-muted)' }}>
               {task.status}
             </span>
+            {task.status === TaskStatus.FAILED && task.failureReason && (
+              <span
+                className="text-xs truncate max-w-[200px]"
+                style={{ color: 'var(--color-error)' }}
+                title={task.failureReason}
+              >
+                {task.failureReason}
+              </span>
+            )}
           </div>
         ))}
         {tasks.length === 0 && (

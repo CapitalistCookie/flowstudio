@@ -64,6 +64,16 @@ export class SpeechTranscriptionWorker extends BaseWorker {
       });
     }
 
+    // Write signals to GCS for downstream intent-graph worker
+    if (signals.length > 0) {
+      const gcsSignalPath = `projects/${task.projectId}/signals/speech_segments.json`;
+      await this.gcs.upload(
+        gcsSignalPath,
+        Buffer.from(JSON.stringify(signals, null, 2)),
+        'application/json',
+      );
+    }
+
     return {
       outputAssetIds: [`transcript-${task.projectId}`],
       signals,

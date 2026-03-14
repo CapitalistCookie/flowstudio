@@ -26,8 +26,6 @@ export class UIChangeDetectorWorker extends BaseWorker {
 
     const signals: TaskResult['signals'] = [];
     let prevBuffer: Buffer | null = null;
-    let prevRegions: RegionDiff[] = [];
-
     for (let i = 0; i < frameAssetIds.length; i++) {
       const gcsPath = `projects/${task.projectId}/frame_sample/frame-${String(i).padStart(4, '0')}.jpg`;
       let currentBuffer: Buffer;
@@ -45,7 +43,7 @@ export class UIChangeDetectorWorker extends BaseWorker {
           const dominantRegion = regions.reduce((best, r) =>
             r.diffScore > best.diffScore ? r : best, regions[0]!);
 
-          const transitionType = this.classifyTransition(regions, prevRegions);
+          const transitionType = this.classifyTransition(regions);
 
           signals.push({
             signalType: SignalType.UI_TRANSITION,
@@ -63,9 +61,18 @@ export class UIChangeDetectorWorker extends BaseWorker {
             },
           });
         }
-        prevRegions = regions;
       }
       prevBuffer = currentBuffer;
+    }
+
+    // Write signals to GCS for downstream intent-graph worker
+    if (signals.length > 0) {
+      const gcsSignalPath = `projects/${task.projectId}/signals/ui_transitions.json`;
+      await this.gcs.upload(
+        gcsSignalPath,
+        Buffer.from(JSON.stringify(signals, null, 2)),
+        'application/json',
+      );
     }
 
     return { outputAssetIds: [], signals };
@@ -113,7 +120,6 @@ export class UIChangeDetectorWorker extends BaseWorker {
   /** Classify the type of UI transition based on change pattern */
   private classifyTransition(
     regions: RegionDiff[],
-    _prevRegions: RegionDiff[],
   ): 'navigation' | 'modal' | 'scroll' | 'tab' | 'other' {
     const changedRegions = regions.filter(r => r.diffScore > UI_CHANGE_THRESHOLD);
     const totalRegions = regions.length;

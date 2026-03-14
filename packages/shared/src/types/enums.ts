@@ -19,7 +19,6 @@ export enum TaskType {
 export enum TaskStatus {
   PENDING = 'pending',
   CLAIMED = 'claimed',
-  RUNNING = 'running',
   COMPLETED = 'completed',
   FAILED = 'failed',
   STALE = 'stale',

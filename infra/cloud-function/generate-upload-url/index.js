@@ -25,8 +25,20 @@ exports.generateUploadUrl = async (req, res) => {
 
   const { projectId, filename, contentType } = req.body;
 
-  if (!projectId || !filename) {
-    res.status(400).json({ error: 'Missing projectId or filename' });
+  if (!projectId || !filename || !contentType) {
+    res.status(400).json({ error: 'Missing required fields' });
+    return;
+  }
+
+  // Reject path traversal
+  if (projectId.includes('..') || projectId.includes('/') || filename.includes('..') || filename.includes('/')) {
+    res.status(400).json({ error: 'Invalid projectId or filename' });
+    return;
+  }
+
+  // Validate content type
+  if (!contentType.startsWith('video/')) {
+    res.status(400).json({ error: 'Only video files are accepted' });
     return;
   }
 

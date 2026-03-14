@@ -21,6 +21,7 @@ export class StdbClient {
   private ws: WebSocket | null = null;
   private connected = false;
   private intentionalDisconnect = false;
+  private reconnecting = false;
   private subscriptionCallbacks = new Map<string, Array<(row: unknown) => void>>();
 
   constructor(config: StdbClientConfig) {
@@ -103,9 +104,13 @@ export class StdbClient {
 
   /** Reconnect after unexpected disconnect */
   private reconnect(): void {
-    if (this.intentionalDisconnect) return;
+    if (this.intentionalDisconnect || this.reconnecting) return;
+    this.reconnecting = true;
     this.logger.info('Attempting WebSocket reconnection...');
-    this.connect().catch((err) => {
+    this.connect().then(() => {
+      this.reconnecting = false;
+    }).catch((err) => {
+      this.reconnecting = false;
       this.logger.error('Reconnection failed, retrying in 5s...', {
         error: err instanceof Error ? err.message : String(err),
       });

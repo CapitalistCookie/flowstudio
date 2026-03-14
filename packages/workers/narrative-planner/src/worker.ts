@@ -2,6 +2,18 @@ import { TaskType, SignalType } from '@flowstudio/shared';
 import { BaseWorker, type TaskData, type TaskResult } from '@flowstudio/worker-shared';
 import Anthropic from '@anthropic-ai/sdk';
 
+function extractJsonArray(text: string): string | null {
+  const start = text.indexOf('[');
+  if (start === -1) return null;
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === '[') depth++;
+    else if (text[i] === ']') depth--;
+    if (depth === 0) return text.slice(start, i + 1);
+  }
+  return null;
+}
+
 export class NarrativePlannerWorker extends BaseWorker {
   readonly taskType = TaskType.NARRATIVE_PLAN;
 
@@ -16,7 +28,7 @@ export class NarrativePlannerWorker extends BaseWorker {
     const intents: unknown = JSON.parse(graphData.toString('utf-8'));
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: this.config.anthropicModel ?? 'claude-sonnet-4-20250514',
       max_tokens: 4096,
       messages: [{
         role: 'user',
@@ -49,9 +61,9 @@ Respond with a JSON array:
     const signals: TaskResult['signals'] = [];
 
     try {
-      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+      const jsonMatch = extractJsonArray(responseText);
       if (jsonMatch) {
-        const beats = JSON.parse(jsonMatch[0]) as Array<{
+        const beats = JSON.parse(jsonMatch) as Array<{
           beatIndex: number;
           beatType: string;
           title: string;
@@ -79,8 +91,8 @@ Respond with a JSON array:
           });
         }
       }
-    } catch {
-      this.logger.warn('Failed to parse narrative beats from LLM response');
+    } catch (err) {
+      throw new Error(`Failed to parse narrative beats from LLM response: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     const outputPath = `projects/${task.projectId}/signals/narrative_plan.json`;

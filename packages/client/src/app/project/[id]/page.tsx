@@ -22,9 +22,16 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const totalCount = tasks.length;
   const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
+  const MAX_UPLOAD_BYTES = 5 * 1024 * 1024 * 1024; // 5 GB
+
   const handleFileUpload = useCallback(async (file: File) => {
     if (!file.type.startsWith('video/')) {
       alert('Please select a video file.');
+      return;
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      alert('File too large. Maximum upload size is 5 GB.');
       return;
     }
 
@@ -69,23 +76,23 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         metadata: JSON.stringify({ originalName: file.name }),
       });
 
-      // Update project status to processing
-      await callReducer('updateProjectState', {
-        projectId: id,
-        currentPhase: 'processing',
-        status: 'processing',
-      });
-
       // Create initial pipeline tasks
       for (const taskType of INITIAL_TASK_TYPES) {
         await callReducer('createTask', {
           projectId: id,
           taskType,
-          inputAssetIds: JSON.stringify([file.name]),
+          inputAssetIds: JSON.stringify([gcsPath]),
           config: '{}',
           maxRetries: 3,
         });
       }
+
+      // Update project status to processing (after all tasks created successfully)
+      await callReducer('updateProjectState', {
+        projectId: id,
+        currentPhase: 'processing',
+        status: 'processing',
+      });
 
       setUploadProgress('Upload complete! Processing started.');
       setTimeout(() => setUploadProgress(null), 3000);

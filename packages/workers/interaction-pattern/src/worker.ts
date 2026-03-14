@@ -15,18 +15,26 @@ export class InteractionPatternWorker extends BaseWorker {
   readonly taskType = TaskType.INTERACTION_PATTERN;
 
   async processTask(task: TaskData): Promise<TaskResult> {
-    // Download upstream signal data from GCS
-    const signalPath = `projects/${task.projectId}/signals/cursor_typing.json`;
+    // Download upstream signal data from GCS (cursor + typing separately)
     let inputSignals: InputSignal[] = [];
-    try {
-      const data = await this.gcs.download(signalPath);
-      inputSignals = JSON.parse(data.toString('utf-8')) as InputSignal[];
-    } catch {
-      this.logger.warn('No cursor/typing signals found, producing empty result');
-      return { outputAssetIds: [], signals: [] };
+
+    const signalFiles = [
+      `projects/${task.projectId}/signals/cursor_movements.json`,
+      `projects/${task.projectId}/signals/typing_events.json`,
+    ];
+
+    for (const signalPath of signalFiles) {
+      try {
+        const data = await this.gcs.download(signalPath);
+        const parsed = JSON.parse(data.toString('utf-8')) as InputSignal[];
+        inputSignals.push(...parsed);
+      } catch {
+        // File may not exist if no cursor/typing data was captured
+      }
     }
 
     if (inputSignals.length === 0) {
+      this.logger.warn('No cursor/typing signals found, producing empty result');
       return { outputAssetIds: [], signals: [] };
     }
 
@@ -57,6 +65,16 @@ export class InteractionPatternWorker extends BaseWorker {
           clusterLabel: this.labelCluster(intent, interactions.length),
         },
       });
+    }
+
+    // Write signals to GCS for downstream intent-graph worker
+    if (signals.length > 0) {
+      const gcsSignalPath = `projects/${task.projectId}/signals/interaction_clusters.json`;
+      await this.gcs.upload(
+        gcsSignalPath,
+        Buffer.from(JSON.stringify(signals, null, 2)),
+        'application/json',
+      );
     }
 
     return { outputAssetIds: [], signals };

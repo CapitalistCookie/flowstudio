@@ -21,6 +21,10 @@ export interface WorkerConfig {
   deepgramApiKey?: string;
   googleAiApiKey?: string;
   anthropicApiKey?: string;
+
+  /** LLM model overrides */
+  anthropicModel?: string;
+  googleAiModel?: string;
 }
 
 export function loadConfig(): WorkerConfig {
@@ -50,5 +54,7 @@ export function loadConfig(): WorkerConfig {
     deepgramApiKey: optional('DEEPGRAM_API_KEY'),
     googleAiApiKey: optional('GOOGLE_AI_API_KEY'),
     anthropicApiKey: optional('ANTHROPIC_API_KEY'),
+    anthropicModel: optional('ANTHROPIC_MODEL') ?? 'claude-sonnet-4-20250514',
+    googleAiModel: optional('GOOGLE_AI_MODEL') ?? 'gemini-1.5-flash',
   };
 }

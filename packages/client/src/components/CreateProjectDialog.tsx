@@ -12,6 +12,7 @@ interface CreateProjectDialogProps {
 export function CreateProjectDialog({ open, onClose }: CreateProjectDialogProps) {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { callReducer } = useReducer();
 
   if (!open) return null;
@@ -19,12 +20,15 @@ export function CreateProjectDialog({ open, onClose }: CreateProjectDialogProps)
   const handleCreate = async () => {
     if (!name.trim()) return;
     setLoading(true);
+    setError(null);
     try {
       await callReducer('createProject', { name: name.trim(), ownerId: 'anonymous', metadata: '{}' });
       setName('');
       onClose();
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create project';
       console.error('Failed to create project:', err);
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -51,6 +55,11 @@ export function CreateProjectDialog({ open, onClose }: CreateProjectDialogProps)
           onKeyDown={e => { if (e.key === 'Enter') handleCreate(); }}
           autoFocus
         />
+        {error && (
+          <p className="text-sm mb-4" style={{ color: 'var(--color-error)' }}>
+            {error}
+          </p>
+        )}
         <div className="flex gap-2 justify-end">
           <button
             onClick={onClose}

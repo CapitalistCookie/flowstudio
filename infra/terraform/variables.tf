@@ -39,3 +39,9 @@ variable "certbot_email" {
   type        = string
   default     = "admin@flowstudio.ai"
 }
+
+variable "upload_function_url" {
+  description = "URL of the Cloud Function for generating signed upload URLs"
+  type        = string
+  default     = ""
+}

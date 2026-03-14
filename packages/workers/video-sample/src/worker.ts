@@ -70,7 +70,7 @@ export class VideoSampleWorker extends BaseWorker {
         const gcsPath = `projects/${task.projectId}/frame_sample/frame-${String(i).padStart(4, '0')}.jpg`;
         await this.gcs.upload(gcsPath, resized, 'image/jpeg');
 
-        const assetId = `frame-${task.projectId}-${i}`;
+        const assetId = `frame-${String(i).padStart(4, '0')}`;
         outputAssetIds.push(assetId);
 
         // Detect scene changes by comparing consecutive frames

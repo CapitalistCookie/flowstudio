@@ -30,6 +30,10 @@ resource "google_cloud_run_v2_service" "client" {
         name  = "NEXT_PUBLIC_STDB_MODULE"
         value = var.project_prefix
       }
+      env {
+        name  = "NEXT_PUBLIC_UPLOAD_FUNCTION_URL"
+        value = var.upload_function_url
+      }
       resources {
         limits = {
           cpu    = "1"
@@ -98,6 +102,10 @@ resource "google_cloud_run_v2_service" "workers" {
 
     containers {
       image = "${var.region}-docker.pkg.dev/${var.project_id}/${var.project_prefix}/${each.key}:latest"
+
+      ports {
+        container_port = 8080
+      }
 
       env {
         name  = "WORKER_NAME"
@@ -170,6 +178,7 @@ resource "google_cloud_run_v2_service" "workers" {
       startup_probe {
         http_get {
           path = "/health"
+          port = 8080
         }
         initial_delay_seconds = 5
         period_seconds        = 5

@@ -25,6 +25,9 @@ export class Semaphore {
 
   /** Release a permit, allowing queued waiters to proceed. */
   release(): void {
+    if (this.current <= 0) {
+      throw new Error('Semaphore: release without acquire');
+    }
     this.current--;
     const next = this.queue.shift();
     if (next) {

@@ -221,11 +221,17 @@ stdb.reducer(
     metadata: t.string(),
   },
   (ctx, args) => {
+    const projectId = args.projectId as string;
+    const project = ctx.db.projects.findByPrimaryKey(projectId);
+    if (!project) {
+      throw new Error(`createAsset: project ${projectId} not found`);
+    }
+
     const id = generateId();
 
     ctx.db.assets.insert({
       id,
-      projectId: args.projectId as string,
+      projectId,
       assetType: args.assetType as string,
       gcsPath: args.gcsPath as string,
       sizeBytes: args.sizeBytes as number,
@@ -255,11 +261,17 @@ stdb.reducer(
     const signalType = args.signalType as string;
     const now = nowMs();
 
+    const MAX_BATCH_SIZE = 1000;
+
     let batch: Array<{ timestampMs: number; durationMs: number; confidence: number; payload: string }>;
     try {
       batch = JSON.parse(args.batchJson as string);
     } catch {
       throw new Error('ingestInteractionBatch: invalid batchJson');
+    }
+
+    if (batch.length > MAX_BATCH_SIZE) {
+      throw new Error(`ingestInteractionBatch: batch size ${batch.length} exceeds limit of ${MAX_BATCH_SIZE}`);
     }
 
     for (const item of batch) {
@@ -291,11 +303,17 @@ stdb.reducer(
     maxRetries: t.i32(),
   },
   (ctx, args) => {
+    const projectId = args.projectId as string;
+    const project = ctx.db.projects.findByPrimaryKey(projectId);
+    if (!project) {
+      throw new Error(`createTask: project ${projectId} not found`);
+    }
+
     const id = generateId();
 
     ctx.db.tasks.insert({
       id,
-      projectId: args.projectId as string,
+      projectId,
       taskType: args.taskType as string,
       status: 'pending',
       workerId: '',
@@ -714,7 +732,7 @@ stdb.reducer('watchdog_schedule', {}, (ctx, _args) => {
   for (const task of ctx.db.tasks.iter()) {
     const status = task.status as string;
     if (
-      (status === 'claimed' || status === 'running') &&
+      status === 'claimed' &&
       (task.claimedAt as number) > 0 &&
       (task.claimedAt as number) < threshold
     ) {

@@ -2,6 +2,18 @@ import { TaskType, SignalType } from '@flowstudio/shared';
 import { BaseWorker, type TaskData, type TaskResult } from '@flowstudio/worker-shared';
 import Anthropic from '@anthropic-ai/sdk';
 
+function extractJsonArray(text: string): string | null {
+  const start = text.indexOf('[');
+  if (start === -1) return null;
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === '[') depth++;
+    else if (text[i] === ']') depth--;
+    if (depth === 0) return text.slice(start, i + 1);
+  }
+  return null;
+}
+
 export class EditPlannerWorker extends BaseWorker {
   readonly taskType = TaskType.EDIT_PLAN;
 
@@ -15,7 +27,7 @@ export class EditPlannerWorker extends BaseWorker {
     const beats: unknown = JSON.parse(narrativeData.toString('utf-8'));
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: this.config.anthropicModel ?? 'claude-sonnet-4-20250514',
       max_tokens: 4096,
       messages: [{
         role: 'user',
@@ -47,9 +59,9 @@ Respond with a JSON array:
     const signals: TaskResult['signals'] = [];
 
     try {
-      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+      const jsonMatch = extractJsonArray(responseText);
       if (jsonMatch) {
-        const edits = JSON.parse(jsonMatch[0]) as Array<{
+        const edits = JSON.parse(jsonMatch) as Array<{
           editType: string;
           sourceStartMs: number;
           sourceEndMs: number;
@@ -77,8 +89,8 @@ Respond with a JSON array:
           });
         }
       }
-    } catch {
-      this.logger.warn('Failed to parse edit decisions from LLM response');
+    } catch (err) {
+      throw new Error(`Failed to parse edit decisions from LLM response: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     const outputPath = `projects/${task.projectId}/signals/edit_plan.json`;

@@ -24,6 +24,7 @@ if [ "$SERVICE" = "client" ]; then
     -t "${REGISTRY}/client:${VERSION}" \
     --build-arg NEXT_PUBLIC_STDB_HOST="${NEXT_PUBLIC_STDB_HOST:-wss://stdb.flowstudio.ai}" \
     --build-arg NEXT_PUBLIC_STDB_MODULE="${NEXT_PUBLIC_STDB_MODULE:-flowstudio}" \
+    --build-arg NEXT_PUBLIC_UPLOAD_FUNCTION_URL="${NEXT_PUBLIC_UPLOAD_FUNCTION_URL:-}" \
     .
 else
   echo "Building worker ${SERVICE} ${VERSION}..."
