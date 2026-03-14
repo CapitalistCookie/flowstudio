@@ -67,10 +67,9 @@ export function DashboardView() {
 
       {/* ── Main Content ── */}
       <main className="relative flex-1 overflow-y-auto bg-background/50">
-        {/* Subtle Background Glow for main content */}
-        <div className="absolute top-0 left-1/2 -z-10 h-[500px] w-full -translate-x-1/2 bg-[radial-gradient(circle_at_50%_0%,rgba(245,166,35,0.03),transparent_70%)]" />
+        <div className="dashboard-grid-fade pointer-events-none absolute inset-0 z-0 opacity-55" />
 
-        <div className="mx-auto max-w-6xl px-8 py-12 lg:px-16 flex flex-col min-h-full">
+        <div className="relative z-10 mx-auto max-w-6xl px-8 py-12 lg:px-16 flex flex-col min-h-full">
           
           {/* ── Top Greeting ── */}
           <motion.header
@@ -171,13 +170,13 @@ export function DashboardView() {
                         <TrendingUp size={48} className="text-muted-foreground/20" />
                       </div>
 
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/5">
-                        <div className="rounded-full bg-white/90 backdrop-blur-sm px-4 py-2 text-xs font-bold text-black shadow-lg">
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-background/20 dark:bg-black/5">
+                        <div className="rounded-full bg-card/90 backdrop-blur-sm px-4 py-2 text-xs font-bold text-foreground shadow-lg">
                           Open Editor
                         </div>
                       </div>
 
-                      <div className="absolute bottom-4 right-4 rounded-xl bg-black/60 px-2.5 py-1 text-[11px] font-mono font-bold text-white backdrop-blur-lg border border-white/10 uppercase tracking-widest">
+                      <div className="absolute bottom-4 right-4 rounded-xl bg-card/85 px-2.5 py-1 text-[11px] font-mono font-bold text-foreground backdrop-blur-lg border border-border/70 uppercase tracking-widest dark:bg-black/60 dark:text-white dark:border-white/10">
                         {project.duration}
                       </div>
                     </div>

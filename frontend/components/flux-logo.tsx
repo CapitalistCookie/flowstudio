@@ -10,7 +10,7 @@ interface FluxLogoProps {
 
 export function FluxLogo({ size = "md", className }: FluxLogoProps) {
   const sizes = {
-    sm: 30,
+    sm: 156,
     md: 132,
     lg: 176,
   }
@@ -22,7 +22,15 @@ export function FluxLogo({ size = "md", className }: FluxLogoProps) {
         alt="FlowStudio"
         width={sizes[size]}
         height={sizes[size]}
-        className="block object-contain align-middle"
+        className="block object-contain align-middle dark:hidden"
+        priority={size !== "sm"}
+      />
+      <Image
+        src="/branding/flowstudio-logo-dark-mode.png"
+        alt="FlowStudio"
+        width={sizes[size]}
+        height={sizes[size]}
+        className="hidden object-contain align-middle dark:block"
         priority={size !== "sm"}
       />
     </div>

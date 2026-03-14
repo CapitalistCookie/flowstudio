@@ -3,12 +3,12 @@
 import type { ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { useUser, SignOutButton } from "@clerk/nextjs"
-import { Folder, LayoutDashboard, MoreVertical, Plus, Settings } from "lucide-react"
+import { Folder, LayoutDashboard, LogOut, Plus, Settings } from "lucide-react"
 import { FluxLogo } from "@/components/flux-logo"
 import { useProjectStore } from "@/lib/stores/project-store"
 
 interface WorkspaceSidebarProps {
-  active: "dashboard" | "projects"
+  active: "dashboard" | "projects" | "settings"
   showProjectList?: boolean
 }
 
@@ -45,7 +45,7 @@ export function WorkspaceSidebar({ active, showProjectList = true }: WorkspaceSi
 
   return (
     <aside className="relative z-50 flex h-full w-[280px] flex-col border-r border-border bg-card/40 backdrop-blur-xl">
-      <div className="flex h-16 items-center justify-start overflow-hidden px-5 pt-2">
+      <div className="flex h-40 items-center justify-center overflow-hidden px-5">
         <FluxLogo size="sm" />
       </div>
 
@@ -86,7 +86,8 @@ export function WorkspaceSidebar({ active, showProjectList = true }: WorkspaceSi
         <SidebarItem
           icon={<Settings size={20} />}
           label="Settings"
-          onClick={() => router.push("/projects")}
+          active={active === "settings"}
+          onClick={() => router.push("/settings")}
         />
       </div>
 
@@ -119,8 +120,12 @@ export function WorkspaceSidebar({ active, showProjectList = true }: WorkspaceSi
           </div>
 
           <SignOutButton>
-            <button className="cursor-pointer text-muted-foreground transition-colors hover:text-destructive" aria-label="Sign out">
-              <MoreVertical size={16} />
+            <button
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-destructive"
+              aria-label="Log out"
+              title="Log out"
+            >
+              <LogOut size={16} />
             </button>
           </SignOutButton>
         </div>
