@@ -29,8 +29,11 @@ export interface TaskResult {
 
 /**
  * Abstract base class for all FlowStudio workers.
- * Handles SpacetimeDB connection, task claiming, GCS access, health checks,
+ * Handles SpacetimeDB communication, task claiming, GCS access, health checks,
  * and concurrency control. Subclasses implement processTask().
+ *
+ * Uses HTTP-only StdbClient (no WebSocket). When the SpacetimeDB SDK supports
+ * generated bindings, the poll loop can be replaced with subscription callbacks.
  */
 export abstract class BaseWorker {
   protected readonly config: WorkerConfig;
@@ -41,7 +44,6 @@ export abstract class BaseWorker {
   private running = false;
   private activeTasks = 0;
   private readonly startTime = Date.now();
-  private readonly inFlightTaskIds = new Set<string>();
 
   /** The task type this worker handles */
   abstract readonly taskType: TaskType;
@@ -65,7 +67,7 @@ export abstract class BaseWorker {
    */
   abstract processTask(task: TaskData): Promise<TaskResult>;
 
-  /** Start the worker: connect to SpacetimeDB, start health server, begin polling */
+  /** Start the worker: register with SpacetimeDB, start health server, begin polling */
   async start(): Promise<void> {
     this.logger.info(`Starting worker: ${this.config.workerName}`, {
       taskType: this.taskType,
@@ -73,23 +75,17 @@ export abstract class BaseWorker {
       pollInterval: this.config.pollIntervalMs,
     });
 
-    // Start health server first (must respond before stdb connects)
+    // Start health server first
     startHealthServer(this.config.healthPort, () => this.getHealthStatus(), this.logger);
 
-    // Connect to SpacetimeDB (non-fatal — retry in background if unavailable)
+    // Register worker with SpacetimeDB (non-fatal if unavailable)
     try {
-      await this.stdb.connect();
       await this.registerWorker();
     } catch (err) {
-      this.logger.warn('SpacetimeDB not available, will retry in background', {
+      this.logger.warn('SpacetimeDB not available, will retry on next poll', {
         error: err instanceof Error ? err.message : String(err),
       });
     }
-
-    // Subscribe to task table for claimed task discovery
-    this.stdb.onTableUpdate('tasks', (update) => {
-      this.handleTaskTableUpdate(update);
-    });
 
     // Start polling for tasks
     this.running = true;
@@ -134,68 +130,39 @@ export abstract class BaseWorker {
     // Only poll if we have capacity
     if (this.semaphore.activeCount >= this.config.concurrency) return;
 
-    // Find and claim a pending task via the findAndClaimTask reducer
     try {
+      // Ask SpacetimeDB to find and claim a pending task for this worker
       await this.stdb.callReducer('findAndClaimTask', {
         taskType: this.taskType,
         workerId: this.config.workerId,
       });
-      // If successful, the task table subscription will fire handleTaskTableUpdate
-      // which routes the claimed task to handleClaimedTask
+
+      // Query the tasks table to find the task that was just claimed
+      const tasks = await this.stdb.queryTable('tasks');
+      const claimed = tasks.find(
+        (t) =>
+          t.status === 'claimed' &&
+          t.workerId === this.config.workerId &&
+          t.taskType === this.taskType
+      );
+
+      if (claimed) {
+        const taskData: TaskData = {
+          id: claimed.id as string,
+          projectId: claimed.projectId as string,
+          taskType: claimed.taskType as string,
+          inputAssetIds: JSON.parse((claimed.inputAssetIds as string) || '[]'),
+          config: JSON.parse((claimed.config as string) || '{}'),
+        };
+        await this.handleClaimedTask(taskData);
+      }
     } catch {
       // No task available or claim failed — this is normal
       return;
     }
   }
 
-  /** Handle task table updates from SpacetimeDB subscription */
-  private handleTaskTableUpdate(update: unknown): void {
-    // Extract rows from the update — SpacetimeDB sends inserted/updated rows
-    const rows = this.extractRows(update);
-    for (const row of rows) {
-      const task = row as Record<string, unknown>;
-      // Process tasks claimed by this worker
-      const taskId = task.id as string;
-      if (
-        task.status === 'claimed' &&
-        task.workerId === this.config.workerId &&
-        task.taskType === this.taskType &&
-        !this.inFlightTaskIds.has(taskId)
-      ) {
-        this.inFlightTaskIds.add(taskId);
-        const taskData: TaskData = {
-          id: taskId,
-          projectId: task.projectId as string,
-          taskType: task.taskType as string,
-          inputAssetIds: JSON.parse((task.inputAssetIds as string) || '[]'),
-          config: JSON.parse((task.config as string) || '{}'),
-        };
-        this.handleClaimedTask(taskData)
-          .catch((err) => {
-            this.logger.error('Error handling claimed task', {
-              taskId: taskData.id,
-              error: err instanceof Error ? err.message : String(err),
-            });
-          })
-          .finally(() => {
-            this.inFlightTaskIds.delete(taskId);
-          });
-      }
-    }
-  }
-
-  /** Extract row data from a SpacetimeDB table update message */
-  private extractRows(update: unknown): unknown[] {
-    if (!update || typeof update !== 'object') return [];
-    const u = update as Record<string, unknown>;
-    // SpacetimeDB sends rows in various formats; handle common ones
-    if (Array.isArray(u.inserts)) return u.inserts;
-    if (Array.isArray(u.updates)) return u.updates;
-    if (Array.isArray(u.rows)) return u.rows;
-    return [];
-  }
-
-  /** Called when a task is claimed successfully (from subscription) */
+  /** Called when a task is claimed successfully */
   protected async handleClaimedTask(task: TaskData): Promise<void> {
     await this.semaphore.run(async () => {
       this.activeTasks++;

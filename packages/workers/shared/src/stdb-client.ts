@@ -1,4 +1,3 @@
-import WebSocket from 'ws';
 import { Logger } from './logger.js';
 
 export interface StdbClientConfig {
@@ -8,68 +7,38 @@ export interface StdbClientConfig {
 }
 
 /**
- * SpacetimeDB client for workers.
- * Calls reducers via HTTP REST API and subscribes to tables via WebSocket.
+ * SpacetimeDB client for workers (HTTP-only).
  *
- * In production, this would use the official SpacetimeDB TypeScript client SDK.
- * This is a minimal implementation for the worker framework.
+ * Calls reducers via HTTP POST and queries tables via SQL over HTTP.
+ * When the official SpacetimeDB TypeScript SDK supports generated bindings,
+ * replace this class with DbConnection.builder() — the public API surface
+ * (callReducer, queryTable, disconnect) is designed to make that swap minimal.
+ *
+ * What changes when migrating to the SDK:
+ *  - Constructor → DbConnection.builder().withUri().withModuleName().build()
+ *  - callReducer() → generated reducer functions (type-safe)
+ *  - queryTable() → ctx.db.tableName.iter() with subscription
+ *  - isConnected → connection.isActive
+ *  - disconnect() → connection.disconnect()
  */
 export class StdbClient {
   private readonly baseUrl: string;
-  private readonly wsUrl: string;
   private readonly moduleName: string;
   private readonly logger: Logger;
-  private ws: WebSocket | null = null;
-  private connected = false;
-  private intentionalDisconnect = false;
-  private reconnecting = false;
-  private subscriptionCallbacks = new Map<string, Array<(row: unknown) => void>>();
 
   constructor(config: StdbClientConfig) {
-    // Determine protocol based on host
-    const isSecure = config.host.startsWith('wss://') || config.host.startsWith('https://');
     const cleanHost = config.host.replace(/^(wss?|https?):\/\//, '');
-
+    const isSecure = config.host.startsWith('wss://') || config.host.startsWith('https://');
     this.baseUrl = `${isSecure ? 'https' : 'http'}://${cleanHost}`;
-    this.wsUrl = `${isSecure ? 'wss' : 'ws'}://${cleanHost}`;
     this.moduleName = config.module;
     this.logger = config.logger;
+    this.logger.info('StdbClient initialized', { baseUrl: this.baseUrl, module: this.moduleName });
   }
 
-  /** Connect to SpacetimeDB via WebSocket */
-  async connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const url = `${this.wsUrl}/database/subscribe/${this.moduleName}`;
-      this.logger.info('Connecting to SpacetimeDB', { url });
-
-      this.ws = new WebSocket(url);
-
-      this.ws.onopen = () => {
-        this.connected = true;
-        this.logger.info('Connected to SpacetimeDB');
-        resolve();
-      };
-
-      this.ws.onerror = (event) => {
-        this.logger.error('SpacetimeDB WebSocket error', { error: String(event) });
-        if (!this.connected) reject(new Error('WebSocket connection failed'));
-      };
-
-      this.ws.onclose = () => {
-        this.connected = false;
-        this.logger.warn('SpacetimeDB WebSocket closed, reconnecting in 3s...');
-        if (!this.intentionalDisconnect) {
-          setTimeout(() => this.reconnect(), 3000);
-        }
-      };
-
-      this.ws.onmessage = (event) => {
-        this.handleMessage(event.data);
-      };
-    });
-  }
-
-  /** Call a SpacetimeDB reducer via HTTP */
+  /**
+   * Call a SpacetimeDB reducer via HTTP POST.
+   * SDK migration: replace with generated reducer call (e.g. FindAndClaimTask.call(conn, args))
+   */
   async callReducer(reducerName: string, args: Record<string, unknown>): Promise<void> {
     const url = `${this.baseUrl}/database/call/${this.moduleName}/${reducerName}`;
     this.logger.debug(`Calling reducer: ${reducerName}`, { args });
@@ -86,61 +55,55 @@ export class StdbClient {
     }
   }
 
-  /** Subscribe to table changes */
-  onTableUpdate(tableName: string, callback: (row: unknown) => void): void {
-    const existing = this.subscriptionCallbacks.get(tableName) ?? [];
-    existing.push(callback);
-    this.subscriptionCallbacks.set(tableName, existing);
-  }
+  /**
+   * Query a SpacetimeDB table via HTTP SQL endpoint.
+   * Returns rows as objects with camelCase keys.
+   * SDK migration: replace with ctx.db.tableName.iter() subscription callbacks.
+   */
+  async queryTable(tableName: string): Promise<Record<string, unknown>[]> {
+    const url = `${this.baseUrl}/v1/database/${this.moduleName}/sql`;
 
-  /** Disconnect intentionally (no reconnect) */
-  disconnect(): void {
-    this.intentionalDisconnect = true;
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: `SELECT * FROM ${tableName}`,
+    });
+
+    if (!response.ok) {
+      throw new Error(`SQL query failed (${response.status}): ${await response.text()}`);
     }
-    this.connected = false;
-  }
 
-  /** Reconnect after unexpected disconnect */
-  private reconnect(): void {
-    if (this.intentionalDisconnect || this.reconnecting) return;
-    this.reconnecting = true;
-    this.logger.info('Attempting WebSocket reconnection...');
-    this.connect().then(() => {
-      this.reconnecting = false;
-    }).catch((err) => {
-      this.reconnecting = false;
-      this.logger.error('Reconnection failed, retrying in 5s...', {
-        error: err instanceof Error ? err.message : String(err),
+    const results = (await response.json()) as Array<{
+      schema: { elements: Array<{ name: { some: string } }> };
+      rows: unknown[][];
+    }>;
+    if (!results?.[0]) return [];
+
+    const { schema, rows } = results[0];
+    const columns: string[] = schema.elements.map(
+      (el: { name: { some: string } }) => {
+        const raw = el.name.some;
+        return raw.replace(/_([a-z])/g, (_: string, c: string) => c.toUpperCase());
+      }
+    );
+
+    return (rows as unknown[][]).map((row) => {
+      const obj: Record<string, unknown> = {};
+      columns.forEach((col, i) => {
+        const val = row[i];
+        obj[col] = typeof val === 'bigint' ? Number(val) : val;
       });
-      setTimeout(() => this.reconnect(), 5000);
+      return obj;
     });
   }
 
+  /** HTTP client is always "connected". SDK version: return connection.isActive */
   get isConnected(): boolean {
-    return this.connected;
+    return true;
   }
 
-  private handleMessage(data: unknown): void {
-    try {
-      const msg = typeof data === 'string' ? JSON.parse(data) : data;
-      // SpacetimeDB sends table updates as TransactionUpdate messages
-      if (msg && typeof msg === 'object' && 'tableUpdate' in (msg as Record<string, unknown>)) {
-        const update = (msg as Record<string, unknown>).tableUpdate as Record<string, unknown>;
-        const tableName = update.tableName as string;
-        const callbacks = this.subscriptionCallbacks.get(tableName);
-        if (callbacks) {
-          for (const cb of callbacks) {
-            cb(update);
-          }
-        }
-      }
-    } catch (err) {
-      this.logger.warn('Failed to parse SpacetimeDB message', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
+  /** No-op for HTTP client. SDK version: connection.disconnect() */
+  disconnect(): void {
+    this.logger.info('StdbClient disconnected (no-op for HTTP)');
   }
 }

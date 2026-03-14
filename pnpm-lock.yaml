@@ -256,16 +256,10 @@ importers:
       '@google-cloud/storage':
         specifier: 7.16.0
         version: 7.16.0
-      ws:
-        specifier: ^8.19.0
-        version: 8.19.0
     devDependencies:
       '@types/node':
         specifier: 22.15.3
         version: 22.15.3
-      '@types/ws':
-        specifier: ^8.18.1
-        version: 8.18.1
       typescript:
         specifier: 5.7.3
         version: 5.7.3
@@ -1215,9 +1209,6 @@ packages:
 
   '@types/tough-cookie@4.0.5':
     resolution: {integrity: sha512-/Ad8+nIOV7Rl++6f1BdKxFSMgmoqEoYbHRpPcx3JEfv8VRsQe9Z4mCXeJBzxs7mbHY/XOZZuXlRNfhpVPbs6ZA==}
-
-  '@types/ws@8.18.1':
-    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
   abort-controller@3.0.0:
     resolution: {integrity: sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==}
@@ -2648,10 +2639,6 @@ snapshots:
       form-data: 2.5.5
 
   '@types/tough-cookie@4.0.5': {}
-
-  '@types/ws@8.18.1':
-    dependencies:
-      '@types/node': 22.15.3
 
   abort-controller@3.0.0:
     dependencies:
