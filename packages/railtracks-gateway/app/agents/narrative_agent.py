@@ -1,35 +1,53 @@
-"""Narrative Planner Agent — Converts intent graph into narrative beats.
+"""Narrative planner agent — converts intent graph into narrative beats."""
+from __future__ import annotations
+import json
+import logging
+from typing import Any
 
-Uses Railtracks agent_node for LLM call with full observability.
-"""
+from .intent_agent import extract_json_array
 
-import railtracks as rt
-from app.agents.intent_agent import _get_llm
+logger = logging.getLogger(__name__)
 
 NARRATIVE_SYSTEM_PROMPT = """You are a video editor creating a narrative structure for an edited video from a screen recording.
 
-Given an intent graph showing what the user was doing, create a sequence of narrative beats that would make a compelling, clear edited video:
+Create a sequence of narrative beats that would make a compelling, clear edited video:
 - Each beat is a segment of the final video
 - Beats should flow logically (setup → action → result)
 - Remove dead time, repetition, and errors
 - Highlight key moments and achievements
-- Suggest appropriate durations for each beat
 
-Respond ONLY with a JSON array. No other text, no markdown fences:
-[
-  {
-    "beat_index": number,
-    "beat_type": "setup" | "action" | "result" | "transition" | "highlight",
-    "title": "short title",
-    "description": "what happens in this beat",
-    "suggested_duration_ms": number,
-    "start_ms": number,
-    "end_ms": number,
-    "related_intent_ids": ["string"]
-  }
-]"""
+Respond with a valid JSON array:
+{
+  "beatIndex": number,
+  "beatType": "setup" | "action" | "result" | "transition" | "highlight",
+  "title": "short title",
+  "description": "what happens in this beat",
+  "suggestedDurationMs": number,
+  "startMs": number,
+  "endMs": number,
+  "relatedIntentIds": ["string"]
+}"""
 
-NarrativeAgent = rt.agent_node(
-    llm=_get_llm(),
-    system_message=NARRATIVE_SYSTEM_PROMPT,
-)
+
+async def run_narrative_agent(
+    intent_graph: list[dict],
+    llm_call: Any,
+) -> list[dict]:
+    """Convert intent graph into narrative beats.
+
+    Args:
+        intent_graph: List of intent node dicts
+        llm_call: Async callable(system_prompt, user_message) -> str
+    """
+    if not intent_graph:
+        raise ValueError("Empty intent graph — cannot create narrative plan")
+
+    user_message = f'<signal_data type="intent_graph">\n{json.dumps(intent_graph, indent=2)}\n</signal_data>'
+    response_text = await llm_call(NARRATIVE_SYSTEM_PROMPT, user_message)
+    beats = extract_json_array(response_text)
+    if beats is None:
+        raise ValueError("Failed to parse narrative beats from LLM response")
+
+    beats.sort(key=lambda b: b.get("beatIndex", 0))
+    logger.info(f"Narrative agent produced {len(beats)} beats")
+    return beats

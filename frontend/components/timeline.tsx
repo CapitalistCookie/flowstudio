@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useEffect, useCallback, useMemo } from "react"
-import { Video, Volume2, VolumeX, Lock, Unlock, Eye, EyeOff, Film, Trash2, Scissors, Undo2, Redo2, Copy, Clipboard } from "lucide-react"
+import { useState, useRef, useEffect, useCallback } from "react"
+import { Video, Volume2, Lock, Eye, Film, Trash2, Scissors, Undo2, Redo2, Copy, Clipboard } from "lucide-react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { useEditor, TimelineClip, PIXELS_PER_SECOND, DEFAULT_CLIP_TRANSFORM, DEFAULT_CLIP_EFFECTS } from "./editor-context"
@@ -135,35 +135,9 @@ export function Timeline() {
     clipId: string
   } | null>(null)
   const timelineRef = useRef<HTMLDivElement>(null)
+
+  const tracks = ["V2", "V1", "A2", "A1"]
   
-  // Generic track names
-  const tracks = ["Track 4", "Track 3", "Track 2", "Track 1"]
-
-  // Per-track mute / solo / lock state
-  const [mutedTracks, setMutedTracks] = useState<Set<string>>(new Set())
-  const [soloedTracks, setSoloedTracks] = useState<Set<string>>(new Set())
-  const [lockedTracks, setLockedTracks] = useState<Set<string>>(new Set())
-
-  const toggleMute  = (t: string) => setMutedTracks(prev  => { const n = new Set(prev); n.has(t) ? n.delete(t) : n.add(t); return n })
-  const toggleSolo  = (t: string) => setSoloedTracks(prev  => { const n = new Set(prev); n.has(t) ? n.delete(t) : n.add(t); return n })
-  const toggleLock  = (t: string) => setLockedTracks(prev  => { const n = new Set(prev); n.has(t) ? n.delete(t) : n.add(t); return n })
-
-  // Stable waveform heights per clip (seeded so they don’t flicker on re-render)
-  const waveformCache = useMemo(() => {
-    const cache: Record<string, number[]> = {}
-    timelineClips.forEach(clip => {
-      const bars = Math.min(60, Math.max(8, Math.floor(clip.duration / 5)))
-      const heights: number[] = []
-      let seed = clip.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
-      for (let i = 0; i < bars; i++) {
-        seed = (seed * 1664525 + 1013904223) & 0xffffffff
-        heights.push(25 + Math.abs(seed % 75))
-      }
-      cache[clip.id] = heights
-    })
-    return cache
-  }, [timelineClips])
-
   // Timeline layout constants
   const TRACK_HEIGHT = 48 // Track height in pixels (h-12)
   const RULER_HEIGHT = 24 // Ruler height in pixels (h-6)
@@ -356,9 +330,18 @@ export function Timeline() {
       }
     }
     
-    // Generic tracks allow any content
+    // Validate target track compatibility
     const snappedX = (snappedVisualX / pixelsPerSecond) * PIXELS_PER_SECOND
-    const validTargetTrack = targetTrack || undefined
+    let validTargetTrack: string | undefined = undefined
+    
+    if (targetTrack) {
+      const isVideoTrack = targetTrack.startsWith("V")
+      const isVideoClip = clip.type === "video"
+      
+      if ((isVideoClip && isVideoTrack) || (!isVideoClip && !isVideoTrack)) {
+        validTargetTrack = targetTrack
+      }
+    }
     
     // Instant visual feedback with CSS transform
     setLiveTransform({
@@ -626,7 +609,7 @@ export function Timeline() {
         duration: clipDuration,
         mediaOffset: mediaOffset,
         label: clipLabel,
-        type: media.type.includes("video") ? "video" : "audio",
+        type: trackId.startsWith("V") ? "video" : "audio",
         transform: DEFAULT_CLIP_TRANSFORM,
         effects: DEFAULT_CLIP_EFFECTS,
       }
@@ -787,7 +770,7 @@ export function Timeline() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col bg-card/70">
       {/* Timeline Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-2">
         <div className="flex items-center gap-3">
@@ -914,57 +897,23 @@ export function Timeline() {
       </div>
 
       {/* Timeline Tracks */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="relative flex flex-1 overflow-hidden">
         {/* Track Labels */}
-        <div className="w-28 shrink-0 border-r border-border bg-card">
-          {/* Empty ruler spacer */}
-          <div className="h-6 border-b border-border bg-muted/30" />
-          {tracks.map((track, idx) => {
-            const isMuted  = mutedTracks.has(track)
-            const isSoloed = soloedTracks.has(track)
-            const isLocked = lockedTracks.has(track)
-            return (
-              <div
-                key={track}
-                className="flex h-12 items-center gap-1 border-b border-border px-2"
-                style={{ borderLeft: `3px solid var(--border)` }}
-              >
-                <div className="text-[10px] font-bold text-muted-foreground/60 w-4">
-                  {4 - idx}
-                </div>
-                <span className="text-xs font-semibold text-foreground flex-1 leading-none">Track</span>
-                <div className="flex items-center gap-0.5">
-                  <button
-                    title={isMuted ? 'Unmute' : 'Mute'}
-                    onClick={() => toggleMute(track)}
-                    className={`rounded p-0.5 transition-colors ${
-                      isMuted ? 'text-amber-400 bg-amber-400/15' : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                    }`}
-                  >
-                    {isMuted ? <VolumeX className="h-2.5 w-2.5" /> : <Volume2 className="h-2.5 w-2.5" />}
-                  </button>
-                  <button
-                    title={isSoloed ? 'Un-solo' : 'Solo'}
-                    onClick={() => toggleSolo(track)}
-                    className={`rounded p-0.5 transition-colors text-[9px] font-bold leading-none w-3.5 h-3.5 flex items-center justify-center ${
-                      isSoloed ? 'text-yellow-300 bg-yellow-400/20' : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                    }`}
-                  >
-                    S
-                  </button>
-                  <button
-                    title={isLocked ? 'Unlock' : 'Lock'}
-                    onClick={() => toggleLock(track)}
-                    className={`rounded p-0.5 transition-colors ${
-                      isLocked ? 'text-sky-400 bg-sky-400/15' : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                    }`}
-                  >
-                    {isLocked ? <Lock className="h-2.5 w-2.5" /> : <Unlock className="h-2.5 w-2.5" />}
-                  </button>
-                </div>
+        <div className="w-24 border-r border-border bg-secondary/80">
+          {tracks.map((track) => (
+            <div key={track} className="flex h-12 items-center gap-2 border-b border-border px-2">
+              <div className="flex items-center gap-1">
+                {track.startsWith("V") ? (
+                  <Video className="h-3 w-3 text-muted-foreground" />
+                ) : (
+                  <Volume2 className="h-3 w-3 text-muted-foreground" />
+                )}
+                <Lock className="h-2.5 w-2.5 text-muted-foreground/50" />
+                <Eye className="h-2.5 w-2.5 text-muted-foreground/50" />
               </div>
-            )
-          })}
+              <div className="text-xs font-medium text-foreground">{track}</div>
+            </div>
+          ))}
         </div>
 
         {/* Timeline Grid */}
@@ -981,29 +930,26 @@ export function Timeline() {
             msUserSelect: 'none'
           } as React.CSSProperties}
         >
-          {/* Time Ruler - Dynamic based on zoom level with sub-second ticks at high zoom */}
-          <div className="sticky top-0 z-10 flex h-6 border-b border-border bg-card select-none">
+          {/* Time Ruler - Dynamic based on zoom level */}
+          <div className="sticky top-0 z-10 flex h-6 border-b border-border bg-card">
             {(() => {
+              // Calculate ruler segments based on zoom
+              // At 100% zoom: 10px/sec, show every 8 seconds (80px segments)
+              // At 25% zoom (10 min view): 2.5px/sec, show every 30 seconds
+              // At 500% zoom: 50px/sec, show every 2 seconds
               const secondsPerSegment = zoomLevel <= 50 ? 30 : zoomLevel <= 100 ? 8 : zoomLevel <= 200 ? 4 : 2
               const segmentWidth = secondsPerSegment * pixelsPerSecond
-              const maxTimelineSeconds = 600
+              
+              // Always show at least up to 10 minutes (600 seconds) so timeline is usable
+              // Users can zoom out to see full 10 minutes, or zoom in to see detail
+              const maxTimelineSeconds = 600 // 10 minutes max
               const numSegments = Math.ceil(maxTimelineSeconds / secondsPerSegment)
-              // Sub-tick count: at very high zoom show 4 sub-ticks per segment
-              const subTicks = zoomLevel >= 200 ? 4 : zoomLevel >= 100 ? 2 : 0
-
+              
               return Array.from({ length: numSegments }).map((_, i) => (
-                <div key={i} className="relative shrink-0 border-r border-border/60" style={{ width: `${segmentWidth}px` }}>
-                  <div className="px-1.5 text-[9px] font-mono text-muted-foreground leading-6">
+                <div key={i} className="shrink-0 border-r border-border" style={{ width: `${segmentWidth}px` }}>
+                  <div className="px-2 text-[10px] text-muted-foreground">
                     {formatRulerTime(i * secondsPerSegment)}
                   </div>
-                  {/* Sub-second tick marks */}
-                  {subTicks > 0 && Array.from({ length: subTicks }).map((_, ti) => (
-                    <div
-                      key={ti}
-                      className="absolute bottom-0 w-px bg-border/50"
-                      style={{ left: `${((ti + 1) / (subTicks + 1)) * segmentWidth}px`, height: ti % 2 === 1 ? '40%' : '25%' }}
-                    />
-                  ))}
                 </div>
               ))
             })()}
@@ -1014,15 +960,16 @@ export function Timeline() {
             {tracks.map((track, index) => (
               <div
                 key={track}
-                className={`flex h-12 border-b transition-all relative bg-muted/30 ${
-                  dropTargetTrack === track
-                    ? "border-blue-400 shadow-inner ring-1 ring-blue-400/50 ring-inset bg-blue-500/10"
+                className={`flex h-12 border-b transition-all relative ${
+                  dropTargetTrack === track 
+                    ? "bg-blue-500/20 border-blue-400 shadow-inner ring-1 ring-blue-400/50 ring-inset" 
                     : "border-border"
-                } ${
-                  mutedTracks.has(track) ? 'opacity-50' : ''
-                } ${
-                  lockedTracks.has(track) ? 'pointer-events-none' : ''
                 }`}
+                style={{
+                  background: dropTargetTrack === track 
+                    ? undefined 
+                    : index < 2 ? "oklch(0.97 0.006 84)" : "oklch(0.95 0.008 82)",
+                }}
                 onDragOver={(e) => handleTrackDragOver(e, track)}
                 onDragLeave={handleTrackDragLeave}
                 onDrop={(e) => handleTrackDrop(e, track)}
@@ -1164,14 +1111,14 @@ export function Timeline() {
                       ) : (
                         <div className="h-full">
                           <div className="flex h-full items-center gap-1.5 px-2">
-                            <Volume2 className="h-3 w-3 shrink-0" style={{ color: 'oklch(0.65 0.14 190)' }} />
-                            {/* Stable waveform visualization */}
-                            <div className="flex h-full flex-1 items-end gap-px pb-1 pt-1">
-                              {(waveformCache[clip.id] ?? []).map((h, i) => (
+                              <Volume2 className="h-3 w-3 shrink-0 text-foreground/60" />
+                            {/* Simple waveform visualization */}
+                            <div className="flex h-full flex-1 items-center gap-px">
+                                {Array.from({ length: Math.min(40, Math.floor(clip.duration / 8)) }).map((_, i) => (
                                 <div
                                   key={i}
-                                  className="flex-1 rounded-sm"
-                                  style={{ height: `${h}%`, background: 'oklch(0.65 0.14 190 / 0.7)' }}
+                                  className="flex-1 bg-foreground/60"
+                                  style={{ height: `${30 + Math.random() * 70}%` }}
                                 />
                               ))}
                             </div>
@@ -1210,9 +1157,9 @@ export function Timeline() {
                         {/* Delete button on hover - moved away from trim handle */}
                         <button
                           onClick={(e) => handleDeleteClip(e, clip.id)}
-                          className="absolute top-0.5 right-3 rounded bg-black/70 p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 cursor-pointer z-30 shadow-lg"
+                          className="absolute top-0.5 right-3 rounded bg-background/85 border border-border p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 cursor-pointer z-30 shadow-lg"
                         >
-                          <Trash2 className="h-3 w-3 text-white" />
+                          <Trash2 className="h-3 w-3 text-foreground hover:text-white" />
                         </button>
                     </div>
                     )
@@ -1247,17 +1194,17 @@ export function Timeline() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Empty state hint */}
-      {timelineClips.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="text-center text-muted-foreground/50">
-            <Film className="h-8 w-8 mx-auto mb-2" />
-            <p className="text-sm">Drag media here to start editing</p>
+      
+        {/* Empty state hint */}
+        {timelineClips.length === 0 && (
+          <div className="pointer-events-none absolute bottom-0 left-24 right-0 top-6 flex items-center justify-center">
+            <div className="rounded-xl border border-border/70 bg-background/70 px-6 py-5 text-center shadow-sm backdrop-blur-sm">
+              <Film className="mx-auto mb-2 h-8 w-8 text-muted-foreground/70" />
+              <p className="text-sm font-medium text-muted-foreground">Drag media here to start editing</p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Context Menu */}
       {contextMenu && (

@@ -1,262 +1,141 @@
-"""Railtracks Flow definition — the core agentic pipeline.
+"""Agentic flow: signals → intent → narrative → edit plan.
 
-Sequential Flow: IntentAgent → NarrativeAgent → EditAgent
-With validation loops at each stage to ensure output quality.
+This module orchestrates the sequential agent pipeline with full
+observability. Each step is tracked with timing and token usage.
 """
-
-import json
+from __future__ import annotations
+import time
+import uuid
 import logging
-from typing import Any
+from typing import Any, Callable, Awaitable
 
-import railtracks as rt
-from pydantic import BaseModel, Field
-
-from app.agents.intent_agent import IntentAgent
-from app.agents.narrative_agent import NarrativeAgent
-from app.agents.edit_agent import EditAgent
-from app.agents.validation import (
-    validate_json_output,
-    validate_intent_graph,
-    validate_narrative_plan,
-    validate_edit_plan,
-)
-from app.config import config
+from .agents.intent_agent import run_intent_agent
+from .agents.narrative_agent import run_narrative_agent
+from .agents.edit_agent import run_edit_agent, run_reprompt_agent
+from .schemas import FlowRunStatus
 
 logger = logging.getLogger(__name__)
 
-
-# ─── Pydantic models for Railtracks function_node parameters ──────────────────
-# (Railtracks does not allow bare dict parameters)
+LLMCallFn = Callable[[str, str], Awaitable[str]]
 
 
-class EditFlowInput(BaseModel):
-    """Input for the edit flow function_node."""
-    signals_json: str = Field(description="JSON-encoded signal data")
-    project_id: str = Field(description="Project ID")
+class FlowRun:
+    """Tracks a single execution of the edit pipeline."""
+
+    def __init__(self, project_id: str):
+        self.run_id = str(uuid.uuid4())
+        self.project_id = project_id
+        self.status = FlowRunStatus.PENDING
+        self.intent_graph: list[dict] | None = None
+        self.narrative_plan: list[dict] | None = None
+        self.edit_plan: list[dict] | None = None
+        self.error: str | None = None
+        self.steps: list[dict] = []
+        self.start_time: float | None = None
+        self.end_time: float | None = None
+        self.total_tokens = 0
+
+    @property
+    def duration_ms(self) -> int | None:
+        if self.start_time and self.end_time:
+            return int((self.end_time - self.start_time) * 1000)
+        return None
+
+    def record_step(self, name: str, duration_ms: int, tokens: int = 0, **kwargs: Any) -> None:
+        self.steps.append({
+            "name": name,
+            "duration_ms": duration_ms,
+            "tokens": tokens,
+            **kwargs,
+        })
+        self.total_tokens += tokens
+
+    def to_dict(self) -> dict:
+        return {
+            "run_id": self.run_id,
+            "project_id": self.project_id,
+            "status": self.status.value,
+            "intent_graph": self.intent_graph,
+            "narrative_plan": self.narrative_plan,
+            "edit_plan": self.edit_plan,
+            "error": self.error,
+            "duration_ms": self.duration_ms,
+            "steps": self.steps,
+            "token_usage": {"total": self.total_tokens},
+        }
 
 
-class RepromptFlowInput(BaseModel):
-    """Input for the reprompt flow function_node."""
-    previous_edit_plan_json: str = Field(description="JSON-encoded previous edit plan")
-    feedback: str = Field(description="User feedback text")
-    project_id: str = Field(description="Project ID")
+_runs: dict[str, FlowRun] = {}
 
 
-def _format_signals_for_prompt(signals: dict[str, Any]) -> str:
-    """Format upstream signal data into a structured prompt for the LLM."""
-    sections = []
-
-    if signals.get("speech_segments"):
-        sections.append(
-            f"=== SPEECH SEGMENTS ({len(signals['speech_segments'])} items) ===\n"
-            + json.dumps(signals["speech_segments"], indent=2)
-        )
-
-    if signals.get("scene_descriptions"):
-        sections.append(
-            f"=== SCENE DESCRIPTIONS ({len(signals['scene_descriptions'])} items) ===\n"
-            + json.dumps(signals["scene_descriptions"], indent=2)
-        )
-
-    if signals.get("ui_transitions"):
-        sections.append(
-            f"=== UI TRANSITIONS ({len(signals['ui_transitions'])} items) ===\n"
-            + json.dumps(signals["ui_transitions"], indent=2)
-        )
-
-    if signals.get("interaction_clusters"):
-        sections.append(
-            f"=== INTERACTION CLUSTERS ({len(signals['interaction_clusters'])} items) ===\n"
-            + json.dumps(signals["interaction_clusters"], indent=2)
-        )
-
-    if not sections:
-        return "No signals available. Generate a basic intent graph for a screen recording."
-
-    return "\n\n".join(sections)
+def get_run(run_id: str) -> FlowRun | None:
+    return _runs.get(run_id)
 
 
-async def _call_agent_with_validation(
-    agent: Any,
-    prompt: str,
-    validator: Any,
-    stage_name: str,
-    max_retries: int = 2,
-) -> list[dict]:
-    """Call an agent and validate its output, retrying on failure.
+async def run_edit_flow(
+    project_id: str,
+    signals: dict[str, list[dict]],
+    llm_call: LLMCallFn,
+) -> FlowRun:
+    """Execute the full agentic edit pipeline.
 
-    Implements the Railtracks Validation Loop pattern.
+    Args:
+        project_id: The project being processed
+        signals: Dict of signal_type -> list of signal dicts
+        llm_call: Async LLM callable(system_prompt, user_message) -> response_text
     """
-    last_errors: list[str] = []
-    parsed = None
+    run = FlowRun(project_id)
+    _runs[run.run_id] = run
+    run.status = FlowRunStatus.RUNNING
+    run.start_time = time.time()
 
-    for attempt in range(max_retries + 1):
-        # Build prompt with feedback if retrying
-        actual_prompt = prompt
-        if attempt > 0 and last_errors:
-            feedback = "\n".join(f"- {e}" for e in last_errors)
-            actual_prompt = (
-                f"{prompt}\n\n"
-                f"PREVIOUS ATTEMPT HAD ERRORS (attempt {attempt + 1}/{max_retries + 1}):\n"
-                f"{feedback}\n\n"
-                f"Please fix these issues and try again. Respond with valid JSON only."
-            )
+    try:
+        t0 = time.time()
+        run.intent_graph = await run_intent_agent(signals, llm_call)
+        run.record_step("intent_agent", int((time.time() - t0) * 1000), output_count=len(run.intent_graph))
 
-        # Call the agent via Railtracks
-        raw_response = await rt.call(agent, actual_prompt)
-        response_text = str(raw_response)
+        t0 = time.time()
+        run.narrative_plan = await run_narrative_agent(run.intent_graph, llm_call)
+        run.record_step("narrative_agent", int((time.time() - t0) * 1000), output_count=len(run.narrative_plan))
 
-        # Extract and validate JSON
-        parsed, parse_errors = validate_json_output(response_text)
-        if parse_errors:
-            logger.warning(f"{stage_name} attempt {attempt + 1}: parse errors: {parse_errors}")
-            last_errors = parse_errors
-            continue
+        t0 = time.time()
+        run.edit_plan = await run_edit_agent(run.narrative_plan, llm_call)
+        run.record_step("edit_agent", int((time.time() - t0) * 1000), output_count=len(run.edit_plan))
 
-        if parsed is None:
-            last_errors = ["Failed to parse response"]
-            continue
+        run.status = FlowRunStatus.COMPLETED
+    except Exception as e:
+        run.status = FlowRunStatus.FAILED
+        run.error = str(e)
+        logger.exception(f"Flow run {run.run_id} failed: {e}")
+    finally:
+        run.end_time = time.time()
 
-        # Run domain-specific validation
-        domain_errors = validator(parsed)
-        if domain_errors:
-            logger.warning(f"{stage_name} attempt {attempt + 1}: validation errors: {domain_errors}")
-            last_errors = domain_errors
-            continue
-
-        # Success!
-        logger.info(f"{stage_name} completed on attempt {attempt + 1} with {len(parsed)} items")
-        return parsed
-
-    # All retries exhausted — return whatever we have or empty
-    logger.error(f"{stage_name} failed after {max_retries + 1} attempts. Last errors: {last_errors}")
-    if parsed is not None:
-        return parsed  # Return partial results
-    return []
-
-
-@rt.function_node
-async def edit_flow(input_data: EditFlowInput) -> str:
-    """Main agentic flow: signals → intent graph → narrative plan → edit plan.
-
-    This is the Sequential Agent pattern from Railtracks, with validation loops
-    at each stage to ensure output quality.
-
-    Returns JSON-encoded result dict.
-    """
-    signals = json.loads(input_data.signals_json)
-    project_id = input_data.project_id
-
-    logger.info(f"Starting edit flow for project {project_id}")
-    max_retries = config.MAX_VALIDATION_RETRIES
-
-    # ─── Stage 1: Build intent graph from signals ────────────────────────────
-    signals_prompt = _format_signals_for_prompt(signals)
-    intent_graph = await _call_agent_with_validation(
-        agent=IntentAgent,
-        prompt=f"Analyze these signals from a screen recording:\n\n{signals_prompt}",
-        validator=validate_intent_graph,
-        stage_name="IntentGraph",
-        max_retries=max_retries,
-    )
-
-    # ─── Stage 2: Create narrative plan from intent graph ────────────────────
-    intent_prompt = json.dumps(intent_graph, indent=2)
-    narrative_plan = await _call_agent_with_validation(
-        agent=NarrativeAgent,
-        prompt=f"Create a narrative plan from this intent graph:\n\n{intent_prompt}",
-        validator=validate_narrative_plan,
-        stage_name="NarrativePlan",
-        max_retries=max_retries,
-    )
-
-    # ─── Stage 3: Generate edit decisions from narrative ─────────────────────
-    narrative_prompt = json.dumps(narrative_plan, indent=2)
-    edit_plan = await _call_agent_with_validation(
-        agent=EditAgent,
-        prompt=f"Generate specific video edit decisions from these narrative beats:\n\n{narrative_prompt}",
-        validator=validate_edit_plan,
-        stage_name="EditPlan",
-        max_retries=max_retries,
-    )
-
-    logger.info(
-        f"Edit flow complete for {project_id}: "
-        f"{len(intent_graph)} intents, {len(narrative_plan)} beats, {len(edit_plan)} edits"
-    )
-
-    return json.dumps({
-        "project_id": project_id,
-        "intent_graph": intent_graph,
-        "narrative_plan": narrative_plan,
-        "edit_plan": edit_plan,
-        "status": "completed",
-    })
-
-
-@rt.function_node
-async def reprompt_flow_node(input_data: RepromptFlowInput) -> str:
-    """Re-run the edit planning stage with user feedback.
-
-    This is the key "Cursor for video editing" interaction:
-    User sees edit plan → provides feedback → AI modifies the plan.
-
-    Returns JSON-encoded result dict.
-    """
-    previous_edit_plan = json.loads(input_data.previous_edit_plan_json)
-    feedback = input_data.feedback
-    project_id = input_data.project_id
-
-    logger.info(f"Reprompt flow for project {project_id}: {feedback[:100]}...")
-
-    reprompt_prompt = (
-        f"The user has reviewed the following edit plan and provided feedback.\n\n"
-        f"CURRENT EDIT PLAN:\n{json.dumps(previous_edit_plan, indent=2)}\n\n"
-        f"USER FEEDBACK:\n{feedback}\n\n"
-        f"Please modify the edit plan based on the user's feedback. "
-        f"Keep edits the user didn't mention, and only change what they asked for."
-    )
-
-    updated_plan = await _call_agent_with_validation(
-        agent=EditAgent,
-        prompt=reprompt_prompt,
-        validator=validate_edit_plan,
-        stage_name="Reprompt",
-        max_retries=config.MAX_VALIDATION_RETRIES,
-    )
-
-    return json.dumps({
-        "project_id": project_id,
-        "edit_plan": updated_plan,
-        "status": "completed",
-    })
-
-
-# ─── Flow instances ──────────────────────────────────────────────────────────
-main_flow = rt.Flow("FlowStudio Edit Pipeline", entry_point=edit_flow)
-reprompt_flow = rt.Flow("FlowStudio Reprompt", entry_point=reprompt_flow_node)
-
-
-async def run_edit_flow(project_id: str, signals: dict) -> dict:
-    """Run the full edit flow and return results."""
-    input_data = EditFlowInput(
-        signals_json=json.dumps(signals),
-        project_id=project_id,
-    )
-    result_json = await main_flow.ainvoke(input_data=input_data)
-    return json.loads(result_json)
+    return run
 
 
 async def run_reprompt_flow(
     project_id: str,
     previous_edit_plan: list[dict],
     feedback: str,
-) -> dict:
-    """Run the reprompt flow and return updated edit plan."""
-    input_data = RepromptFlowInput(
-        previous_edit_plan_json=json.dumps(previous_edit_plan),
-        feedback=feedback,
-        project_id=project_id,
-    )
-    result_json = await reprompt_flow.ainvoke(input_data=input_data)
-    return json.loads(result_json)
+    llm_call: LLMCallFn,
+) -> FlowRun:
+    """Re-run the edit agent with user feedback."""
+    run = FlowRun(project_id)
+    _runs[run.run_id] = run
+    run.status = FlowRunStatus.RUNNING
+    run.start_time = time.time()
+
+    try:
+        t0 = time.time()
+        run.edit_plan = await run_reprompt_agent(previous_edit_plan, feedback, llm_call)
+        run.record_step("reprompt_agent", int((time.time() - t0) * 1000), output_count=len(run.edit_plan))
+
+        run.status = FlowRunStatus.COMPLETED
+    except Exception as e:
+        run.status = FlowRunStatus.FAILED
+        run.error = str(e)
+        logger.exception(f"Reprompt flow {run.run_id} failed: {e}")
+    finally:
+        run.end_time = time.time()
+
+    return run

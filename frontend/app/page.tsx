@@ -1,106 +1,156 @@
 "use client"
 
-import { useRouter } from "next/navigation"
-import { motion } from "framer-motion"
-import { ArrowRight, Sparkles } from "lucide-react"
+import { useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
+import { ArrowRight } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { FluxLogo } from "@/components/flux-logo"
-import { GlassCard } from "@/components/ui/glass-card"
+import gsap from "gsap"
+import { ScrollTrigger } from "gsap/ScrollTrigger"
 
 export default function LandingPage() {
   const router = useRouter()
+  const mainRef = useRef<HTMLDivElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const heroRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    gsap.registerPlugin(ScrollTrigger)
+
+    // Initial load animation
+    const ctx = gsap.context(() => {
+      // Hero entrance
+      gsap.from(heroRef.current, {
+        opacity: 0,
+        y: 40,
+        duration: 1.5,
+        ease: "expo.out",
+        delay: 0.5
+      })
+
+      // Video background parallax/scroll effect
+      gsap.to(videoRef.current, {
+        scrollTrigger: {
+          trigger: mainRef.current,
+          start: "top top",
+          end: "bottom top",
+          scrub: true
+        },
+        y: 150,
+        scale: 1.1
+      })
+
+      // Text reveal on scroll
+      gsap.to(".scroll-reveal", {
+        scrollTrigger: {
+          trigger: ".scroll-reveal",
+          start: "top 80%",
+          end: "top 20%",
+          scrub: 1
+        },
+        opacity: 0.2,
+        y: -50
+      })
+    }, mainRef)
+
+    return () => ctx.revert()
+  }, [])
+
+  const goToStart = () => {
+    router.push("/sign-in")
+  }
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col items-center justify-center bg-[#070605] overflow-hidden selection:bg-[#F5A623]/30">
-      
-      {/* Background Cinematic Atmosphere */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#F5A623]/10 blur-[120px] rounded-full animate-pulse" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#1A9E8F]/5 blur-[150px] rounded-full" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(circle_at_center,transparent_0%,#070605_80%)]" />
+    <div ref={mainRef} className="relative min-h-[200vh] bg-background text-foreground overflow-x-hidden">
+      {/* ── Background Elements ── */}
+      <div className="fixed inset-0 z-0 overflow-hidden">
+        <video 
+          ref={videoRef}
+          src="/assets/12778108_3840_2160_30fps.mp4" 
+          autoPlay 
+          loop 
+          muted 
+          playsInline
+          className="h-full w-full object-cover opacity-[0.45] brightness-[0.8]"
+        />
+        {/* Overlays for premium compositing */}
+        <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-transparent to-background" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
+        <div className="grid-texture absolute inset-0 opacity-[0.1]" />
       </div>
 
-      {/* Navigation */}
-      <nav className="absolute top-0 w-full flex items-center justify-between px-8 py-6 lg:px-16 z-50">
-        <FluxLogo />
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={() => router.push("/sign-in")}
-          className="text-muted-foreground hover:text-foreground transition-colors"
-        >
-          Sign in
-        </Button>
+      {/* ── Header ── */}
+      <nav className="relative z-50 mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-8">
+        <FluxLogo size="md" />
+        <div className="flex items-center gap-6">
+          <Button
+            size="sm"
+            onClick={goToStart}
+            className="bg-flux-amber text-flux-charcoal font-bold px-6 border border-flux-amber/20 shadow-[0_0_20px_rgba(245,166,35,0.2)] hover:shadow-[0_0_30px_rgba(245,166,35,0.4)] transition-all hover:scale-105"
+          >
+            Get Started
+          </Button>
+        </div>
       </nav>
 
-      {/* Hero Section */}
-      <main className="relative z-10 w-full max-w-4xl px-6 flex flex-col items-center text-center">
-        <motion.div
-           initial={{ opacity: 0, scale: 0.9 }}
-           animate={{ opacity: 1, scale: 1 }}
-           transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
-        >
-          <GlassCard className="p-1 px-4 mb-8 inline-flex items-center gap-2 border-[#F5A623]/20 bg-[#F5A623]/5">
-            <Sparkles className="h-3.5 w-3.5 text-[#F5A623]" />
-            <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-[#F5A623]/80">
-              FlowStudio GenAI Submission
-            </span>
-          </GlassCard>
-        </motion.div>
-
-        <motion.h1 
-          className="text-6xl md:text-8xl font-medium tracking-tight text-white mb-6 leading-[0.95]"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-        >
-          Your demo.<br />
-          <span className="text-[#8A8780]">Already done.</span>
-        </motion.h1>
-
-        <motion.p 
-          className="text-lg md:text-xl text-[#8A8780] max-w-lg mb-12 leading-relaxed"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.4 }}
-        >
-          Record once. Our AI analyzes your intent, removes dead air, and schedules cinematic zooms automatically.
-        </motion.p>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.6 }}
-        >
+      {/* ── Hero Section ── */}
+      <section ref={heroRef} className="relative z-10 flex flex-col items-center justify-center pt-32 pb-48 text-center min-h-[80vh]">
+        <h1 className="max-w-5xl text-7xl font-black leading-[1.05] tracking-tighter sm:text-8xl lg:text-9xl scroll-reveal">
+          Your demo. <br />
+          <span className="bg-gradient-to-br from-flux-amber via-flux-amber to-flux-amber-muted bg-clip-text text-transparent italic">
+            Already done.
+          </span>
+        </h1>
+        
+        <p className="mx-auto mt-12 max-w-2xl text-xl leading-relaxed text-muted-foreground/90 sm:text-2xl scroll-reveal">
+          Stop fighting with keyframes. Record once and let our AI engine handle the cinematic polish, the zoom, and the flow.
+        </p>
+        
+        <div className="mt-16 flex flex-col items-center justify-center gap-6 sm:flex-row scroll-reveal">
           <Button
-            size="lg"
-            className="h-14 px-10 text-lg rounded-full bg-white text-black hover:bg-[#F5A623] hover:text-black transition-all duration-500 group relative overflow-hidden"
-            onClick={() => router.push("/sign-in")}
+            size="xl"
+            onClick={goToStart}
+            className="group h-18 gap-5 bg-flux-amber px-14 text-2xl font-black text-flux-charcoal transition-all hover:bg-flux-amber hover:scale-[1.05] active:scale-95 shadow-[0_0_50px_rgba(245,166,35,0.4)] hover:shadow-[0_0_70px_rgba(245,166,35,0.6)] border-b-4 border-flux-amber-muted"
           >
-            <span className="relative z-10 flex items-center gap-3">
-              Get Started
-              <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
-            </span>
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+            Launch Editor
+            <ArrowRight className="h-7 w-7 transition-transform group-hover:translate-x-1" />
           </Button>
-        </motion.div>
+        </div>
+      </section>
 
-        {/* Ambient Glow behind button */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[-100px] w-64 h-32 bg-[#F5A623]/10 blur-[60px] rounded-full pointer-events-none" />
-      </main>
+      {/* ── Feature Demo / Below the Fold ── */}
+      <section className="relative z-10 px-6 py-32">
+        <div className="mx-auto max-w-6xl">
+          <div className="relative group">
+            <div className="absolute -inset-1 bg-gradient-to-r from-flux-amber/30 to-flux-teal/30 blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200" />
+            <div className="relative overflow-hidden rounded-[50px] border border-white/10 bg-black/60 backdrop-blur-3xl shadow-2xl">
+              <div className="aspect-video w-full">
+                <video 
+                  src="/assets/12778108_3840_2160_30fps.mp4" 
+                  autoPlay 
+                  loop 
+                  muted 
+                  playsInline
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+              <div className="absolute bottom-12 left-12 right-12 flex items-center justify-between">
+                <div className="flex items-center gap-5">
+                  <div className="h-4 w-4 rounded-full bg-flux-amber animate-pulse shadow-[0_0_15px_rgba(245,166,35,1)]" />
+                  <span className="text-xl font-bold tracking-[0.3em] uppercase text-white/90 drop-shadow-xl">Live Engine Preview</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-      {/* Footer Branding */}
-      <footer className="absolute bottom-8 text-[11px] font-mono text-[#4A4740] tracking-widest uppercase">
-        Cinematic Demo Intelligence · 2026
+      {/* Footer / Info */}
+      <footer className="relative z-10 py-20 text-center opacity-40">
+        <p className="text-sm font-medium tracking-widest uppercase">FlowStudio © 2026 • Cinematic Production Engine</p>
       </footer>
-
-      {/* Mouse Follow Light Effect */}
-      <div 
-        className="pointer-events-none fixed inset-0 z-30 transition-opacity duration-300 opacity-0 group-hover:opacity-100"
-        style={{
-          background: `radial-gradient(600px circle at var(--mouse-x) var(--mouse-y), rgba(245, 166, 35, 0.03), transparent 80%)`
-        }}
-      />
     </div>
   )
 }
