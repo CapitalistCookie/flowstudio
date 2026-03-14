@@ -60,7 +60,11 @@ class PipelineSimulator {
 
     const downstreamTypes = TASK_CHAIN_DAG[completedType];
     if (!downstreamTypes || downstreamTypes.length === 0) {
-      this.projectPhase = 'ready';
+      if (completedType === TaskType.RENDER) {
+        this.projectPhase = 'ready';
+      } else if (completedType === TaskType.TIMELINE_BUILD) {
+        this.projectPhase = 'preview';
+      }
       return;
     }
 
@@ -136,6 +140,23 @@ class PipelineSimulator {
     if (!task) throw new Error(`No pending ${type} task`);
     this.claimTask(task.id, 'worker-1');
     this.completeTask(task.id, outputAssetIds);
+  }
+
+  userApproveTimeline(projectId: string): void {
+    const timeline = this.tasks.find(
+      t => t.projectId === projectId && t.taskType === TaskType.TIMELINE_BUILD && t.status === 'completed',
+    );
+    if (!timeline) throw new Error('No completed TIMELINE_BUILD task');
+    this.tasks.push({
+      id: `task-${this.nextId++}`,
+      projectId,
+      taskType: TaskType.RENDER,
+      status: 'pending',
+      inputAssetIds: timeline.outputAssetIds,
+      outputAssetIds: [],
+      retryCount: 0,
+      maxRetries: MAX_TASK_RETRIES,
+    });
   }
 }
 
@@ -269,7 +290,7 @@ describe('Pipeline DAG Integration', () => {
 
   // ─── T17.5: Terminal completion (RENDER → project ready) ──────────────
 
-  test('RENDER completion sets project phase to ready', () => {
+  test('TIMELINE_BUILD completion sets project phase to preview', () => {
     sim.claimAndComplete(TaskType.AUDIO_EXTRACT, ['audio']);
     sim.claimAndComplete(TaskType.VIDEO_SAMPLE, ['frames']);
     sim.claimAndComplete(TaskType.CURSOR_PROCESS, ['cursor']);
@@ -282,6 +303,24 @@ describe('Pipeline DAG Integration', () => {
     sim.claimAndComplete(TaskType.NARRATIVE_PLAN, ['narrative']);
     sim.claimAndComplete(TaskType.EDIT_PLAN, ['edits']);
     sim.claimAndComplete(TaskType.TIMELINE_BUILD, ['timeline']);
+
+    expect(sim.projectPhase).toBe('preview');
+  });
+
+  test('RENDER completion (after user approval) sets project phase to ready', () => {
+    sim.claimAndComplete(TaskType.AUDIO_EXTRACT, ['audio']);
+    sim.claimAndComplete(TaskType.VIDEO_SAMPLE, ['frames']);
+    sim.claimAndComplete(TaskType.CURSOR_PROCESS, ['cursor']);
+    sim.claimAndComplete(TaskType.TYPING_DETECT, ['typing']);
+    sim.claimAndComplete(TaskType.SPEECH_TRANSCRIPTION, ['speech']);
+    sim.claimAndComplete(TaskType.VIDEO_UNDERSTANDING, ['video']);
+    sim.claimAndComplete(TaskType.UI_CHANGE_DETECT, ['ui']);
+    sim.claimAndComplete(TaskType.INTERACTION_PATTERN, ['clusters']);
+    sim.claimAndComplete(TaskType.INTENT_GRAPH, ['intents']);
+    sim.claimAndComplete(TaskType.NARRATIVE_PLAN, ['narrative']);
+    sim.claimAndComplete(TaskType.EDIT_PLAN, ['edits']);
+    sim.claimAndComplete(TaskType.TIMELINE_BUILD, ['timeline']);
+    sim.userApproveTimeline('proj-1');
     sim.claimAndComplete(TaskType.RENDER, ['rendered']);
 
     expect(sim.projectPhase).toBe('ready');
@@ -289,7 +328,7 @@ describe('Pipeline DAG Integration', () => {
 
   // ─── T17.6: Full pipeline traversal ───────────────────────────────────
 
-  test('full pipeline from initial tasks to RENDER follows DAG exactly', () => {
+  test('full pipeline from initial tasks through user approval to RENDER', () => {
     sim.claimAndComplete(TaskType.AUDIO_EXTRACT, ['audio']);
     sim.claimAndComplete(TaskType.VIDEO_SAMPLE, ['frames']);
     sim.claimAndComplete(TaskType.CURSOR_PROCESS, ['cursor']);
@@ -304,6 +343,10 @@ describe('Pipeline DAG Integration', () => {
     sim.claimAndComplete(TaskType.NARRATIVE_PLAN, ['narrative']);
     sim.claimAndComplete(TaskType.EDIT_PLAN, ['edits']);
     sim.claimAndComplete(TaskType.TIMELINE_BUILD, ['timeline']);
+
+    expect(sim.projectPhase).toBe('preview');
+
+    sim.userApproveTimeline('proj-1');
     sim.claimAndComplete(TaskType.RENDER, ['rendered']);
 
     const completedTypes = sim.getCompletedTypes();
@@ -313,9 +356,6 @@ describe('Pipeline DAG Integration', () => {
     }
 
     expect(sim.projectPhase).toBe('ready');
-
-    const noDuplicates = new Set(sim.tasks.map(t => t.taskType));
-    expect(noDuplicates.size).toBe(13);
   });
 
   // ─── T17.7: Partial failure → retry → continue ───────────────────────
@@ -401,7 +441,7 @@ describe('Pipeline DAG Integration', () => {
 
   // ─── Linear chain portion ─────────────────────────────────────────────
 
-  test('INTENT_GRAPH → NARRATIVE_PLAN → EDIT_PLAN → TIMELINE_BUILD → RENDER is linear', () => {
+  test('INTENT_GRAPH → NARRATIVE_PLAN → EDIT_PLAN → TIMELINE_BUILD is linear, RENDER is manual', () => {
     sim.claimAndComplete(TaskType.AUDIO_EXTRACT, ['a']);
     sim.claimAndComplete(TaskType.VIDEO_SAMPLE, ['v']);
     sim.claimAndComplete(TaskType.CURSOR_PROCESS, ['c']);
@@ -421,6 +461,10 @@ describe('Pipeline DAG Integration', () => {
     expect(sim.getPendingOfType(TaskType.TIMELINE_BUILD)).toBeDefined();
 
     sim.claimAndComplete(TaskType.TIMELINE_BUILD, ['tl']);
+    expect(sim.getPendingOfType(TaskType.RENDER)).toBeUndefined();
+    expect(sim.projectPhase).toBe('preview');
+
+    sim.userApproveTimeline('proj-1');
     expect(sim.getPendingOfType(TaskType.RENDER)).toBeDefined();
   });
 });

@@ -29,7 +29,7 @@ export const TASK_CHAIN_DAG: Record<TaskType, TaskType[]> = {
   [TaskType.INTENT_GRAPH]: [TaskType.NARRATIVE_PLAN],
   [TaskType.NARRATIVE_PLAN]: [TaskType.EDIT_PLAN],
   [TaskType.EDIT_PLAN]: [TaskType.TIMELINE_BUILD],
-  [TaskType.TIMELINE_BUILD]: [TaskType.RENDER],
+  [TaskType.TIMELINE_BUILD]: [],
   [TaskType.RENDER]: [],
 };
 

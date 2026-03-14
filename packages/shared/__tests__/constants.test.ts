@@ -70,9 +70,12 @@ describe('DAG consistency', () => {
     expect(TASK_CHAIN_DAG[TaskType.RENDER]).toEqual([]);
   });
 
-  // Additional: reverse completeness — every dep in TASK_DEPENDENCIES maps back
-  test('every dependency in TASK_DEPENDENCIES appears as upstream in TASK_CHAIN_DAG', () => {
+  // RENDER is manually triggered (user approval), so it's excluded from auto-chain inverse check
+  const MANUALLY_TRIGGERED: Set<string> = new Set([TaskType.RENDER]);
+
+  test('every auto-chained dependency in TASK_DEPENDENCIES appears as upstream in TASK_CHAIN_DAG', () => {
     for (const [downstream, deps] of Object.entries(TASK_DEPENDENCIES)) {
+      if (MANUALLY_TRIGGERED.has(downstream)) continue;
       for (const dep of deps) {
         expect(
           TASK_CHAIN_DAG[dep as TaskType],
@@ -80,5 +83,10 @@ describe('DAG consistency', () => {
         ).toContain(downstream);
       }
     }
+  });
+
+  test('RENDER has TIMELINE_BUILD as dependency but is manually triggered', () => {
+    expect(TASK_DEPENDENCIES[TaskType.RENDER]).toContain(TaskType.TIMELINE_BUILD);
+    expect(TASK_CHAIN_DAG[TaskType.TIMELINE_BUILD]).not.toContain(TaskType.RENDER);
   });
 });

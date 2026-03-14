@@ -23,7 +23,7 @@ const TASK_CHAIN_DAG: Record<string, string[]> = {
   INTENT_GRAPH: ["NARRATIVE_PLAN"],
   NARRATIVE_PLAN: ["EDIT_PLAN"],
   EDIT_PLAN: ["TIMELINE_BUILD"],
-  TIMELINE_BUILD: ["RENDER"],
+  TIMELINE_BUILD: [],
   RENDER: [],
 };
 
