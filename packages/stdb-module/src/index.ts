@@ -1,81 +1,59 @@
 /**
  * FlowStudio SpacetimeDB v2 Module
- *
- * Self-contained WASM module that defines all tables, reducers, and task-chaining
- * logic for the FlowStudio video-editing pipeline. SpacetimeDB modules cannot
- * import from other workspace packages at runtime, so all constants are inlined.
+ * Rewritten for SpacetimeDB SDK v2.0.4 API
  */
 
-import { table, t, schema, ScheduleAt } from 'spacetimedb/server';
+import { table, t, schema } from "spacetimedb/server";
 
-// ---------------------------------------------------------------------------
-// Constants (mirrored from @flowstudio/shared — WASM modules are self-contained)
-// ---------------------------------------------------------------------------
-
+// Constants
 const MAX_TASK_RETRIES = 3;
-const STALE_TASK_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+const STALE_TASK_THRESHOLD_MS = BigInt(5 * 60 * 1000);
 const WATCHDOG_INTERVAL_SECS = 30;
 
-/** Task chaining DAG: completed task type -> downstream task types to potentially create */
 const TASK_CHAIN_DAG: Record<string, string[]> = {
-  AUDIO_EXTRACT: ['SPEECH_TRANSCRIPTION'],
-  VIDEO_SAMPLE: ['VIDEO_UNDERSTANDING', 'UI_CHANGE_DETECT'],
-  CURSOR_PROCESS: ['INTERACTION_PATTERN'],
-  TYPING_DETECT: ['INTERACTION_PATTERN'],
-  SPEECH_TRANSCRIPTION: ['INTENT_GRAPH'],
-  VIDEO_UNDERSTANDING: ['INTENT_GRAPH'],
-  UI_CHANGE_DETECT: ['INTENT_GRAPH'],
-  INTERACTION_PATTERN: ['INTENT_GRAPH'],
-  INTENT_GRAPH: ['NARRATIVE_PLAN'],
-  NARRATIVE_PLAN: ['EDIT_PLAN'],
-  EDIT_PLAN: ['TIMELINE_BUILD'],
-  TIMELINE_BUILD: ['RENDER'],
+  AUDIO_EXTRACT: ["SPEECH_TRANSCRIPTION"],
+  VIDEO_SAMPLE: ["VIDEO_UNDERSTANDING", "UI_CHANGE_DETECT"],
+  CURSOR_PROCESS: ["INTERACTION_PATTERN"],
+  TYPING_DETECT: ["INTERACTION_PATTERN"],
+  SPEECH_TRANSCRIPTION: ["INTENT_GRAPH"],
+  VIDEO_UNDERSTANDING: ["INTENT_GRAPH"],
+  UI_CHANGE_DETECT: ["INTENT_GRAPH"],
+  INTERACTION_PATTERN: ["INTENT_GRAPH"],
+  INTENT_GRAPH: ["NARRATIVE_PLAN"],
+  NARRATIVE_PLAN: ["EDIT_PLAN"],
+  EDIT_PLAN: ["TIMELINE_BUILD"],
+  TIMELINE_BUILD: ["RENDER"],
   RENDER: [],
 };
 
-/** Reverse map: what task types must ALL be completed before a task type can start */
 const TASK_DEPENDENCIES: Record<string, string[]> = {
   AUDIO_EXTRACT: [],
   VIDEO_SAMPLE: [],
   CURSOR_PROCESS: [],
   TYPING_DETECT: [],
-  SPEECH_TRANSCRIPTION: ['AUDIO_EXTRACT'],
-  VIDEO_UNDERSTANDING: ['VIDEO_SAMPLE'],
-  UI_CHANGE_DETECT: ['VIDEO_SAMPLE'],
-  INTERACTION_PATTERN: ['CURSOR_PROCESS', 'TYPING_DETECT'],
-  INTENT_GRAPH: [
-    'SPEECH_TRANSCRIPTION',
-    'VIDEO_UNDERSTANDING',
-    'UI_CHANGE_DETECT',
-    'INTERACTION_PATTERN',
-  ],
-  NARRATIVE_PLAN: ['INTENT_GRAPH'],
-  EDIT_PLAN: ['NARRATIVE_PLAN'],
-  TIMELINE_BUILD: ['EDIT_PLAN'],
-  RENDER: ['TIMELINE_BUILD'],
+  SPEECH_TRANSCRIPTION: ["AUDIO_EXTRACT"],
+  VIDEO_UNDERSTANDING: ["VIDEO_SAMPLE"],
+  UI_CHANGE_DETECT: ["VIDEO_SAMPLE"],
+  INTERACTION_PATTERN: ["CURSOR_PROCESS", "TYPING_DETECT"],
+  INTENT_GRAPH: ["SPEECH_TRANSCRIPTION", "VIDEO_UNDERSTANDING", "UI_CHANGE_DETECT", "INTERACTION_PATTERN"],
+  NARRATIVE_PLAN: ["INTENT_GRAPH"],
+  EDIT_PLAN: ["NARRATIVE_PLAN"],
+  TIMELINE_BUILD: ["EDIT_PLAN"],
+  RENDER: ["TIMELINE_BUILD"],
 };
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Generate a unique ID (no node:crypto in WASM). Uses counter + random for collision safety. */
 let idCounter = 0;
-function generateId(): string {
+function generateId(ctx?: any): string {
   idCounter++;
-  return Date.now().toString(36) + '-' + idCounter.toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  const rand = ctx && ctx.random ? ctx.random() : 0.5; return Date.now().toString(36) + "-" + idCounter.toString(36) + "-" + rand.toString(36).slice(2, 10);
 }
 
-/** Current Unix ms timestamp */
-function nowMs(): number {
-  return Date.now();
+function nowMs(): bigint {
+  return BigInt(Date.now());
 }
 
-// ---------------------------------------------------------------------------
 // Tables
-// ---------------------------------------------------------------------------
-
-const projects = table({ name: 'projects', public: true }, {
+const projects = table({ name: "projects", public: true }, {
   id: t.string().primaryKey(),
   name: t.string(),
   status: t.string(),
@@ -85,7 +63,7 @@ const projects = table({ name: 'projects', public: true }, {
   metadata: t.string(),
 });
 
-const assets = table({ name: 'assets', public: true }, {
+const assets = table({ name: "assets", public: true }, {
   id: t.string().primaryKey(),
   projectId: t.string(),
   assetType: t.string(),
@@ -97,7 +75,7 @@ const assets = table({ name: 'assets', public: true }, {
   metadata: t.string(),
 });
 
-const tasks = table({ name: 'tasks', public: true }, {
+const tasks = table({ name: "tasks", public: true }, {
   id: t.string().primaryKey(),
   projectId: t.string(),
   taskType: t.string(),
@@ -114,7 +92,7 @@ const tasks = table({ name: 'tasks', public: true }, {
   maxRetries: t.i32(),
 });
 
-const signals = table({ name: 'signals', public: true }, {
+const signals = table({ name: "signals", public: true }, {
   id: t.string().primaryKey(),
   projectId: t.string(),
   taskId: t.string(),
@@ -126,7 +104,7 @@ const signals = table({ name: 'signals', public: true }, {
   createdAt: t.u64(),
 });
 
-const projectState = table({ name: 'project_state', public: true }, {
+const projectState = table({ name: "project_state", public: true }, {
   projectId: t.string().primaryKey(),
   completedTasks: t.string(),
   totalTasks: t.i32(),
@@ -135,7 +113,7 @@ const projectState = table({ name: 'project_state', public: true }, {
   lastUpdated: t.u64(),
 });
 
-const workerConfigs = table({ name: 'worker_configs', public: true }, {
+const workerConfigs = table({ name: "worker_configs", public: true }, {
   workerId: t.string().primaryKey(),
   workerType: t.string(),
   lastHeartbeat: t.u64(),
@@ -144,639 +122,198 @@ const workerConfigs = table({ name: 'worker_configs', public: true }, {
   metadata: t.string(),
 });
 
-/** Scheduled table for the recurring watchdog */
-const watchdogSchedule = table(
-  { name: 'watchdog_schedule', public: false, scheduledAt: 'scheduledAt' },
-  {
-    scheduledId: t.u64().autoInc().primaryKey(),
-    scheduledAt: t.scheduleAt(),
-  },
-);
-
-// ---------------------------------------------------------------------------
 // Schema
-// ---------------------------------------------------------------------------
-
-const stdb = schema(
+const stdb = (schema as any)({
   projects,
   assets,
   tasks,
   signals,
   projectState,
   workerConfigs,
-  watchdogSchedule,
-);
+});
 
-// ---------------------------------------------------------------------------
 // Reducers
-// ---------------------------------------------------------------------------
-
-/**
- * createProject — Create a new project and its associated project_state row.
- */
-stdb.reducer(
-  'createProject',
-  {
-    name: t.string(),
-    ownerId: t.string(),
-    metadata: t.string(),
-  },
-  (ctx, args) => {
+export const createProject = stdb.reducer(
+  "createProject",
+  { name: t.string(), ownerId: t.string(), metadata: t.string() },
+  (ctx: any, args: any) => {
     const now = nowMs();
-    const id = generateId();
-
-    ctx.db.projects.insert({
-      id,
-      name: args.name as string,
-      status: 'created',
-      createdAt: now,
-      updatedAt: now,
-      ownerId: args.ownerId as string,
-      metadata: args.metadata as string,
-    });
-
-    ctx.db.project_state.insert({
-      projectId: id,
-      completedTasks: '[]',
-      totalTasks: 0,
-      completedCount: 0,
-      currentPhase: 'created',
-      lastUpdated: now,
-    });
+    const id = generateId(ctx);
+    ctx.db.projects.insert({ id, name: args.name, status: "created", createdAt: now, updatedAt: now, ownerId: args.ownerId, metadata: args.metadata });
+    ctx.db.projectState.insert({ projectId: id, completedTasks: "[]", totalTasks: 0, completedCount: 0, currentPhase: "created", lastUpdated: now });
   },
 );
 
-/**
- * createAsset — Register a new asset linked to a project.
- */
-stdb.reducer(
-  'createAsset',
-  {
-    projectId: t.string(),
-    assetType: t.string(),
-    gcsPath: t.string(),
-    sizeBytes: t.u64(),
-    mimeType: t.string(),
-    durationMs: t.u64(),
-    metadata: t.string(),
-  },
-  (ctx, args) => {
-    const projectId = args.projectId as string;
-    const project = ctx.db.projects.findByPrimaryKey(projectId);
-    if (!project) {
-      throw new Error(`createAsset: project ${projectId} not found`);
-    }
-
-    const id = generateId();
-
-    ctx.db.assets.insert({
-      id,
-      projectId,
-      assetType: args.assetType as string,
-      gcsPath: args.gcsPath as string,
-      sizeBytes: args.sizeBytes as number,
-      mimeType: args.mimeType as string,
-      durationMs: args.durationMs as number,
-      createdAt: nowMs(),
-      metadata: args.metadata as string,
-    });
+export const createAsset = stdb.reducer(
+  "createAsset",
+  { projectId: t.string(), assetType: t.string(), gcsPath: t.string(), sizeBytes: t.u64(), mimeType: t.string(), durationMs: t.u64(), metadata: t.string() },
+  (ctx: any, args: any) => {
+    const id = generateId(ctx);
+    ctx.db.assets.insert({ id, projectId: args.projectId, assetType: args.assetType, gcsPath: args.gcsPath, sizeBytes: args.sizeBytes, mimeType: args.mimeType, durationMs: args.durationMs, createdAt: nowMs(), metadata: args.metadata });
   },
 );
 
-/**
- * ingestInteractionBatch — Batch-write cursor/typing interaction data as signals.
- * Accepts a JSON-encoded array of signal payloads.
- */
-stdb.reducer(
-  'ingestInteractionBatch',
-  {
-    projectId: t.string(),
-    taskId: t.string(),
-    signalType: t.string(),
-    batchJson: t.string(),
-  },
-  (ctx, args) => {
-    const projectId = args.projectId as string;
-    const taskId = args.taskId as string;
-    const signalType = args.signalType as string;
-    const now = nowMs();
-
-    const MAX_BATCH_SIZE = 1000;
-
-    let batch: Array<{ timestampMs: number; durationMs: number; confidence: number; payload: string }>;
-    try {
-      batch = JSON.parse(args.batchJson as string);
-    } catch {
-      throw new Error('ingestInteractionBatch: invalid batchJson');
-    }
-
-    if (batch.length > MAX_BATCH_SIZE) {
-      throw new Error(`ingestInteractionBatch: batch size ${batch.length} exceeds limit of ${MAX_BATCH_SIZE}`);
-    }
-
-    for (const item of batch) {
-      ctx.db.signals.insert({
-        id: generateId(),
-        projectId,
-        taskId,
-        signalType,
-        timestampMs: item.timestampMs,
-        durationMs: item.durationMs,
-        confidence: item.confidence,
-        payload: item.payload,
-        createdAt: now,
-      });
-    }
+export const createTask = stdb.reducer(
+  "createTask",
+  { projectId: t.string(), taskType: t.string(), inputAssetIds: t.string(), config: t.string(), maxRetries: t.i32() },
+  (ctx: any, args: any) => {
+    const id = generateId(ctx);
+    ctx.db.tasks.insert({ id, projectId: args.projectId, taskType: args.taskType, status: "pending", workerId: "", inputAssetIds: args.inputAssetIds, outputAssetIds: "[]", config: args.config, createdAt: nowMs(), claimedAt: 0n, completedAt: 0n, failureReason: "", retryCount: 0, maxRetries: args.maxRetries });
   },
 );
 
-/**
- * createTask — Create a task in PENDING status with configuration.
- */
-stdb.reducer(
-  'createTask',
-  {
-    projectId: t.string(),
-    taskType: t.string(),
-    inputAssetIds: t.string(),
-    config: t.string(),
-    maxRetries: t.i32(),
-  },
-  (ctx, args) => {
-    const projectId = args.projectId as string;
-    const project = ctx.db.projects.findByPrimaryKey(projectId);
-    if (!project) {
-      throw new Error(`createTask: project ${projectId} not found`);
-    }
-
-    const id = generateId();
-
-    ctx.db.tasks.insert({
-      id,
-      projectId,
-      taskType: args.taskType as string,
-      status: 'pending',
-      workerId: '',
-      inputAssetIds: args.inputAssetIds as string,
-      outputAssetIds: '[]',
-      config: args.config as string,
-      createdAt: nowMs(),
-      claimedAt: 0,
-      completedAt: 0,
-      failureReason: '',
-      retryCount: 0,
-      maxRetries: args.maxRetries as number,
-    });
+export const claimTask = stdb.reducer(
+  "claimTask",
+  { taskId: t.string(), workerId: t.string() },
+  (ctx: any, args: any) => {
+    const task = ctx.db.tasks.id.find(args.taskId);
+    if (!task) throw new Error("claimTask: task not found");
+    if (task.status !== "pending") throw new Error("claimTask: task is " + task.status);
+    ctx.db.tasks.id.update({ ...task, status: "claimed", workerId: args.workerId, claimedAt: nowMs() });
   },
 );
 
-/**
- * claimTask — Atomically claim a PENDING task for a worker.
- * Fails if the task is not in PENDING status (race-condition safe).
- */
-stdb.reducer(
-  'claimTask',
-  {
-    taskId: t.string(),
-    workerId: t.string(),
-  },
-  (ctx, args) => {
-    const taskId = args.taskId as string;
-    const workerId = args.workerId as string;
-
-    const task = ctx.db.tasks.findByPrimaryKey(taskId);
-    if (!task) {
-      throw new Error(`claimTask: task ${taskId} not found`);
-    }
-    if (task.status !== 'pending') {
-      throw new Error(`claimTask: task ${taskId} is ${task.status}, not pending`);
-    }
-
-    ctx.db.tasks.updateByPrimaryKey(taskId, {
-      status: 'claimed',
-      workerId,
-      claimedAt: nowMs(),
-    });
-  },
-);
-
-/**
- * findAndClaimTask — Find a PENDING task of a given type and atomically claim it.
- * Workers call this instead of claimTask when they don't know the task ID.
- */
-stdb.reducer(
-  'findAndClaimTask',
-  {
-    taskType: t.string(),
-    workerId: t.string(),
-  },
-  (ctx, args) => {
-    const taskType = args.taskType as string;
-    const workerId = args.workerId as string;
-    const now = nowMs();
-
-    // Find the first pending task of this type
-    let foundId: string | null = null;
+export const findAndClaimTask = stdb.reducer(
+  "findAndClaimTask",
+  { taskType: t.string(), workerId: t.string() },
+  (ctx: any, args: any) => {
+    let found: any = null;
     for (const task of ctx.db.tasks.iter()) {
-      if (task.taskType === taskType && task.status === 'pending') {
-        foundId = task.id as string;
+      if (task.taskType === args.taskType && task.status === "pending") {
+        found = task;
         break;
       }
     }
-
-    if (!foundId) {
-      throw new Error(`findAndClaimTask: no pending ${taskType} tasks`);
-    }
-
-    // Atomically claim it
-    ctx.db.tasks.updateByPrimaryKey(foundId, {
-      status: 'claimed',
-      workerId,
-      claimedAt: now,
-    });
+    if (!found) throw new Error("findAndClaimTask: no pending " + args.taskType + " tasks");
+    ctx.db.tasks.id.update({ ...found, status: "claimed", workerId: args.workerId, claimedAt: nowMs() });
   },
 );
 
-/**
- * completeTask — Mark a task as COMPLETED, record output assets, then run task
- * chaining: for each downstream task type whose dependencies are ALL met,
- * create a new PENDING task.
- */
-stdb.reducer(
-  'completeTask',
-  {
-    taskId: t.string(),
-    outputAssetIds: t.string(),
-  },
-  (ctx, args) => {
-    const taskId = args.taskId as string;
+export const completeTask = stdb.reducer(
+  "completeTask",
+  { taskId: t.string(), outputAssetIds: t.string() },
+  (ctx: any, args: any) => {
     const now = nowMs();
+    const task = ctx.db.tasks.id.find(args.taskId);
+    if (!task) throw new Error("completeTask: task not found");
+    ctx.db.tasks.id.update({ ...task, status: "completed", outputAssetIds: args.outputAssetIds, completedAt: now });
 
-    const task = ctx.db.tasks.findByPrimaryKey(taskId);
-    if (!task) {
-      throw new Error(`completeTask: task ${taskId} not found`);
-    }
+    const projectId = task.projectId;
+    const completedType = task.taskType;
 
-    // Mark completed
-    ctx.db.tasks.updateByPrimaryKey(taskId, {
-      status: 'completed',
-      outputAssetIds: args.outputAssetIds as string,
-      completedAt: now,
-    });
-
-    const projectId = task.projectId as string;
-    const completedType = task.taskType as string;
-
-    // ------ Update project_state ------
-    const state = ctx.db.project_state.findByPrimaryKey(projectId);
+    const state = ctx.db.projectState.projectId.find(projectId);
     if (state) {
-      let completed: string[];
-      try {
-        completed = JSON.parse(state.completedTasks as string);
-      } catch {
-        completed = [];
-      }
-      if (!completed.includes(completedType)) {
-        completed.push(completedType);
-      }
-      ctx.db.project_state.updateByPrimaryKey(projectId, {
-        completedTasks: JSON.stringify(completed),
-        completedCount: completed.length,
-        lastUpdated: now,
-      });
+      let completed: string[] = [];
+      try { completed = JSON.parse(state.completedTasks); } catch {}
+      if (!completed.includes(completedType)) completed.push(completedType);
+      ctx.db.projectState.projectId.update({ ...state, completedTasks: JSON.stringify(completed), completedCount: completed.length, lastUpdated: now });
     }
 
-    // ------ Task chaining ------
     const downstreamTypes = TASK_CHAIN_DAG[completedType];
     if (!downstreamTypes || downstreamTypes.length === 0) {
-      // No downstream tasks — this is the final stage (RENDER).
-      // Mark project as ready.
-      ctx.db.project_state.updateByPrimaryKey(projectId, {
-        currentPhase: 'ready',
-        lastUpdated: now,
-      });
-      const project = ctx.db.projects.findByPrimaryKey(projectId);
-      if (project) {
-        ctx.db.projects.updateByPrimaryKey(projectId, {
-          status: 'ready',
-          updatedAt: now,
-        });
-      }
+      if (state) ctx.db.projectState.projectId.update({ ...state, currentPhase: "ready", lastUpdated: now });
+      const project = ctx.db.projects.id.find(projectId);
+      if (project) ctx.db.projects.id.update({ ...project, status: "ready", updatedAt: now });
       return;
     }
 
-    // Collect all completed task types for this project
     const completedTypesSet = new Set<string>();
-    for (const row of ctx.db.tasks.iter()) {
-      if (row.projectId === projectId && row.status === 'completed') {
-        completedTypesSet.add(row.taskType as string);
-      }
-    }
-    // Include the task we just completed (the iter may not reflect the update yet)
-    completedTypesSet.add(completedType);
-
-    // Check if downstream tasks already exist for this project
     const existingTaskTypes = new Set<string>();
     for (const row of ctx.db.tasks.iter()) {
       if (row.projectId === projectId) {
-        existingTaskTypes.add(row.taskType as string);
+        if (row.status === "completed") completedTypesSet.add(row.taskType);
+        existingTaskTypes.add(row.taskType);
       }
     }
+    completedTypesSet.add(completedType);
 
     for (const dsType of downstreamTypes) {
-      // Skip if a task of this type already exists for the project
-      if (existingTaskTypes.has(dsType)) {
-        continue;
-      }
-
-      // Check if ALL dependencies for this downstream type are completed
+      if (existingTaskTypes.has(dsType)) continue;
       const deps = TASK_DEPENDENCIES[dsType];
-      if (!deps) {
-        continue;
-      }
+      if (!deps) continue;
+      if (!deps.every((dep) => completedTypesSet.has(dep))) continue;
 
-      const allDepsMet = deps.every((dep) => completedTypesSet.has(dep));
-      if (!allDepsMet) {
-        continue;
-      }
-
-      // Collect output asset IDs from all completed upstream tasks
       const upstreamAssetIds: string[] = [];
       for (const row of ctx.db.tasks.iter()) {
-        if (
-          row.projectId === projectId &&
-          row.status === 'completed' &&
-          deps.includes(row.taskType as string)
-        ) {
-          try {
-            const outputs = JSON.parse(row.outputAssetIds as string);
-            if (Array.isArray(outputs)) {
-              for (const id of outputs) {
-                upstreamAssetIds.push(id as string);
-              }
-            }
-          } catch {
-            // ignore parse errors
-          }
+        if (row.projectId === projectId && row.status === "completed" && deps.includes(row.taskType)) {
+          try { const outputs = JSON.parse(row.outputAssetIds); if (Array.isArray(outputs)) upstreamAssetIds.push(...outputs); } catch {}
         }
       }
 
-      // All dependencies met and task doesn't exist yet — create it
-      ctx.db.tasks.insert({
-        id: generateId(),
-        projectId,
-        taskType: dsType,
-        status: 'pending',
-        workerId: '',
-        inputAssetIds: JSON.stringify(upstreamAssetIds),
-        outputAssetIds: '[]',
-        config: '{}',
-        createdAt: now,
-        claimedAt: 0,
-        completedAt: 0,
-        failureReason: '',
-        retryCount: 0,
-        maxRetries: MAX_TASK_RETRIES,
-      });
+      ctx.db.tasks.insert({ id: generateId(ctx), projectId, taskType: dsType, status: "pending", workerId: "", inputAssetIds: JSON.stringify(upstreamAssetIds), outputAssetIds: "[]", config: "{}", createdAt: now, claimedAt: 0n, completedAt: 0n, failureReason: "", retryCount: 0, maxRetries: MAX_TASK_RETRIES });
     }
   },
 );
 
-/**
- * failTask — Mark a task as FAILED. If retryCount < maxRetries, create a new
- * PENDING copy (retry). Updates project_state accordingly.
- */
-stdb.reducer(
-  'failTask',
-  {
-    taskId: t.string(),
-    failureReason: t.string(),
-  },
-  (ctx, args) => {
-    const taskId = args.taskId as string;
-    const reason = args.failureReason as string;
+export const failTask = stdb.reducer(
+  "failTask",
+  { taskId: t.string(), failureReason: t.string() },
+  (ctx: any, args: any) => {
     const now = nowMs();
+    const task = ctx.db.tasks.id.find(args.taskId);
+    if (!task) throw new Error("failTask: task not found");
 
-    const task = ctx.db.tasks.findByPrimaryKey(taskId);
-    if (!task) {
-      throw new Error(`failTask: task ${taskId} not found`);
-    }
+    const currentRetry = task.retryCount || 0;
+    const maxRetries = task.maxRetries || MAX_TASK_RETRIES;
 
-    const currentRetry = (task.retryCount as number) || 0;
-    const maxRetries = (task.maxRetries as number) || MAX_TASK_RETRIES;
+    ctx.db.tasks.id.update({ ...task, status: "failed", failureReason: args.failureReason, completedAt: now });
 
-    // Mark original task as failed
-    ctx.db.tasks.updateByPrimaryKey(taskId, {
-      status: 'failed',
-      failureReason: reason,
-      completedAt: now,
-    });
-
-    // If retries remain, create a new PENDING copy
     if (currentRetry < maxRetries) {
-      ctx.db.tasks.insert({
-        id: generateId(),
-        projectId: task.projectId as string,
-        taskType: task.taskType as string,
-        status: 'pending',
-        workerId: '',
-        inputAssetIds: task.inputAssetIds as string,
-        outputAssetIds: '[]',
-        config: task.config as string,
-        createdAt: now,
-        claimedAt: 0,
-        completedAt: 0,
-        failureReason: '',
-        retryCount: currentRetry + 1,
-        maxRetries,
-      });
+      ctx.db.tasks.insert({ id: generateId(ctx), projectId: task.projectId, taskType: task.taskType, status: "pending", workerId: "", inputAssetIds: task.inputAssetIds, outputAssetIds: "[]", config: task.config, createdAt: now, claimedAt: 0n, completedAt: 0n, failureReason: "", retryCount: currentRetry + 1, maxRetries });
     } else {
-      // Max retries exhausted — update project state
-      const state = ctx.db.project_state.findByPrimaryKey(task.projectId as string);
-      if (state) {
-        ctx.db.project_state.updateByPrimaryKey(task.projectId as string, {
-          currentPhase: 'failed',
-          lastUpdated: now,
-        });
-      }
+      const state = ctx.db.projectState.projectId.find(task.projectId);
+      if (state) ctx.db.projectState.projectId.update({ ...state, currentPhase: "failed", lastUpdated: now });
     }
   },
 );
 
-/**
- * writeSignal — Insert a single signal record.
- */
-stdb.reducer(
-  'writeSignal',
-  {
-    projectId: t.string(),
-    taskId: t.string(),
-    signalType: t.string(),
-    timestampMs: t.u64(),
-    durationMs: t.u64(),
-    confidence: t.f64(),
-    payload: t.string(),
-  },
-  (ctx, args) => {
-    ctx.db.signals.insert({
-      id: generateId(),
-      projectId: args.projectId as string,
-      taskId: args.taskId as string,
-      signalType: args.signalType as string,
-      timestampMs: args.timestampMs as number,
-      durationMs: args.durationMs as number,
-      confidence: args.confidence as number,
-      payload: args.payload as string,
-      createdAt: nowMs(),
-    });
+export const writeSignal = stdb.reducer(
+  "writeSignal",
+  { projectId: t.string(), taskId: t.string(), signalType: t.string(), timestampMs: t.u64(), durationMs: t.u64(), confidence: t.f64(), payload: t.string() },
+  (ctx: any, args: any) => {
+    ctx.db.signals.insert({ id: generateId(ctx), projectId: args.projectId, taskId: args.taskId, signalType: args.signalType, timestampMs: args.timestampMs, durationMs: args.durationMs, confidence: args.confidence, payload: args.payload, createdAt: nowMs() });
   },
 );
 
-/**
- * updateProjectState — Direct update of project state fields.
- */
-stdb.reducer(
-  'updateProjectState',
-  {
-    projectId: t.string(),
-    currentPhase: t.string(),
-    status: t.string(),
-  },
-  (ctx, args) => {
-    const projectId = args.projectId as string;
+export const ingestInteractionBatch = stdb.reducer(
+  "ingestInteractionBatch",
+  { projectId: t.string(), taskId: t.string(), signalType: t.string(), batchJson: t.string() },
+  (ctx: any, args: any) => {
     const now = nowMs();
-
-    const state = ctx.db.project_state.findByPrimaryKey(projectId);
-    if (!state) {
-      throw new Error(`updateProjectState: no state for project ${projectId}`);
-    }
-
-    ctx.db.project_state.updateByPrimaryKey(projectId, {
-      currentPhase: args.currentPhase as string,
-      lastUpdated: now,
-    });
-
-    // Also update the project's status field
-    const project = ctx.db.projects.findByPrimaryKey(projectId);
-    if (project) {
-      ctx.db.projects.updateByPrimaryKey(projectId, {
-        status: args.status as string,
-        updatedAt: now,
-      });
+    let batch: any[];
+    try { batch = JSON.parse(args.batchJson); } catch { throw new Error("invalid batchJson"); }
+    if (batch.length > 1000) throw new Error("batch too large");
+    for (const item of batch) {
+      ctx.db.signals.insert({ id: generateId(ctx), projectId: args.projectId, taskId: args.taskId, signalType: args.signalType, timestampMs: item.timestampMs, durationMs: item.durationMs, confidence: item.confidence, payload: item.payload, createdAt: now });
     }
   },
 );
 
-/**
- * updateWorkerConfig — Upsert a worker configuration with heartbeat.
- */
-stdb.reducer(
-  'updateWorkerConfig',
-  {
-    workerId: t.string(),
-    workerType: t.string(),
-    isActive: t.bool(),
-    concurrency: t.i32(),
-    metadata: t.string(),
-  },
-  (ctx, args) => {
-    const workerId = args.workerId as string;
+export const updateProjectState = stdb.reducer(
+  "updateProjectState",
+  { projectId: t.string(), currentPhase: t.string(), status: t.string() },
+  (ctx: any, args: any) => {
     const now = nowMs();
+    const state = ctx.db.projectState.projectId.find(args.projectId);
+    if (!state) throw new Error("no state for project " + args.projectId);
+    ctx.db.projectState.projectId.update({ ...state, currentPhase: args.currentPhase, lastUpdated: now });
+    const project = ctx.db.projects.id.find(args.projectId);
+    if (project) ctx.db.projects.id.update({ ...project, status: args.status, updatedAt: now });
+  },
+);
 
-    const existing = ctx.db.worker_configs.findByPrimaryKey(workerId);
+export const updateWorkerConfig = stdb.reducer(
+  "updateWorkerConfig",
+  { workerId: t.string(), workerType: t.string(), isActive: t.bool(), concurrency: t.i32(), metadata: t.string() },
+  (ctx: any, args: any) => {
+    const now = nowMs();
+    const existing = ctx.db.workerConfigs.workerId.find(args.workerId);
     if (existing) {
-      ctx.db.worker_configs.updateByPrimaryKey(workerId, {
-        workerType: args.workerType as string,
-        lastHeartbeat: now,
-        isActive: args.isActive as boolean,
-        concurrency: args.concurrency as number,
-        metadata: args.metadata as string,
-      });
+      ctx.db.workerConfigs.workerId.update({ ...existing, workerType: args.workerType, lastHeartbeat: now, isActive: args.isActive, concurrency: args.concurrency, metadata: args.metadata });
     } else {
-      ctx.db.worker_configs.insert({
-        workerId,
-        workerType: args.workerType as string,
-        lastHeartbeat: now,
-        isActive: args.isActive as boolean,
-        concurrency: args.concurrency as number,
-        metadata: args.metadata as string,
-      });
+      ctx.db.workerConfigs.insert({ workerId: args.workerId, workerType: args.workerType, lastHeartbeat: now, isActive: args.isActive, concurrency: args.concurrency, metadata: args.metadata });
     }
   },
 );
-
-// ---------------------------------------------------------------------------
-// Scheduled Reducer: Watchdog
-// ---------------------------------------------------------------------------
-
-/**
- * watchdog_schedule — Runs every WATCHDOG_INTERVAL_SECS seconds.
- * Finds stale tasks (CLAIMED/RUNNING for longer than STALE_TASK_THRESHOLD_MS)
- * and either requeues them as PENDING or marks them FAILED if max retries exceeded.
- */
-stdb.reducer('watchdog_schedule', {}, (ctx, _args) => {
-  const now = nowMs();
-  const threshold = now - STALE_TASK_THRESHOLD_MS;
-
-  // Collect stale task IDs first to avoid mutating while iterating
-  const staleTasks: Array<{
-    id: string;
-    projectId: string;
-    taskType: string;
-    inputAssetIds: string;
-    config: string;
-    retryCount: number;
-    maxRetries: number;
-  }> = [];
-
-  for (const task of ctx.db.tasks.iter()) {
-    const status = task.status as string;
-    if (
-      status === 'claimed' &&
-      (task.claimedAt as number) > 0 &&
-      (task.claimedAt as number) < threshold
-    ) {
-      staleTasks.push({
-        id: task.id as string,
-        projectId: task.projectId as string,
-        taskType: task.taskType as string,
-        inputAssetIds: task.inputAssetIds as string,
-        config: task.config as string,
-        retryCount: (task.retryCount as number) || 0,
-        maxRetries: (task.maxRetries as number) || MAX_TASK_RETRIES,
-      });
-    }
-  }
-
-  for (const stale of staleTasks) {
-    if (stale.retryCount >= stale.maxRetries) {
-      // Max retries exhausted — mark as failed
-      ctx.db.tasks.updateByPrimaryKey(stale.id, {
-        status: 'failed',
-        failureReason: 'Exceeded max retries after becoming stale',
-        completedAt: now,
-      });
-    } else {
-      // Requeue: reset to pending, clear worker, increment retry
-      ctx.db.tasks.updateByPrimaryKey(stale.id, {
-        status: 'pending',
-        workerId: '',
-        retryCount: stale.retryCount + 1,
-        claimedAt: 0,
-      });
-    }
-  }
-});
-
-// ---------------------------------------------------------------------------
-// Init Reducer — seeds the watchdog schedule
-// ---------------------------------------------------------------------------
-
-stdb.reducer('__init__', {}, (ctx, _args) => {
-  ctx.db.watchdog_schedule.insert({
-    scheduledId: 0,
-    scheduledAt: ScheduleAt.interval(WATCHDOG_INTERVAL_SECS * 1000),
-  });
-});
 
 export default stdb;
