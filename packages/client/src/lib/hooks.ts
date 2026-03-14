@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { StdbConnection, type StdbConfig } from './stdb';
 import type { Project, Task } from '@flowstudio/shared';
 
@@ -14,7 +14,6 @@ let globalConnection: StdbConnection | null = null;
 function getConnection(): StdbConnection {
   if (!globalConnection) {
     globalConnection = new StdbConnection(STDB_CONFIG);
-    globalConnection.connect();
   }
   return globalConnection;
 }
@@ -27,11 +26,10 @@ export function useProjects(): { projects: Project[]; loading: boolean; error: s
 
   useEffect(() => {
     const conn = getConnection();
-    const unsubscribe = conn.onTableUpdate((tableName, rows) => {
-      if (tableName === 'projects') {
-        setProjects(rows as Project[]);
-        setLoading(false);
-      }
+    const unsubscribe = conn.subscribeTable('projects', (rows) => {
+      setProjects(rows as unknown as Project[]);
+      setLoading(false);
+      setError(null);
     });
 
     const timeout = setTimeout(() => {
@@ -58,12 +56,11 @@ export function useProjectTasks(projectId: string): { tasks: Task[]; loading: bo
 
   useEffect(() => {
     const conn = getConnection();
-    const unsubscribe = conn.onTableUpdate((tableName, rows) => {
-      if (tableName === 'tasks') {
-        const projectTasks = (rows as Task[]).filter(t => t.projectId === projectId);
-        setTasks(projectTasks);
-        setLoading(false);
-      }
+    const unsubscribe = conn.subscribeTable('tasks', (rows) => {
+      const projectTasks = (rows as unknown as Task[]).filter(t => t.projectId === projectId);
+      setTasks(projectTasks);
+      setLoading(false);
+      setError(null);
     });
 
     const timeout = setTimeout(() => {
@@ -82,30 +79,20 @@ export function useProjectTasks(projectId: string): { tasks: Task[]; loading: bo
   return { tasks, loading, error };
 }
 
-/** Hook: call a reducer */
+/** Hook: call a reducer with automatic table refresh */
 export function useReducer() {
   const callReducer = useCallback(async (name: string, args: Record<string, unknown>) => {
     const conn = getConnection();
     await conn.callReducer(name, args);
+    // Refresh relevant tables after mutation for immediate UI update
+    await conn.refreshTable('projects');
+    await conn.refreshTable('tasks');
   }, []);
 
   return { callReducer };
 }
 
-/** Hook: connection status */
+/** Hook: connection status (always true with HTTP) */
 export function useConnectionStatus(): boolean {
-  const [connected, setConnected] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    const conn = getConnection();
-    intervalRef.current = setInterval(() => {
-      setConnected(conn.isConnected);
-    }, 1000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, []);
-
-  return connected;
+  return true;
 }
