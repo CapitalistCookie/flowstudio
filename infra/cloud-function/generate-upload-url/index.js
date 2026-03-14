@@ -33,12 +33,17 @@ exports.generateUploadUrl = async (req, res) => {
   const gcsPath = `projects/${projectId}/source_video/${filename}`;
   const file = storage.bucket(BUCKET).file(gcsPath);
 
-  const [url] = await file.getSignedUrl({
-    version: 'v4',
-    action: 'write',
-    expires: Date.now() + 15 * 60 * 1000,
-    contentType: contentType || 'video/mp4',
-  });
+  try {
+    const [url] = await file.getSignedUrl({
+      version: 'v4',
+      action: 'write',
+      expires: Date.now() + 15 * 60 * 1000,
+      contentType: contentType || 'video/mp4',
+    });
 
-  res.json({ url, gcsPath: `gs://${BUCKET}/${gcsPath}` });
+    res.json({ url, gcsPath: `gs://${BUCKET}/${gcsPath}` });
+  } catch (err) {
+    console.error('Failed to generate signed URL:', err);
+    res.status(500).json({ error: 'Failed to generate upload URL' });
+  }
 };
