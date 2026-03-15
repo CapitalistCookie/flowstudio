@@ -5,6 +5,7 @@ import {
   initSpacetimeDb,
   disconnectSpacetimeDb,
   setOnProjectsChanged,
+  setOnFoldersChanged,
 } from '@/lib/stdb/spacetimedb';
 import { useProjectStore } from '@/lib/stores/project-store';
 
@@ -27,8 +28,12 @@ export function StdbProvider({ children }: { children: ReactNode }) {
     // Wire project store updates from STDB callbacks
     setOnProjectsChanged((projects) => {
       if (!mounted) return;
-      const store = useProjectStore.getState();
-      store.setStdbProjects(projects);
+      useProjectStore.getState().setStdbProjects(projects);
+    });
+
+    setOnFoldersChanged((folders) => {
+      if (!mounted) return;
+      useProjectStore.getState().setStdbFolders(folders);
     });
 
     const connect = async () => {
@@ -69,6 +74,7 @@ export function StdbProvider({ children }: { children: ReactNode }) {
       mounted = false;
       clearTimeout(retryTimer);
       setOnProjectsChanged(null);
+      setOnFoldersChanged(null);
       disconnectSpacetimeDb();
     };
   }, [retryCount]);

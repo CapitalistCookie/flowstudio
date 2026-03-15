@@ -50,6 +50,16 @@ export interface StdbProject {
   folderId: string;
 }
 
+export interface StdbFolder {
+  id: string;
+  name: string;
+  ownerId: string;
+  color: string;
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface StdbAsset {
   id: string;
   projectId: string;
@@ -67,13 +77,19 @@ export interface StdbAsset {
 type OnConnectCallback = () => void;
 type OnDisconnectCallback = () => void;
 type OnProjectsChanged = (projects: StdbProject[]) => void;
+type OnFoldersChanged = (folders: StdbFolder[]) => void;
 
 let onConnectCb: OnConnectCallback | null = null;
 let onDisconnectCb: OnDisconnectCallback | null = null;
 let onProjectsChangedCb: OnProjectsChanged | null = null;
+let onFoldersChangedCb: OnFoldersChanged | null = null;
 
 export function setOnProjectsChanged(cb: OnProjectsChanged | null) {
   onProjectsChangedCb = cb;
+}
+
+export function setOnFoldersChanged(cb: OnFoldersChanged | null) {
+  onFoldersChangedCb = cb;
 }
 
 function notifyProjectsChanged() {
@@ -83,6 +99,15 @@ function notifyProjectsChanged() {
     projects.push(projectRowToStore(row));
   }
   onProjectsChangedCb(projects);
+}
+
+function notifyFoldersChanged() {
+  if (!onFoldersChangedCb || !connection) return;
+  const folders: StdbFolder[] = [];
+  for (const row of connection.db.folders.iter()) {
+    folders.push(folderRowToStore(row));
+  }
+  onFoldersChangedCb(folders);
 }
 
 // ─── Row converters ──────────────────────────────────────────────────
@@ -98,6 +123,18 @@ function projectRowToStore(row: any): StdbProject {
     metadata: row.metadata,
     starred: row.starred ?? false,
     folderId: row.folderId ?? '',
+  };
+}
+
+function folderRowToStore(row: any): StdbFolder {
+  return {
+    id: row.id,
+    name: row.name,
+    ownerId: row.ownerId,
+    color: row.color,
+    sortOrder: toNum(row.sortOrder),
+    createdAt: toNum(row.createdAt),
+    updatedAt: toNum(row.updatedAt),
   };
 }
 
@@ -189,6 +226,10 @@ function wireTableCallbacks(conn: DbConnection) {
   conn.db.projects.onInsert(() => notifyProjectsChanged());
   conn.db.projects.onUpdate(() => notifyProjectsChanged());
   conn.db.projects.onDelete(() => notifyProjectsChanged());
+
+  conn.db.folders.onInsert(() => notifyFoldersChanged());
+  conn.db.folders.onUpdate(() => notifyFoldersChanged());
+  conn.db.folders.onDelete(() => notifyFoldersChanged());
 }
 
 /** Disconnect and clean up. */
@@ -199,6 +240,7 @@ export function disconnectSpacetimeDb() {
     subscriptionActive = false;
     onConnectCb = null;
     onDisconnectCb = null;
+    onFoldersChangedCb = null;
   }
 }
 
@@ -212,6 +254,16 @@ export function getProjects(): StdbProject[] {
     projects.push(projectRowToStore(row));
   }
   return projects;
+}
+
+/** Get all folders from the SDK cache. */
+export function getFolders(): StdbFolder[] {
+  if (!connection || !subscriptionActive) return [];
+  const folders: StdbFolder[] = [];
+  for (const row of connection.db.folders.iter()) {
+    folders.push(folderRowToStore(row));
+  }
+  return folders;
 }
 
 /** Get all assets for a project from the SDK cache. */

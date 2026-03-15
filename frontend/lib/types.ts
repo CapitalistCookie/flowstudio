@@ -131,6 +131,7 @@ export interface Project {
   created_at: string;
   updated_at: string;
   category: string;
+  folderId?: string;
 }
 
 export type TimelineEventType =

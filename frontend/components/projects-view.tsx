@@ -11,13 +11,20 @@ import {
   MoreVertical,
   Star,
   ArrowUpDown,
+  ArrowLeft,
   Filter,
   Copy,
   Trash2,
+  FolderPlus,
+  FolderInput,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useProjectStore } from "@/lib/stores/project-store"
+import { getConnection, isConnected } from "@/lib/stdb/spacetimedb"
 import { WorkspaceSidebar } from "@/components/workspace-sidebar"
+import { FolderCard } from "@/components/folder-card"
+import { CreateFolderDialog } from "@/components/create-folder-dialog"
+import { MoveToFolderDialog } from "@/components/move-to-folder-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import type { Project } from "@/lib/types"
 
@@ -56,20 +63,104 @@ function sortProjects(list: Project[], mode: SortMode): Project[] {
 
 export function ProjectsView() {
   const router = useRouter()
-  const { projects, fetchProjects, starredProjectIds, toggleProjectStar, removeProject, duplicateProject } = useProjectStore()
+  const {
+    projects,
+    stdbProjects,
+    folders,
+    activeFolderId,
+    setActiveFolderId,
+    moveProjectToFolder,
+    fetchProjects,
+    starredProjectIds,
+    toggleProjectStar,
+    removeProject,
+    duplicateProject,
+  } = useProjectStore()
   const [sortMode, setSortMode] = useState<SortMode>("newest")
+  const [visibilityMode, setVisibilityMode] = useState<VisibilityMode>("all")
+  const [createFolderOpen, setCreateFolderOpen] = useState(false)
+  const [moveDialogProjectId, setMoveDialogProjectId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchProjects()
   }, [fetchProjects])
-  const [visibilityMode, setVisibilityMode] = useState<VisibilityMode>("all")
+
+  const activeFolder = folders.find((f) => f.id === activeFolderId)
+
+  const folderProjectCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const p of stdbProjects) {
+      if (p.folderId) {
+        counts[p.folderId] = (counts[p.folderId] ?? 0) + 1
+      }
+    }
+    return counts
+  }, [stdbProjects])
 
   const visibleProjects = useMemo(() => {
-    const filtered = visibilityMode === "starred"
+    let filtered = visibilityMode === "starred"
       ? projects.filter((project) => starredProjectIds.includes(project.id))
       : projects
+
+    // Filter by folder membership
+    if (activeFolderId) {
+      // Inside a folder: show only projects in this folder
+      const folderProjectIds = new Set(
+        stdbProjects.filter((p) => p.folderId === activeFolderId).map((p) => p.id)
+      )
+      filtered = filtered.filter((p) => folderProjectIds.has(p.id))
+    } else if (visibilityMode !== "starred") {
+      // At root: hide projects that are inside folders
+      const inFolderIds = new Set(
+        stdbProjects.filter((p) => p.folderId).map((p) => p.id)
+      )
+      filtered = filtered.filter((p) => !inFolderIds.has(p.id))
+    }
+
     return sortProjects(filtered, sortMode)
-  }, [projects, sortMode, visibilityMode, starredProjectIds])
+  }, [projects, stdbProjects, sortMode, visibilityMode, starredProjectIds, activeFolderId])
+
+  const handleCreateFolder = async (name: string, color: string) => {
+    if (!isConnected()) return
+    try {
+      getConnection().reducers.createFolder({ name, ownerId: '', color, sortOrder: folders.length })
+    } catch (err) {
+      console.error('Failed to create folder:', err)
+    }
+  }
+
+  const handleRenameFolder = (folderId: string) => {
+    const folder = folders.find((f) => f.id === folderId)
+    if (!folder) return
+    const newName = prompt('Rename folder:', folder.name)
+    if (!newName?.trim()) return
+    try {
+      getConnection().reducers.renameFolder({ folderId, name: newName.trim() })
+    } catch (err) {
+      console.error('Failed to rename folder:', err)
+    }
+  }
+
+  const handleDeleteFolder = (folderId: string) => {
+    try {
+      getConnection().reducers.deleteFolder({ folderId })
+      if (activeFolderId === folderId) setActiveFolderId(null)
+    } catch (err) {
+      console.error('Failed to delete folder:', err)
+    }
+  }
+
+  const handleMoveToFolder = (projectId: string, folderId: string) => {
+    const prev = stdbProjects.find((p) => p.id === projectId)?.folderId ?? ''
+    moveProjectToFolder(projectId, folderId)
+    try {
+      getConnection().reducers.moveProjectToFolder({ projectId, folderId })
+    } catch {
+      moveProjectToFolder(projectId, prev) // rollback
+    }
+  }
+
+  const moveTarget = stdbProjects.find((p) => p.id === moveDialogProjectId)
 
   return (
     <div className="flex h-screen w-screen flex-col bg-background">
@@ -86,19 +177,39 @@ export function ProjectsView() {
           >
             <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h1 className="text-5xl font-bold tracking-tight text-foreground">Your Projects</h1>
+                {activeFolderId && (
+                  <button
+                    onClick={() => setActiveFolderId(null)}
+                    className="mb-2 flex cursor-pointer items-center gap-1 text-sm text-flux-amber transition-opacity hover:opacity-80"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Projects
+                  </button>
+                )}
+                <h1 className="text-5xl font-bold tracking-tight text-foreground">
+                  {activeFolder ? activeFolder.name : "Your Projects"}
+                </h1>
                 <p className="mt-2 text-sm text-muted-foreground">
                   {visibleProjects.length} visible of {projects.length} total
                 </p>
               </div>
 
-              <Button
-                onClick={() => router.push("/record")}
-                className="h-12 cursor-pointer gap-2 rounded-xl bg-card px-5 text-base font-semibold text-foreground shadow-sm ring-1 ring-border transition hover:bg-secondary"
-              >
-                <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
-                Start a new project
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => setCreateFolderOpen(true)}
+                  className="h-10 cursor-pointer gap-2 rounded-lg border border-border bg-card px-4 text-sm font-medium text-foreground shadow-sm transition hover:bg-secondary"
+                >
+                  <FolderPlus className="h-4 w-4 text-muted-foreground" />
+                  New Folder
+                </Button>
+                <Button
+                  onClick={() => router.push("/record")}
+                  className="h-12 cursor-pointer gap-2 rounded-xl bg-card px-5 text-base font-semibold text-foreground shadow-sm ring-1 ring-border transition hover:bg-secondary"
+                >
+                  <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
+                  Start a new project
+                </Button>
+              </div>
             </div>
 
             <div className="mb-6 flex flex-wrap items-center gap-3">
@@ -130,6 +241,27 @@ export function ProjectsView() {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
+
+            {/* Folder cards at root level */}
+            {!activeFolderId && folders.length > 0 && visibilityMode !== "starred" && (
+              <motion.div
+                className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                initial="hidden"
+                animate="visible"
+                variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.04 } } }}
+              >
+                {[...folders].sort((a, b) => a.sortOrder - b.sortOrder).map((folder) => (
+                  <FolderCard
+                    key={folder.id}
+                    folder={folder}
+                    projectCount={folderProjectCounts[folder.id] ?? 0}
+                    onClick={() => setActiveFolderId(folder.id)}
+                    onRename={() => handleRenameFolder(folder.id)}
+                    onDelete={() => handleDeleteFolder(folder.id)}
+                  />
+                ))}
+              </motion.div>
+            )}
 
             {visibleProjects.length === 0 ? (
               <div className="flex h-64 flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border bg-card/70">
@@ -195,12 +327,18 @@ export function ProjectsView() {
                                 <MoreVertical className="h-4 w-4" />
                               </button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuContent align="end" className="w-44">
                               <DropdownMenuItem onClick={() => router.push("/studio")}>
                                 <Play className="mr-2 h-3.5 w-3.5" /> Open
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => duplicateProject(project.id)}>
                                 <Copy className="mr-2 h-3.5 w-3.5" /> Duplicate
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation()
+                                setMoveDialogProjectId(project.id)
+                              }}>
+                                <FolderInput className="mr-2 h-3.5 w-3.5" /> Move to Folder
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem className="text-destructive" onClick={() => removeProject(project.id)}>
@@ -226,6 +364,22 @@ export function ProjectsView() {
           </motion.div>
         </main>
       </div>
+
+      <CreateFolderDialog
+        open={createFolderOpen}
+        onClose={() => setCreateFolderOpen(false)}
+        onCreate={handleCreateFolder}
+      />
+
+      {moveDialogProjectId && moveTarget && (
+        <MoveToFolderDialog
+          open={!!moveDialogProjectId}
+          onClose={() => setMoveDialogProjectId(null)}
+          folders={folders}
+          currentFolderId={moveTarget.folderId}
+          onMove={(folderId) => handleMoveToFolder(moveDialogProjectId, folderId)}
+        />
+      )}
     </div>
   )
 }

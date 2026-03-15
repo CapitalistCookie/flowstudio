@@ -87,6 +87,5 @@ export function createMockDeps(overrides: Partial<WorkerDeps> = {}): WorkerDeps 
     config,
     logger: overrides.logger ?? (createMockLogger() as any),
     gcs: overrides.gcs ?? (createMockGcs() as any),
-    stdb: overrides.stdb ?? (createMockStdb() as any),
   };
 }

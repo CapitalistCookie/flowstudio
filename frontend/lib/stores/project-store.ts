@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import type { Project } from "../types"
 import { ProjectStatus } from '@flowstudio/shared'
-import { getProjects as getStdbProjects, getConnection, isConnected, type StdbProject } from "../stdb/spacetimedb"
+import { getProjects as getStdbProjects, getFolders as getStdbFolders, getConnection, isConnected, type StdbProject, type StdbFolder } from "../stdb/spacetimedb"
 
 function stdbProjectToProject(p: StdbProject): Project {
   return {
@@ -16,12 +16,17 @@ function stdbProjectToProject(p: StdbProject): Project {
     created_at: new Date(p.createdAt).toISOString(),
     updated_at: new Date(p.updatedAt).toISOString(),
     category: "Uncategorized",
+    folderId: p.folderId || undefined,
   }
 }
 
 interface ProjectStore {
   projects: Project[]
   starredProjectIds: string[]
+  /** Raw STDB projects for folder membership lookups */
+  stdbProjects: StdbProject[]
+  folders: StdbFolder[]
+  activeFolderId: string | null
   searchQuery: string
   viewMode: "grid" | "list"
   isLoading: boolean
@@ -35,11 +40,18 @@ interface ProjectStore {
   fetchProjects: () => void
   /** Called by STDB reactive callbacks to push project updates */
   setStdbProjects: (projects: StdbProject[]) => void
+  /** Called by STDB reactive callbacks to push folder updates */
+  setStdbFolders: (folders: StdbFolder[]) => void
+  setActiveFolderId: (id: string | null) => void
+  moveProjectToFolder: (projectId: string, folderId: string) => void
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
   projects: [],
   starredProjectIds: [],
+  stdbProjects: [],
+  folders: [],
+  activeFolderId: null,
   searchQuery: "",
   viewMode: "grid",
   isLoading: true,
@@ -91,9 +103,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       .filter((p) => p.starred)
       .map((p) => p.id)
 
+    const folders = getStdbFolders()
+
     set({
       projects,
+      stdbProjects,
       starredProjectIds: starredIds,
+      folders,
       isLoading: false,
     })
   },
@@ -109,8 +125,23 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
     set({
       projects,
+      stdbProjects,
       starredProjectIds: starredIds,
       isLoading: false,
     })
+  },
+
+  setStdbFolders: (folders) => {
+    set({ folders })
+  },
+
+  setActiveFolderId: (id) => set({ activeFolderId: id }),
+
+  moveProjectToFolder: (projectId, folderId) => {
+    set((s) => ({
+      stdbProjects: s.stdbProjects.map((p) =>
+        p.id === projectId ? { ...p, folderId } : p
+      ),
+    }))
   },
 }))

@@ -1,6 +1,6 @@
 "use client"
 
-import type { ReactNode } from "react"
+import React, { type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { useUser, SignOutButton } from "@clerk/nextjs"
 import { Folder, LayoutDashboard, LogOut, Plus, Settings } from "lucide-react"
@@ -41,7 +41,7 @@ function SidebarItem({
 export function WorkspaceSidebar({ active, showProjectList = true }: WorkspaceSidebarProps) {
   const router = useRouter()
   const { user } = useUser()
-  const { projects } = useProjectStore()
+  const { projects, stdbProjects, folders } = useProjectStore()
 
   return (
     <aside className="relative z-50 flex h-full w-[280px] flex-col border-r border-border bg-card/40 backdrop-blur-xl">
@@ -67,16 +67,66 @@ export function WorkspaceSidebar({ active, showProjectList = true }: WorkspaceSi
         {showProjectList && (
           <div className="ml-3 mt-1 space-y-1">
             {projects.length > 0 ? (
-              projects.slice(0, 6).map((project) => (
-                <button
-                  key={project.id}
-                  onClick={() => router.push("/studio")}
-                  className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs text-muted-foreground transition-all hover:bg-secondary hover:text-foreground"
-                >
-                  <div className="h-1 w-1 rounded-full bg-border" />
-                  <span className="line-clamp-1">{project.name}</span>
-                </button>
-              ))
+              (() => {
+                // Build folder lookup from stdbProjects
+                const folderIdByProject = new Map(stdbProjects.map((p) => [p.id, p.folderId]))
+                // Ungrouped projects first (no folderId)
+                const ungrouped = projects.filter((p) => !folderIdByProject.get(p.id))
+                // Grouped by folder
+                const sortedFolders = [...folders].sort((a, b) => a.sortOrder - b.sortOrder)
+
+                let remaining = 6
+                const items: React.ReactNode[] = []
+
+                // Ungrouped
+                for (const project of ungrouped) {
+                  if (remaining <= 0) break
+                  items.push(
+                    <button
+                      key={project.id}
+                      onClick={() => router.push("/studio")}
+                      className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs text-muted-foreground transition-all hover:bg-secondary hover:text-foreground"
+                    >
+                      <div className="h-1 w-1 rounded-full bg-border" />
+                      <span className="line-clamp-1">{project.name}</span>
+                    </button>
+                  )
+                  remaining--
+                }
+
+                // Folders
+                for (const folder of sortedFolders) {
+                  if (remaining <= 0) break
+                  const folderProjects = projects.filter((p) => folderIdByProject.get(p.id) === folder.id)
+                  if (folderProjects.length === 0) continue
+
+                  items.push(
+                    <div key={`folder-${folder.id}`} className="mt-1.5 first:mt-0">
+                      <div className="flex items-center gap-2 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: folder.color }} />
+                        {folder.name}
+                      </div>
+                    </div>
+                  )
+
+                  for (const project of folderProjects) {
+                    if (remaining <= 0) break
+                    items.push(
+                      <button
+                        key={project.id}
+                        onClick={() => router.push("/studio")}
+                        className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs text-muted-foreground transition-all hover:bg-secondary hover:text-foreground"
+                      >
+                        <div className="h-1 w-1 rounded-full" style={{ backgroundColor: folder.color + '60' }} />
+                        <span className="line-clamp-1">{project.name}</span>
+                      </button>
+                    )
+                    remaining--
+                  }
+                }
+
+                return items
+              })()
             ) : (
               <span className="px-3 py-1.5 text-[10px] italic text-muted-foreground">No projects yet</span>
             )}

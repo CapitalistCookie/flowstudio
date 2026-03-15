@@ -28,6 +28,11 @@ Thumbs.db
 *.tfvars
 !*.tfvars.example
 
+# Python
+__pycache__/
+*.pyc
+.railtracks/data/sessions/
+
 # Logs
 *.log
 npm-debug.log*
