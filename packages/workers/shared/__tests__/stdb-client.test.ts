@@ -33,10 +33,7 @@ describe('StdbClient', () => {
     expect(url).toBe('http://localhost:3000/v1/database/flowstudio/call/find_and_claim_task');
     expect(options.method).toBe('POST');
     expect(options.headers['Content-Type']).toBe('application/json');
-    expect(JSON.parse(options.body)).toEqual({
-      taskType: 'AUDIO_EXTRACT',
-      workerId: 'w-1',
-    });
+    expect(JSON.parse(options.body)).toEqual(['AUDIO_EXTRACT', 'w-1']);
 
     vi.unstubAllGlobals();
   });
@@ -52,7 +49,7 @@ describe('StdbClient', () => {
     );
 
     await expect(
-      client.callReducer('failTask', { taskId: 't-1' }),
+      client.callReducer('failTask', { taskId: 't-1', failureReason: 'timeout' }),
     ).rejects.toThrow('Reducer failTask failed (500): Internal error');
 
     vi.unstubAllGlobals();

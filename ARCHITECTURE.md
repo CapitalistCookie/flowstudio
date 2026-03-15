@@ -4,8 +4,108 @@ Exhaustive internal architecture reference for the FlowStudio AI-powered video e
 platform. This document covers every design decision, data flow, edge case, and pattern
 a developer must understand to safely modify the codebase.
 
-**Codebase:** `/home/user/FlowStudio`
+**Codebase:** `/Users/vishnu/Documents/FlowStudio`
 **Stats:** ~8,700 lines, 17 packages, 13 workers, 7 SpacetimeDB tables, 11 reducers
+
+---
+
+## 0. Core Principles — Architectural Invariants
+
+These are non-negotiable. Every change must respect them.
+
+### 0a. The Product Vision
+
+FlowStudio is a **"Cursor for video editing"** — an agentic AI video editor that:
+1. **Records** your screen (video, audio, cursor movement, keyboard events)
+2. **Extracts signals** from the recording (audio transcription, video understanding,
+   cursor trajectories, typing bursts, UI transitions)
+3. **Forms an intent graph** — a chronological, structured representation of *what the
+   user was doing and why*, derived from the time-series stream of signals
+4. **Agentically applies edits** based on the intent graph — zooms, trims, speed changes,
+   pans, transitions, captions, music — layered onto a timeline
+5. **Shows the unrendered preview** to the user for review
+6. **Supports reprompting** — the user can tell the AI agent in natural language to make
+   more edits, and the agent re-plans using the persisted intent signals + feedback.
+   This loop repeats as many times as needed, just like prompting Cursor.
+
+### 0b. The Six Layers
+
+```
+Layer 1 — CAPTURE
+  MediaRecorder API + Web Audio API + cursor/key listeners → SpacetimeDB
+
+Layer 2 — SIGNAL EXTRACTION
+  Parallel workers: Deepgram (audio), Gemini/TwelveLabs (video),
+  cursor + keyboard processors, UI change detector
+
+Layer 3 — INTENT GRAPH / EDIT TIMELINE
+  Fused event stream → structured intent representation stored in SpacetimeDB
+  IntentNode table (timestamp, type, confidence), EditEvent table (insert_at, type, params)
+
+Layer 4 — AGENTIC AI LOOP
+  Reads intent graph → writes edit plan → user can reprompt
+  LLM agent (via Railtracks) + structured edit ops + SpacetimeDB reducer applyEditPlan()
+
+Layer 5 — UNRENDERED PREVIEW + RENDER
+  Non-destructive edit graph shown to user before final export
+  Canvas/WebCodecs for preview, FFmpeg for final export
+
+Layer 6 — CURSOR-STYLE EDITOR UI
+  Non-destructive, repromptable — user sees the edit plan, not the final video
+  Timeline UI + AI chat sidebar + version history
+```
+
+### 0c. Invariant: Edits Are Additive Over the Base Video
+
+The **source recording is immutable**. Every edit is a declaration layered on top:
+- Edits reference the base video by timestamp ranges (`sourceStartMs`, `sourceEndMs`)
+- Edits are organized into **layers** with a defined application order:
+  1. **Trims/cuts** — what segments to keep
+  2. **Speed changes** — speedup/slowdown (later edit wins on overlap)
+  3. **Zooms and pans** — camera movement (overlapping zoom+zoom → pan)
+  4. **Transitions** — between segments
+  5. **Overlays** — captions, highlights, cursor effects
+  6. **Audio** — music, noise removal, volume normalization
+
+### 0d. Invariant: Intent Signals Are Persistent
+
+Signals extracted from the recording are stored in SpacetimeDB and **never discarded**.
+They are the foundation for every AI planning step. When the user reprompts, the agent
+has access to the full signal history + all previous edit plans + the user's feedback.
+This is what makes the "Cursor for video editing" metaphor work — the AI has full context.
+
+### 0e. Invariant: The Agent Has Tool Calls
+
+The agentic AI loop is not a single prompt→response. It uses **structured tool calls**:
+- `addEdit(editType, sourceStartMs, sourceEndMs, parameters)` — add an edit to the plan
+- `removeEdit(editId)` — remove a previous edit
+- `modifyEdit(editId, changes)` — modify an existing edit
+- `querySignals(timeRange, signalTypes)` — look up specific signals
+- `validatePlan()` — check for conflicts (overlapping edits, impossible timings)
+
+The Railtracks framework orchestrates these calls with full observability.
+
+### 0f. Invariant: SpacetimeDB Is the Single Source of Truth
+
+All state flows through SpacetimeDB. Projects, tasks, signals, edit plans — everything
+is in STDB. The frontend reads from STDB. Workers read from and write to STDB.
+GCS stores binary data (video, audio, frames). STDB stores structured data (metadata,
+signals, tasks, edit plans).
+
+### 0g. SpacetimeDB HTTP API Format
+
+**CRITICAL**: The STDB HTTP API at `/v1/database/{module}/call/{reducer}` expects
+the request body to be a **JSON array** of positional arguments, NOT a JSON object.
+
+Example — calling `createProject(name, ownerId, metadata)`:
+```
+POST /v1/database/flowstudio/call/create_project
+Content-Type: application/json
+
+["My Project", "user-123", "{}"]
+```
+
+NOT `{"name": "My Project", "ownerId": "user-123", "metadata": "{}"}`.
 
 ---
 

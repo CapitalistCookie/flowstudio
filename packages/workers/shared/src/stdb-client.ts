@@ -1,3 +1,4 @@
+import { serializeReducerArgs, reducerToSnakeCase } from '@flowstudio/shared';
 import { Logger } from './logger.js';
 
 export interface StdbClientConfig {
@@ -9,17 +10,10 @@ export interface StdbClientConfig {
 /**
  * SpacetimeDB client for workers (HTTP-only).
  *
- * Calls reducers via HTTP POST and queries tables via SQL over HTTP.
- * When the official SpacetimeDB TypeScript SDK supports generated bindings,
- * replace this class with DbConnection.builder() — the public API surface
- * (callReducer, queryTable, disconnect) is designed to make that swap minimal.
- *
- * What changes when migrating to the SDK:
- *  - Constructor → DbConnection.builder().withUri().withModuleName().build()
- *  - callReducer() → generated reducer functions (type-safe)
- *  - queryTable() → ctx.db.tableName.iter() with subscription
- *  - isConnected → connection.isActive
- *  - disconnect() → connection.disconnect()
+ * CRITICAL: The STDB HTTP API expects reducer args as a JSON ARRAY of
+ * positional values, NOT a JSON object. See ARCHITECTURE.md §0g.
+ * We use serializeReducerArgs() from @flowstudio/shared to ensure
+ * correct serialization order.
  */
 export class StdbClient {
   private readonly baseUrl: string;
@@ -35,24 +29,28 @@ export class StdbClient {
     this.logger.info('StdbClient initialized', { baseUrl: this.baseUrl, module: this.moduleName });
   }
 
-  /**
-   * Call a SpacetimeDB reducer via HTTP POST.
-   * SDK migration: replace with generated reducer call (e.g. FindAndClaimTask.call(conn, args))
-   */
   async callReducer(reducerName: string, args: Record<string, unknown>): Promise<void> {
-    const snakeName = reducerName.replace(/[A-Z]/g, (c: string) => '_' + c.toLowerCase()).replace(/^_/, '');
+    const snakeName = reducerToSnakeCase(reducerName);
     const url = `${this.baseUrl}/v1/database/${this.moduleName}/call/${snakeName}`;
     this.logger.debug(`Calling reducer: ${reducerName}`, { args });
+
+    let body: string;
+    try {
+      body = serializeReducerArgs(reducerName, args);
+    } catch {
+      this.logger.warn(`Unknown reducer "${reducerName}", falling back to object`);
+      body = JSON.stringify(args);
+    }
 
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(args),
+      body,
     });
 
     if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`Reducer ${reducerName} failed (${response.status}): ${body}`);
+      const text = await response.text();
+      throw new Error(`Reducer ${reducerName} failed (${response.status}): ${text}`);
     }
   }
 

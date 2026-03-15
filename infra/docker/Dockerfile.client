@@ -4,37 +4,31 @@ WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY tsconfig.base.json ./
 COPY packages/shared/ packages/shared/
-COPY finalFrontend/ finalFrontend/
+COPY frontend/ frontend/
 
 RUN npm install -g pnpm@9
-RUN pnpm install --frozen-lockfile --filter @flowstudio/shared --filter @flowstudio/frontend
+RUN pnpm install --frozen-lockfile --filter @flowstudio/shared
 
 ARG NEXT_PUBLIC_STDB_HOST=wss://stdb.flowstudio.ai
 ARG NEXT_PUBLIC_STDB_MODULE=flowstudio
-ARG NEXT_PUBLIC_UPLOAD_FUNCTION_URL=
+ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
 ENV NEXT_PUBLIC_STDB_HOST=$NEXT_PUBLIC_STDB_HOST
 ENV NEXT_PUBLIC_STDB_MODULE=$NEXT_PUBLIC_STDB_MODULE
-ENV NEXT_PUBLIC_UPLOAD_FUNCTION_URL=$NEXT_PUBLIC_UPLOAD_FUNCTION_URL
+ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 
-RUN pnpm --filter @flowstudio/shared run build
-RUN pnpm --filter @flowstudio/frontend run build
+RUN cd frontend && npm install
+RUN cd frontend && npm run build
 
 FROM node:20.18-slim AS production
 WORKDIR /app
 
-# Copy standalone output (includes server.js + bundled node_modules)
-COPY --from=base /app/finalFrontend/.next/standalone ./
-# Copy static assets
-COPY --from=base /app/finalFrontend/.next/static ./finalFrontend/.next/static
-# Copy public assets (favicon, etc.)
-COPY --from=base /app/finalFrontend/public ./finalFrontend/public
-
-# Ensure ESM support — standalone server.js uses import statements
-RUN node -e "const p=require('./package.json');p.type='module';require('fs').writeFileSync('./package.json',JSON.stringify(p,null,2))"
+COPY --from=base /app/frontend/.next/standalone ./
+COPY --from=base /app/frontend/.next/static ./frontend/.next/static
+COPY --from=base /app/frontend/public ./frontend/public
 
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
 EXPOSE 3000
 
-CMD ["node", "finalFrontend/server.js"]
+CMD ["node", "frontend/server.js"]

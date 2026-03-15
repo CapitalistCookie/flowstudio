@@ -77,10 +77,10 @@ def validate_intent_graph(items: list[dict]) -> list[str]:
     seen_ids = set()
     for i, item in enumerate(items):
         prefix = f"intent[{i}]"
-        if "intent_id" not in item:
-            errors.append(f"{prefix}: missing intent_id")
+        if "intentId" not in item:
+            errors.append(f"{prefix}: missing intentId")
         else:
-            seen_ids.add(item["intent_id"])
+            seen_ids.add(item["intentId"])
 
         if "action" not in item:
             errors.append(f"{prefix}: missing action")
@@ -89,16 +89,16 @@ def validate_intent_graph(items: list[dict]) -> list[str]:
         if not (0 <= conf <= 1):
             errors.append(f"{prefix}: confidence {conf} out of [0, 1]")
 
-        if item.get("start_ms", 0) < 0:
-            errors.append(f"{prefix}: negative start_ms")
-        if item.get("end_ms", 0) < 0:
-            errors.append(f"{prefix}: negative end_ms")
+        if item.get("startMs", 0) < 0:
+            errors.append(f"{prefix}: negative startMs")
+        if item.get("endMs", 0) < 0:
+            errors.append(f"{prefix}: negative endMs")
 
     # Check parent references
     for item in items:
-        parent = item.get("parent_intent_id")
+        parent = item.get("parentIntentId")
         if parent and parent not in seen_ids:
-            errors.append(f"intent {item.get('intent_id')}: parent_intent_id '{parent}' not found")
+            errors.append(f"intent {item.get('intentId')}: parentIntentId '{parent}' not found")
 
     return errors
 
@@ -112,12 +112,12 @@ def validate_narrative_plan(items: list[dict]) -> list[str]:
 
     for i, item in enumerate(items):
         prefix = f"beat[{i}]"
-        bt = item.get("beat_type", "")
+        bt = item.get("beatType", "")
         if bt not in VALID_BEAT_TYPES:
-            errors.append(f"{prefix}: invalid beat_type '{bt}'")
+            errors.append(f"{prefix}: invalid beatType '{bt}'")
         if "title" not in item:
             errors.append(f"{prefix}: missing title")
-        if item.get("suggested_duration_ms", 0) <= 0:
+        if item.get("suggestedDurationMs", 0) <= 0:
             errors.append(f"{prefix}: non-positive duration")
 
     return errors
@@ -132,18 +132,18 @@ def validate_edit_plan(items: list[dict]) -> list[str]:
 
     for i, item in enumerate(items):
         prefix = f"edit[{i}]"
-        et = item.get("edit_type", "")
+        et = item.get("editType", "")
         if et not in VALID_EDIT_TYPES:
-            errors.append(f"{prefix}: invalid edit_type '{et}'")
+            errors.append(f"{prefix}: invalid editType '{et}'")
 
-        src_start = item.get("source_start_ms", -1)
-        src_end = item.get("source_end_ms", -1)
+        src_start = item.get("sourceStartMs", -1)
+        src_end = item.get("sourceEndMs", -1)
         if src_start < 0:
-            errors.append(f"{prefix}: negative source_start_ms")
+            errors.append(f"{prefix}: negative sourceStartMs")
         if src_end < 0:
-            errors.append(f"{prefix}: negative source_end_ms")
+            errors.append(f"{prefix}: negative sourceEndMs")
         if src_start > src_end:
-            errors.append(f"{prefix}: source_start_ms > source_end_ms")
+            errors.append(f"{prefix}: sourceStartMs > sourceEndMs")
 
         if "reasoning" not in item:
             errors.append(f"{prefix}: missing reasoning")

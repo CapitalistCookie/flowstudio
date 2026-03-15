@@ -7,12 +7,13 @@ import { EditorShell } from "@/components/editor-shell"
 function StudioContent() {
   const searchParams = useSearchParams()
   const mode = searchParams.get("edits")
+  const projectId = searchParams.get("projectId") ?? "local-project"
   const normalizedMode = mode === "refine" ? "tweak" : mode
 
   return (
     <div className="flex h-screen w-full flex-col bg-background font-sans overflow-hidden">
       <EditorShell
-        projectId="local-project"
+        projectId={projectId}
         initialEditMode={normalizedMode === "tweak" || normalizedMode === "auto" ? normalizedMode : "none"}
       />
     </div>
