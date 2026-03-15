@@ -2117,3 +2117,287 @@ intervals for timestamp calculation (`i * 2000`). If `sampleIntervalSecs` is cha
 
 **Fix:** Propagate the actual sample interval through the task config or store it as
 metadata alongside the frames.
+
+---
+
+## 12. Railtracks Gateway — Agentic AI Loop (Layer 4)
+
+The Railtracks gateway (`packages/railtracks-gateway/`) is a Python FastAPI service that
+provides an **interactive, iterative** edit planning experience. It runs the same conceptual
+3-stage pipeline as the native TypeScript workers (intent → narrative → edit), but with
+different trade-offs optimized for real-time user interaction.
+
+### 12a. Why Two Pipelines Exist
+
+| Capability | Native Workers | Railtracks Gateway |
+|------------|---------------|-------------------|
+| **Purpose** | Background processing on upload | Interactive editing in Inspector |
+| **Trigger** | Automatic (pipeline trigger) | Manual (user prompt) |
+| **Feedback** | One-shot, no iteration | RepromptAgent for iterative refinement |
+| **Persistence** | STDB signals + GCS JSON files | HTTP response only (browser state) |
+| **LLM** | Claude Sonnet 4 via Vertex AI | Gemini 2.0 Flash |
+| **Language** | TypeScript (worker processes) | Python (FastAPI + Railtracks SDK) |
+| **Orchestration** | STDB DAG with dependency gating | Sequential `rt.call()` in single function |
+| **Error recovery** | Auto-retry (3x) + watchdog (5min) | HTTP 500, no retry |
+| **Prompt security** | `buildSecurePrompt()` + Zod schemas | JSON extraction + Pydantic validation |
+| **Observability** | STDB task status tracking | Railtracks session JSON files |
+| **Latency** | Minutes (full worker pipeline) | 3-15 seconds (3 LLM calls) |
+| **Scalability** | Horizontal (Cloud Run autoscale) | Single process |
+
+Both systems are kept intentionally. The native workers provide reliable, persistent
+background processing. The gateway provides the fast, interactive "reprompting" experience
+that is core to the product vision (Section 0a, step 6).
+
+### 12b. Gateway Architecture
+
+```
+packages/railtracks-gateway/
+├── app/
+│   ├── main.py              # FastAPI app, endpoints, middleware
+│   ├── flow.py              # Railtracks Flow definitions (rt.agent_node, rt.Flow)
+│   ├── config.py            # Pydantic settings from environment
+│   ├── schemas.py           # Request/response models (matches frontend types)
+│   ├── gcs_tools.py         # GCS client (UNUSED — dead code, kept for future use)
+│   └── agents/
+│       ├── intent_agent.py   # System prompt + signal formatting
+│       ├── narrative_agent.py# System prompt + beat generation
+│       ├── edit_agent.py     # System prompt + edit/reprompt planning
+│       └── validation.py     # Programmatic output validation
+├── tests/                    # 71 tests (agents, API, contracts, flow, validation)
+├── Dockerfile                # Python 3.12-slim, port 8000
+├── requirements.txt          # railtracks>=1.3.0, fastapi, google-generativeai, etc.
+└── .railtracks/data/sessions/ # Auto-recorded flow execution traces
+```
+
+**API Endpoints:**
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/api/v1/generate-edits` | Full pipeline: signals → intent → narrative → edit plan |
+| POST | `/api/v1/reprompt` | Revise edit plan based on user feedback |
+| GET | `/health` | Health check (service name, framework) |
+
+**Middleware stack:** CORS (configurable origins) → Rate limiting (30 RPM/IP) → API key auth (optional)
+
+### 12c. Railtracks Flow Orchestration
+
+The gateway uses the [Railtracks SDK](https://railtracks.dev) for agent orchestration:
+
+```python
+# flow.py — Four agent nodes, two flows
+
+IntentAgent = rt.agent_node("IntentAnalyzer", llm=GeminiLLM("gemini-2.0-flash"), ...)
+NarrativeAgent = rt.agent_node("NarrativePlanner", llm=GeminiLLM("gemini-2.0-flash"), ...)
+EditAgent = rt.agent_node("EditPlanner", llm=GeminiLLM("gemini-2.0-flash"), ...)
+RepromptAgent = rt.agent_node("RepromptPlanner", llm=GeminiLLM("gemini-2.0-flash"), ...)
+
+# Edit flow: signals_json → IntentAgent → NarrativeAgent → EditAgent → JSON result
+edit_flow = rt.Flow(name="FlowStudio Edit Pipeline", entry_point=edit_pipeline)
+
+# Reprompt flow: {previous_edit_plan, feedback} → RepromptAgent → revised JSON
+reprompt_flow = rt.Flow(name="FlowStudio Reprompt", entry_point=reprompt_pipeline)
+```
+
+Each agent has a **validation tool node** (`@rt.function_node`) that it can call to
+self-validate its JSON output before returning. Validation checks structural correctness
+(valid edit types, non-negative timestamps, parent reference integrity, etc.).
+
+**Railtracks observability:** Every `rt.Flow.ainvoke()` automatically writes a session JSON
+to `.railtracks/data/sessions/` with full execution traces (LLM inputs/outputs, token usage,
+latency, costs). Use `railtracks viz` to inspect runs in a web UI.
+
+### 12d. End-to-End Data Flow
+
+```
+┌─ PHASE 1: Upload & Worker Pipeline (automatic, background) ──────────────┐
+│                                                                            │
+│  User uploads video                                                       │
+│    → triggerPipeline() creates 4 initial STDB tasks                       │
+│    → Workers claim tasks via WebSocket, process sequentially:             │
+│       AUDIO_EXTRACT → SPEECH_TRANSCRIPTION ─┐                             │
+│       VIDEO_SAMPLE → VIDEO_UNDERSTANDING ───┤                             │
+│       VIDEO_SAMPLE → UI_CHANGE_DETECT ──────┼→ INTENT_GRAPH              │
+│       CURSOR/TYPING → INTERACTION_PATTERN ──┘   → NARRATIVE_PLAN         │
+│                                                   → EDIT_PLAN             │
+│                                                     → TIMELINE_BUILD     │
+│    → Each worker writes signals to STDB + GCS                             │
+│    → Results persist across page refreshes                                │
+└───────────────────────────────────────────────────────────────────────────┘
+
+┌─ PHASE 2: Interactive AI Loop (manual, foreground) ──────────────────────┐
+│                                                                            │
+│  User opens Inspector panel, types instruction                            │
+│                                                                            │
+│  ① Frontend reads signals from STDB in-memory cache                      │
+│     signal-fetcher.ts → conn.db.signals.iter() [LOCAL, no network]       │
+│     Maps: SPEECH_SEGMENT, SCENE_CHANGE, UI_TRANSITION, INTERACTION_CLUSTER│
+│     (4 of 10 signal types — others ignored by gateway)                    │
+│                                                                            │
+│  ② Frontend POSTs to gateway                                              │
+│     use-agent.ts → POST ${GATEWAY_URL}/api/v1/generate-edits             │
+│     Body: { project_id, signals: { speech_segments, ... } }              │
+│                                                                            │
+│  ③ Gateway runs 3-stage Railtracks pipeline (~3-15 seconds)               │
+│     IntentAgent → NarrativeAgent → EditAgent                              │
+│     Each calls Gemini 2.0 Flash sequentially                              │
+│                                                                            │
+│  ④ Response returns to frontend                                           │
+│     { run_id, status, edit_plan[], intent_graph[], narrative_plan[] }     │
+│                                                                            │
+│  ⑤ Frontend applies edit plan to timeline                                 │
+│     editPlanToTimelineClips() → applyEditPlan() → timeline re-renders    │
+│                                                                            │
+│  ⑥ User provides feedback → POST /api/v1/reprompt                        │
+│     RepromptAgent revises plan → loop repeats from ④                      │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+### 12e. Frontend ↔ Gateway Contract
+
+**Request schemas** (use-agent.ts → main.py):
+
+```typescript
+// Generate edits (first request)
+{
+  project_id: string,
+  signals: {
+    speech_segments: Record<string, unknown>[],   // includes user prompt as first item
+    scene_descriptions: Record<string, unknown>[],
+    ui_transitions: Record<string, unknown>[],
+    interaction_clusters: Record<string, unknown>[]
+  }
+}
+
+// Reprompt (subsequent requests)
+{
+  project_id: string,
+  previous_edit_plan: EditDecision[],  // camelCase, Pydantic accepts via alias
+  feedback: string                     // 1-5000 chars
+}
+```
+
+**Response schema** (main.py → use-agent.ts):
+
+```typescript
+{
+  run_id: string,
+  status: "pending" | "running" | "completed" | "failed",
+  project_id: string,
+  edit_plan: EditDecision[],           // core output
+  intent_graph?: unknown[],            // intermediate (generate-edits only)
+  narrative_plan?: unknown[],          // intermediate (generate-edits only)
+  error?: string,
+  duration_ms?: number,
+  token_usage?: Record<string, unknown>
+}
+```
+
+**EditDecision** (shared between frontend, gateway, and native workers):
+
+```typescript
+{
+  editType: "cut" | "trim" | "speedup" | "slowdown" | "zoom" | "pan" | "transition" | "overlay",
+  sourceStartMs: number,   // >= 0, must be <= sourceEndMs
+  sourceEndMs: number,
+  outputStartMs: number,
+  outputEndMs: number,
+  parameters: Record<string, unknown>,  // e.g. { speed: 2.0 }, { zoomLevel: 1.5 }
+  reasoning: string        // max 1000 chars
+}
+```
+
+### 12f. Native Worker Equivalents
+
+The three gateway agents map directly to native workers:
+
+| Gateway Agent | Native Worker | Signal Type Written |
+|--------------|---------------|-------------------|
+| IntentAgent (Gemini) | `intent-graph` worker (Claude) | `INTENT_NODE` |
+| NarrativeAgent (Gemini) | `narrative-planner` worker (Claude) | `NARRATIVE_BEAT` |
+| EditAgent (Gemini) | `edit-planner` worker (Claude) | `EDIT_DECISION` |
+| RepromptAgent (Gemini) | *No equivalent* | *N/A* |
+| *N/A* | `timeline-builder` worker | `TIMELINE_EVENT` |
+
+**Key differences in implementation:**
+
+1. **Prompt management:** Workers use a centralized `PROMPT_REGISTRY` with runtime overrides
+   via `task.config.promptOverrides`. Gateway agents have prompts hardcoded in their source files.
+
+2. **Input source:** Workers read upstream signals from GCS JSON files. The gateway receives
+   signals in the HTTP request body (pre-fetched from STDB cache by the frontend).
+
+3. **Output destination:** Workers write signals to both STDB (via `writeSignal` reducer)
+   and GCS (JSON files). The gateway only returns results in the HTTP response — nothing
+   is persisted. The `gcs_tools.py` module exists for GCS write-back but is currently unused.
+
+4. **Validation:** Workers validate LLM output with strict Zod schemas. The gateway uses
+   bracket-counting JSON extraction + Pydantic models + programmatic validation functions.
+
+### 12g. Configuration
+
+**Environment variables:**
+
+| Variable | Default | Used By |
+|----------|---------|---------|
+| `NEXT_PUBLIC_RAILTRACKS_URL` | `http://localhost:8000` | Frontend (use-agent.ts) |
+| `GOOGLE_AI_API_KEY` | *(required)* | Gateway (Gemini LLM calls) |
+| `GATEWAY_API_KEY` | *(empty = disabled)* | Gateway (X-API-Key auth) |
+| `GATEWAY_RATE_LIMIT_RPM` | `30` | Gateway (per-IP rate limit) |
+| `ALLOWED_ORIGINS` | `http://localhost:3000` | Gateway (CORS) |
+| `RAILTRACKS_GATEWAY_PORT` | `8000` | Docker/scripts |
+
+**Unused config (kept for future use):** `GCS_BUCKET`, `GCP_PROJECT_ID`, `ANTHROPIC_API_KEY`,
+`VERTEX_REGION`, `VERTEX_PROJECT_ID`, `STDB_INTERNAL_HOST`, `STDB_MODULE`.
+
+### 12h. Docker & Local Development
+
+**Docker Compose** (profiles: `core`, `full`):
+
+```yaml
+gateway:
+  build:
+    context: packages/railtracks-gateway
+  ports: ["8000:8000"]
+  env_file: .env
+  environment:
+    STDB_INTERNAL_HOST: stdb:3000   # configured but unused
+  depends_on:
+    stdb: { condition: service_healthy }
+  healthcheck:
+    test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health').raise_for_status()"]
+```
+
+**Local development:**
+
+```bash
+# Start gateway (Python)
+cd packages/railtracks-gateway
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+
+# Run tests
+pytest tests/ -v   # 71 tests, ~3 seconds
+
+# View Railtracks execution traces
+railtracks init && railtracks viz
+```
+
+### 12i. Known Issues & Future Work
+
+**Current issues:**
+- Gateway edit plans are ephemeral — lost on page refresh. `gcs_tools.py` was built for
+  persistence but is not wired up.
+- No CI/CD pipeline for the gateway (not in Terraform or GitHub Actions).
+- Gateway does not connect to STDB despite having config for it.
+- Frontend `EditDecision.editType` is typed as `string` instead of a union type.
+- `SignalData` uses `list[dict]` instead of typed schemas for signal payloads.
+
+**Future integration points:**
+- Wire `gcs_tools.py` to persist gateway edit plans to GCS.
+- Add STDB write-back so gateway results appear in pipeline status.
+- Unify prompt management (share PROMPT_REGISTRY with gateway agents).
+- Add gateway to CI/CD and Terraform.
+- Consider letting the gateway consume worker-produced `INTENT_NODE` signals instead of
+  re-running intent analysis, enabling a hybrid mode where the gateway only runs the
+  narrative and edit stages on pre-computed intent data.

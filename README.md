@@ -20,7 +20,8 @@ An AI-powered video editing platform that automatically transforms screen record
 9. [Development Workflow](#9-development-workflow)
 10. [Configuration Reference](#10-configuration-reference)
 11. [Troubleshooting](#11-troubleshooting)
-12. [Known Limitations and Future Work](#12-known-limitations-and-future-work)
+12. [Railtracks Gateway — Interactive AI Editing](#12-railtracks-gateway--interactive-ai-editing)
+13. [Known Limitations and Future Work](#13-known-limitations-and-future-work)
 
 ---
 
@@ -1318,7 +1319,117 @@ spacetime sql flowstudio --host http://localhost:3000 "SELECT * FROM tasks WHERE
 
 ---
 
-## 12. Known Limitations and Future Work
+## 12. Railtracks Gateway — Interactive AI Editing
+
+The Railtracks gateway (`packages/railtracks-gateway/`) is a Python FastAPI service that
+provides an **interactive, iterative** edit planning experience via the Inspector panel.
+It runs the same conceptual 3-stage pipeline as the native TypeScript workers
+(intent → narrative → edit), but optimized for real-time user interaction with a feedback loop.
+
+### Two Parallel Pipelines
+
+FlowStudio has two complete implementations of the AI editing pipeline:
+
+```
+NATIVE WORKER PIPELINE (automatic, on upload)
+──────────────────────────────────────────────
+Upload → STDB tasks → Workers claim via WebSocket → Process sequentially:
+  AUDIO_EXTRACT → SPEECH_TRANSCRIPTION ─┐
+  VIDEO_SAMPLE → VIDEO_UNDERSTANDING ───┤
+  VIDEO_SAMPLE → UI_CHANGE_DETECT ──────┼→ INTENT_GRAPH → NARRATIVE_PLAN → EDIT_PLAN → TIMELINE_BUILD
+  CURSOR/TYPING → INTERACTION_PATTERN ──┘
+Results: Written to STDB signals table + GCS JSON files (persistent)
+LLM: Claude Sonnet 4 via Vertex AI
+Feedback: None (one-shot)
+
+
+RAILTRACKS GATEWAY (interactive, in Inspector panel)
+────────────────────────────────────────────────────
+User types instruction → Frontend reads STDB signal cache → POST /api/v1/generate-edits
+  → IntentAgent → NarrativeAgent → EditAgent (3 sequential Gemini 2.0 Flash calls)
+  → HTTP response → Timeline renders
+User provides feedback → POST /api/v1/reprompt → RepromptAgent → revised plan
+Results: HTTP response only (browser state, lost on refresh)
+LLM: Gemini 2.0 Flash
+Feedback: RepromptAgent for iterative refinement
+```
+
+### Side-by-Side Comparison
+
+| Aspect | Native Workers | Railtracks Gateway |
+|--------|---------------|-------------------|
+| **LLM** | Claude Sonnet 4 (Vertex AI) | Gemini 2.0 Flash |
+| **Language** | TypeScript | Python |
+| **Orchestration** | STDB DAG (auto-task chaining) | Sequential `rt.call()` |
+| **Persistence** | STDB + GCS (survives refresh) | HTTP response only (ephemeral) |
+| **Trigger** | Automatic on video upload | Manual (user types in Inspector) |
+| **Feedback loop** | None (one-shot) | RepromptAgent (iterative) |
+| **Prompt management** | Centralized PROMPT_REGISTRY, runtime overrideable | Hardcoded in agent files |
+| **Error recovery** | Auto-retry (3x) + watchdog (5min stale reset) | HTTP 500, no retry |
+| **Latency** | Minutes (full worker pipeline) | 3-15 seconds (3 LLM calls) |
+| **Observability** | STDB task status | `.railtracks/data/sessions/` JSON |
+
+### Quick Start
+
+```bash
+# Start the gateway
+cd packages/railtracks-gateway
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+
+# Run tests (71 tests, ~3 seconds)
+pytest tests/ -v
+
+# View execution traces
+railtracks init && railtracks viz
+```
+
+### API Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/api/v1/generate-edits` | Full pipeline: signals → intent → narrative → edit plan |
+| POST | `/api/v1/reprompt` | Revise edit plan based on user feedback |
+| GET | `/health` | Health check |
+
+### End-to-End Data Flow
+
+```
+① Frontend reads signals from STDB in-memory cache (LOCAL, no network call)
+   signal-fetcher.ts → conn.db.signals.iter()
+   Consumes 4 of 10 signal types: speech_segment, scene_change, ui_transition, interaction_cluster
+
+② Frontend POSTs to gateway with signals + user prompt
+   use-agent.ts → POST ${GATEWAY_URL}/api/v1/generate-edits
+
+③ Gateway runs Railtracks 3-stage pipeline (~3-15 seconds)
+   IntentAgent → NarrativeAgent → EditAgent (each calls Gemini 2.0 Flash)
+   Each agent has a validation tool node for self-checking output
+
+④ Response returns: { edit_plan[], intent_graph[], narrative_plan[] }
+
+⑤ Frontend applies to timeline
+   editPlanToTimelineClips() → applyEditPlan() → timeline re-renders
+
+⑥ User feedback → POST /api/v1/reprompt → RepromptAgent → loop from ④
+```
+
+### Configuration
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `NEXT_PUBLIC_RAILTRACKS_URL` | `http://localhost:8000` | Frontend gateway URL |
+| `GOOGLE_AI_API_KEY` | *(required)* | Gemini API key for LLM calls |
+| `GATEWAY_API_KEY` | *(empty = disabled)* | Optional X-API-Key auth |
+| `GATEWAY_RATE_LIMIT_RPM` | `30` | Per-IP rate limit |
+| `ALLOWED_ORIGINS` | `http://localhost:3000` | CORS allowed origins |
+
+> For full architectural details, see [ARCHITECTURE.md Section 12](ARCHITECTURE.md#12-railtracks-gateway--agentic-ai-loop-layer-4).
+
+---
+
+## 13. Known Limitations and Future Work
 
 ### Authentication (Critical for Production)
 
