@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef } from "react"
 import { updateProject, type TimelineData } from "@/lib/projects"
-import { type TimelineClipData, type MediaFileData, type ClipTransform, type ClipEffects, type Caption } from "@/lib/types"
+import { type TimelineClipData, type MediaFileData, type ClipTransform, type ClipEffects, type Caption, type EffectBlockData } from "@/lib/types"
 import { uploadMediaFile } from "@/lib/storage"
 
 export const PIXELS_PER_SECOND = 10 // Timeline scale: 10px = 1 second
@@ -82,6 +82,14 @@ interface EditorContextType {
   updateClip: (id: string, updates: Partial<TimelineClip>) => void
   removeClip: (id: string) => void
   splitClip: (clipId: string, splitTime: number) => void // Split a clip at the given timeline time (in seconds)
+
+  // Modular effect blocks (attach to time ranges; implementation is backend)
+  effectBlocks: EffectBlockData[]
+  addEffectBlock: (block: EffectBlockData) => void
+  updateEffectBlock: (id: string, updates: Partial<EffectBlockData>) => void
+  removeEffectBlock: (id: string) => void
+  selectedEffectBlockId: string | null
+  setSelectedEffectBlockId: (id: string | null) => void
   
   // Timeline Zoom
   zoomLevel: number // Zoom percentage (25% = zoomed out showing 10min, 500% = zoomed in)
@@ -161,7 +169,9 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const [projectResolution, setProjectResolution] = useState<string | null>(null)
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([])
   const [timelineClips, setTimelineClips] = useState<TimelineClip[]>([])
+  const [effectBlocks, setEffectBlocks] = useState<EffectBlockData[]>([])
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null)
+  const [selectedEffectBlockId, setSelectedEffectBlockId] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState(0) // Time in seconds
   const [isPlaying, setIsPlaying] = useState(false)
   const [isScrubbing, setIsScrubbing] = useState(false)
@@ -408,6 +418,25 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     setHasUnsavedChanges(true)
   }, [saveToHistory])
 
+  const addEffectBlock = useCallback((block: EffectBlockData) => {
+    setEffectBlocks((prev) => [...prev, block])
+    setSelectedEffectBlockId(block.id)
+    setHasUnsavedChanges(true)
+  }, [])
+
+  const updateEffectBlock = useCallback((id: string, updates: Partial<EffectBlockData>) => {
+    setEffectBlocks((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, ...updates } : b))
+    )
+    setHasUnsavedChanges(true)
+  }, [])
+
+  const removeEffectBlock = useCallback((id: string) => {
+    setEffectBlocks((prev) => prev.filter((b) => b.id !== id))
+    if (selectedEffectBlockId === id) setSelectedEffectBlockId(null)
+    setHasUnsavedChanges(true)
+  }, [selectedEffectBlockId])
+
   const updateClip = useCallback((id: string, updates: Partial<TimelineClip>) => {
     console.log("[EditorContext] updateClip called:", id, updates)
     saveToHistory()
@@ -531,6 +560,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
     setMediaFiles(restoredMedia)
     setTimelineClips(restoredClips)
+    setEffectBlocks(data.effectBlocks ?? [])
     setHasUnsavedChanges(false)
   }, [])
 
@@ -571,6 +601,13 @@ export function EditorProvider({ children }: { children: ReactNode }) {
           twelveLabsIndexId: m.twelveLabsIndexId,
           twelveLabsStatus: m.twelveLabsStatus,
         })),
+      effectBlocks: effectBlocks.map((b) => ({
+        id: b.id,
+        effectType: b.effectType,
+        startTime: b.startTime,
+        duration: b.duration,
+        config: b.config,
+      })),
     }
 
     // Calculate duration
@@ -592,7 +629,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
     setHasUnsavedChanges(false)
     setIsSaving(false)
-  }, [projectId, timelineClips, mediaFiles, projectThumbnail])
+  }, [projectId, timelineClips, mediaFiles, effectBlocks, projectThumbnail])
 
   // Auto-save with debounce
   useEffect(() => {
@@ -736,6 +773,12 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         updateClip,
         removeClip,
         splitClip,
+        effectBlocks,
+        addEffectBlock,
+        updateEffectBlock,
+        removeEffectBlock,
+        selectedEffectBlockId,
+        setSelectedEffectBlockId,
         zoomLevel,
         setZoomLevel,
         zoomIn,
