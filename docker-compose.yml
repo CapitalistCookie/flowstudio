@@ -1,11 +1,13 @@
 services:
   # ─── Core Infrastructure ────────────────────────────────────────────
+  # SpacetimeDB: use clockworklabs/spacetime (clockworklabs/spacetimedb was deprecated Apr 2025)
   stdb:
-    image: clockworklabs/spacetimedb:latest
+    image: clockworklabs/spacetime:latest
+    command: ["start", "--data-dir=/stdb/data"]
     ports:
-      - "3000:3000"
+      - "3002:3000"   # host 3002 to avoid conflict with app on 3000; set STDB_BACKEND_URL=http://127.0.0.1:3002
     volumes:
-      - stdb-data:/var/lib/spacetimedb
+      - stdb-data:/stdb
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/database/ping"]
       interval: 5s

@@ -53,12 +53,18 @@ pnpm --filter @flowstudio/worker-shared run build
 
 **Terminal 1 — SpacetimeDB (Docker)**
 
+Uses `clockworklabs/spacetime` (the old `clockworklabs/spacetimedb` image was deprecated in 2025).  
+SpacetimeDB is mapped to **host port 3002** so it doesn’t conflict with anything on 3000. Set `STDB_BACKEND_URL=http://127.0.0.1:3002` in `.env`.
+
 ```bash
+# If you previously had "Permission denied" or connection refused, reset the volume:
+docker compose down -v
+
 docker compose up stdb -d
 sleep 5
-# Publish the STDB module (requires spacetime CLI; use your path if different)
-spacetime publish flowstudio --path packages/stdb-module
-# If spacetime is installed via cargo: ~/.cargo/bin/spacetime publish flowstudio --path packages/stdb-module
+# Publish the STDB module (CLI uses -p/--module-path; -s points at local Docker)
+cd packages/stdb-module && ~/.local/bin/spacetime publish flowstudio -p . -s http://localhost:3002 -y
+# Or from repo root: spacetime publish flowstudio -p packages/stdb-module -s http://localhost:3002 -y
 ```
 
 **Terminal 2 — Upload Cloud Function (optional; needed for GCS uploads from the app)**
@@ -117,7 +123,7 @@ pnpm install && (cd frontend && pnpm install) && (cd packages/railtracks-gateway
 pnpm --filter @flowstudio/shared run build && pnpm --filter @flowstudio/worker-shared run build
 
 # Start stdb + publish (then in other terminals: upload fn, gateway, frontend)
-docker compose up stdb -d && sleep 5 && spacetime publish flowstudio --path packages/stdb-module
+docker compose up stdb -d && sleep 5 && (cd packages/stdb-module && spacetime publish flowstudio -p . -s http://localhost:3002 -y)
 ```
 
 ---
