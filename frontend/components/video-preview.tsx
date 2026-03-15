@@ -835,17 +835,12 @@ export function VideoPreview() {
 
     const rect = scrubberRef.current.getBoundingClientRect()
     const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-    // Calculate time based on scrubber position
-    // Use timelineEndTime as base, but allow going past it
-    // If timelineEndTime is 0 or very small, use a minimum of 10 seconds
-    const baseTime = Math.max(timelineEndTime, 10)
-    // Allow scrubbing up to 3x the base time, or at least 60 seconds
-    const maxScrubTime = Math.max(baseTime * 3, 60)
-    const newTime = percent * maxScrubTime
+    const maxTime = Math.max(timelineEndTime, displayTime, 1)
+    const newTime = percent * maxTime
 
     setCurrentTime(newTime)
     setDisplayTime(newTime)
-  }, [timelineEndTime, setCurrentTime])
+  }, [timelineEndTime, displayTime, setCurrentTime])
 
   const handleScrubberDrag = useCallback((e: React.MouseEvent) => {
     if (!scrubberRef.current) return
@@ -861,10 +856,8 @@ export function VideoPreview() {
 
       const rect = scrubberRef.current.getBoundingClientRect()
       const percent = Math.max(0, Math.min(1, (moveEvent.clientX - rect.left) / rect.width))
-      // Calculate time based on scrubber position, allowing to go past timelineEndTime
-      const baseTime = Math.max(timelineEndTime, 10)
-      const maxScrubTime = Math.max(baseTime * 3, 60)
-      const newTime = percent * maxScrubTime
+      const maxTime = Math.max(timelineEndTime, displayTime, 1)
+      const newTime = percent * maxTime
 
       setCurrentTime(newTime)
       setDisplayTime(newTime)
@@ -881,7 +874,7 @@ export function VideoPreview() {
 
     window.addEventListener("mousemove", handleMouseMove)
     window.addEventListener("mouseup", handleMouseUp)
-  }, [timelineEndTime, isPlaying, setCurrentTime, setIsPlaying])
+  }, [timelineEndTime, displayTime, isPlaying, setCurrentTime, setIsPlaying])
 
   const handleFullscreenScrub = useCallback((e: React.MouseEvent) => {
     e.preventDefault()

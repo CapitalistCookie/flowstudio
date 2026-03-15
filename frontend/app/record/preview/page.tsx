@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { CheckCircle2, Loader2, Sparkles, Wand2 } from "lucide-react"
+import { CheckCircle2, Loader2, Sparkles, SlidersHorizontal, Wand2 } from "lucide-react"
 import { useCaptureStore } from "@/lib/capture/capture-store"
 import { getRecordedBlob, discardCapture } from "@/lib/capture/capture-service"
 import { uploadToGcs } from "@/lib/upload/upload-service"
@@ -318,8 +318,8 @@ export default function RecordingPreviewPage() {
                 disabled={pendingAction !== null}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#F5A623] px-5 text-sm font-semibold text-[#1A1916] shadow-lg transition duration-200 hover:scale-[1.01] hover:bg-[#E79A21] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {pendingAction === "refine" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                {isRefineUploading ? "Uploading..." : "Refine in Studio"}
+                {pendingAction === "refine" ? <Loader2 className="h-4 w-4 animate-spin" /> : <SlidersHorizontal className="h-4 w-4" />}
+                {isRefineUploading ? "Uploading..." : "Customize Edits"}
               </button>
 
               {isAutoProcessing && (

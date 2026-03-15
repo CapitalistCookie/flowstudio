@@ -18,7 +18,7 @@ export function FluxLogo({ size = "md", className }: FluxLogoProps) {
   return (
     <div className={cn("flex items-center justify-center leading-none", className)}>
       <Image
-        src="/branding/flowstudio-logo-v3.png"
+        src="/branding/lightlogo.png"
         alt="FlowStudio"
         width={sizes[size]}
         height={sizes[size]}
@@ -26,7 +26,7 @@ export function FluxLogo({ size = "md", className }: FluxLogoProps) {
         priority={size !== "sm"}
       />
       <Image
-        src="/branding/flowstudio-logo-dark-mode.png"
+        src="/branding/darklogo.png"
         alt="FlowStudio"
         width={sizes[size]}
         height={sizes[size]}

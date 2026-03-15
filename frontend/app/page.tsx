@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { ArrowRight } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { FluxLogo } from "@/components/flux-logo"
+
 
 export default function LandingPage() {
   const router = useRouter()
@@ -13,7 +13,7 @@ export default function LandingPage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-background text-foreground">
+    <main className="relative h-screen overflow-hidden bg-background text-foreground">
       <div className="absolute inset-0 z-0">
         <img
           src="/assets/image_2026-03-14_010105433_imgupscaler.ai_General_4K.jpg"
@@ -26,7 +26,7 @@ export default function LandingPage() {
       </div>
 
       <header className="relative z-20 mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-8">
-        <FluxLogo size="md" className="brightness-0 invert" />
+        <img src="/branding/darklogo.png" alt="FlowStudio" className="h-[132px] w-auto object-contain" />
         <Button
           size="sm"
           onClick={goToStart}
