@@ -1,20 +1,20 @@
 import { create } from "zustand"
 import type { Project } from "../types"
-import { getProjects, type ProjectData } from "../projects"
-import { queryTable } from "../stdb/connection"
+import { ProjectStatus } from '@flowstudio/shared'
+import { getProjects as getStdbProjects, getConnection, isConnected, type StdbProject } from "../stdb/spacetimedb"
 
-function projectDataToProject(p: ProjectData): Project {
+function stdbProjectToProject(p: StdbProject): Project {
   return {
     id: p.id,
     name: p.name,
-    status: "ready",
-    resolution: p.resolution,
-    frame_rate: p.frame_rate,
-    duration: p.duration,
-    thumbnail: p.thumbnail,
+    status: p.status as ProjectStatus,
+    resolution: "1920x1080",
+    frame_rate: 30,
+    duration: "00:00",
+    thumbnail: null,
     confidence: 0,
-    created_at: p.created_at,
-    updated_at: p.updated_at,
+    created_at: new Date(p.createdAt).toISOString(),
+    updated_at: new Date(p.updatedAt).toISOString(),
     category: "Uncategorized",
   }
 }
@@ -32,7 +32,9 @@ interface ProjectStore {
   addProject: (project: Project) => void
   removeProject: (id: string) => void
   duplicateProject: (id: string) => void
-  fetchProjects: () => Promise<void>
+  fetchProjects: () => void
+  /** Called by STDB reactive callbacks to push project updates */
+  setStdbProjects: (projects: StdbProject[]) => void
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
@@ -44,7 +46,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   setSearchQuery: (q) => set({ searchQuery: q }),
   setViewMode: (mode) => set({ viewMode: mode }),
-  toggleProjectStar: (id) =>
+  toggleProjectStar: (id) => {
+    if (isConnected()) {
+      getConnection().reducers.toggleProjectStar({ projectId: id });
+    }
     set((s) => {
       const alreadyStarred = s.starredProjectIds.includes(id)
       return {
@@ -52,7 +57,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           ? s.starredProjectIds.filter((pid) => pid !== id)
           : [id, ...s.starredProjectIds],
       }
-    }),
+    })
+  },
   addProject: (project) => set((s) => ({ projects: [project, ...s.projects] })),
   removeProject: (id) =>
     set((s) => ({
@@ -73,47 +79,38 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       return { projects: [dup, ...s.projects] }
     }),
 
-  fetchProjects: async () => {
-    set({ isLoading: true })
-    try {
-      // Get local projects
-      const { data: localProjects } = await getProjects()
-      const projects: Project[] = (localProjects ?? []).map(projectDataToProject)
+  fetchProjects: () => {
+    // Read from SDK in-memory cache (synchronous)
+    const stdbProjects = getStdbProjects()
+    const projects = stdbProjects
+      .map(stdbProjectToProject)
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
 
-      // Try to get STDB projects too
-      try {
-        const stdbProjects = await queryTable("projects")
-        const validStatuses = ["recording", "analyzing", "review", "ready", "exported"] as const
-        for (const sp of stdbProjects) {
-          const id = sp.id as string
-          if (!projects.find((p) => p.id === id)) {
-            const rawStatus = (sp.status as string) ?? "ready"
-            const status = validStatuses.includes(rawStatus as (typeof validStatuses)[number])
-              ? (rawStatus as (typeof validStatuses)[number])
-              : "ready"
-            projects.push({
-              id,
-              name: (sp.name as string) ?? "Untitled",
-              status,
-              resolution: "1920x1080",
-              frame_rate: 30,
-              duration: "00:00",
-              thumbnail: null,
-              confidence: 0,
-              created_at: (sp.createdAt as string) ?? new Date().toISOString(),
-              updated_at: (sp.updatedAt as string) ?? new Date().toISOString(),
-              category: "Uncategorized",
-            })
-          }
-        }
-      } catch {
-        // STDB not available — just use local projects
-      }
+    // Merge starred state from STDB
+    const starredIds = stdbProjects
+      .filter((p) => p.starred)
+      .map((p) => p.id)
 
-      projects.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-      set({ projects, isLoading: false })
-    } catch {
-      set({ isLoading: false })
-    }
+    set({
+      projects,
+      starredProjectIds: starredIds,
+      isLoading: false,
+    })
+  },
+
+  setStdbProjects: (stdbProjects) => {
+    const projects = stdbProjects
+      .map(stdbProjectToProject)
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+
+    const starredIds = stdbProjects
+      .filter((p) => p.starred)
+      .map((p) => p.id)
+
+    set({
+      projects,
+      starredProjectIds: starredIds,
+      isLoading: false,
+    })
   },
 }))

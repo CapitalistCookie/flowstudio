@@ -2,22 +2,23 @@
 
 import { motion, AnimatePresence } from "framer-motion"
 import { Loader2, CheckCircle2, AlertCircle, Brain, Volume2, Eye, MousePointer2, Keyboard, FileText, Clapperboard, Film, Sparkles } from "lucide-react"
+import { TaskType } from "@flowstudio/shared"
 import { usePipelineStatus } from "@/lib/services/pipeline-status"
 
 const TASK_META: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
-  AUDIO_EXTRACT: { label: "Audio extraction", icon: Volume2 },
-  VIDEO_SAMPLE: { label: "Frame sampling", icon: Film },
-  CURSOR_PROCESS: { label: "Cursor tracking", icon: MousePointer2 },
-  TYPING_DETECT: { label: "Keystroke detection", icon: Keyboard },
-  SPEECH_TRANSCRIPTION: { label: "Speech transcription", icon: FileText },
-  VIDEO_UNDERSTANDING: { label: "Video understanding", icon: Eye },
-  UI_CHANGE_DETECT: { label: "UI change detection", icon: Eye },
-  INTERACTION_PATTERN: { label: "Interaction patterns", icon: Brain },
-  INTENT_GRAPH: { label: "Intent graph", icon: Brain },
-  NARRATIVE_PLAN: { label: "Narrative planning", icon: Sparkles },
-  EDIT_PLAN: { label: "Edit planning", icon: Clapperboard },
-  TIMELINE_BUILD: { label: "Timeline build", icon: Clapperboard },
-  RENDER: { label: "Final render", icon: Film },
+  [TaskType.AUDIO_EXTRACT]: { label: "Audio extraction", icon: Volume2 },
+  [TaskType.VIDEO_SAMPLE]: { label: "Frame sampling", icon: Film },
+  [TaskType.CURSOR_PROCESS]: { label: "Cursor tracking", icon: MousePointer2 },
+  [TaskType.TYPING_DETECT]: { label: "Keystroke detection", icon: Keyboard },
+  [TaskType.SPEECH_TRANSCRIPTION]: { label: "Speech transcription", icon: FileText },
+  [TaskType.VIDEO_UNDERSTANDING]: { label: "Video understanding", icon: Eye },
+  [TaskType.UI_CHANGE_DETECT]: { label: "UI change detection", icon: Eye },
+  [TaskType.INTERACTION_PATTERN]: { label: "Interaction patterns", icon: Brain },
+  [TaskType.INTENT_GRAPH]: { label: "Intent graph", icon: Brain },
+  [TaskType.NARRATIVE_PLAN]: { label: "Narrative planning", icon: Sparkles },
+  [TaskType.EDIT_PLAN]: { label: "Edit planning", icon: Clapperboard },
+  [TaskType.TIMELINE_BUILD]: { label: "Timeline build", icon: Clapperboard },
+  [TaskType.RENDER]: { label: "Final render", icon: Film },
 }
 
 interface PipelineProgressBarProps {

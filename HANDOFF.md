@@ -114,7 +114,7 @@ An exhaustive code sweep consisting of 10 total passes (3 initial + 3 deep-dive 
 | H1 | SSH firewall open to `0.0.0.0/0` | Restricted to IAP range `35.235.240.0/20` |
 | H2 | `createAsset`/`createTask` reducers didn't validate project existence | Added `findByPrimaryKey` checks |
 | H3 | No batch size limit in `ingestInteractionBatch` | Capped at 1000 |
-| H4 | Silent WebSocket parse errors in client | **RESOLVED** -- WebSocket replaced with HTTP polling; issue no longer applies |
+| H4 | Silent WebSocket parse errors in client | **RESOLVED** -- Frontend now uses SpacetimeDB SDK v2.0.4 with native WebSocket push |
 | H5 | Greedy regex `[\s\S]*` in 4 LLM workers captured garbage after JSON | Replaced with bracket-counting `extractJsonArray()` function |
 | H6 | LLM JSON parse failures silently produced empty signals | Now throw errors so tasks retry |
 | H7 | Upload flow called `updateProjectState` before `createTask` | Reordered to prevent stuck "processing" state on partial failure |
@@ -131,7 +131,7 @@ An exhaustive code sweep consisting of 10 total passes (3 initial + 3 deep-dive 
 | M2 | Unused `_prevRegions` parameter in ui-change-detector | Removed |
 | M3 | No error boundary in client | Created `error.tsx` |
 | M4 | Hardcoded LLM model names in 3 workers | Added `anthropicModel`/`googleAiModel` to WorkerConfig |
-| M5 | WebSocket reconnect could spawn multiple timers | **RESOLVED** -- WebSocket replaced with HTTP polling; reconnect logic removed |
+| M5 | WebSocket reconnect could spawn multiple timers | **RESOLVED** -- SDK handles reconnection internally; HTTP polling removed |
 | M6 | Semaphore `release()` didn't guard against over-release | Added throw guard |
 | M7 | PipelineStatus didn't show `failureReason` | Added display for failed tasks |
 | M8 | `useProjects`/`useProjectTasks` loading state never cleared on error | Added 10s timeout |

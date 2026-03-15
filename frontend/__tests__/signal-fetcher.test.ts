@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { SignalType } from '@flowstudio/shared';
 import {
   groupSignalsForGateway,
   signalTypeToGatewayField,
@@ -10,15 +11,15 @@ import {
 describe('signal-fetcher', () => {
   describe('signalTypeToGatewayField', () => {
     it('maps STDB signal types to gateway field names', () => {
-      expect(signalTypeToGatewayField('SPEECH_SEGMENT')).toBe('speech_segments');
-      expect(signalTypeToGatewayField('SCENE_CHANGE')).toBe('scene_descriptions');
-      expect(signalTypeToGatewayField('UI_TRANSITION')).toBe('ui_transitions');
-      expect(signalTypeToGatewayField('INTERACTION_CLUSTER')).toBe('interaction_clusters');
+      expect(signalTypeToGatewayField(SignalType.SPEECH_SEGMENT)).toBe('speech_segments');
+      expect(signalTypeToGatewayField(SignalType.SCENE_CHANGE)).toBe('scene_descriptions');
+      expect(signalTypeToGatewayField(SignalType.UI_TRANSITION)).toBe('ui_transitions');
+      expect(signalTypeToGatewayField(SignalType.INTERACTION_CLUSTER)).toBe('interaction_clusters');
     });
 
     it('returns undefined for unknown signal types', () => {
-      expect(signalTypeToGatewayField('CURSOR_MOVEMENT')).toBeUndefined();
-      expect(signalTypeToGatewayField('TYPING_EVENT')).toBeUndefined();
+      expect(signalTypeToGatewayField(SignalType.CURSOR_MOVEMENT)).toBeUndefined();
+      expect(signalTypeToGatewayField(SignalType.TYPING_EVENT)).toBeUndefined();
     });
   });
 
@@ -38,10 +39,10 @@ describe('signal-fetcher', () => {
   describe('groupSignalsForGateway', () => {
     it('groups mixed signals by type', () => {
       const raw = [
-        { signalType: 'SPEECH_SEGMENT', timestampMs: 0, durationMs: 2000, confidence: 0.95, payload: '{"text":"hello"}' },
-        { signalType: 'SCENE_CHANGE', timestampMs: 1000, durationMs: 0, confidence: 0.8, payload: '{"description":"coding"}' },
-        { signalType: 'UI_TRANSITION', timestampMs: 2000, durationMs: 500, confidence: 0.7, payload: '{"from":"editor","to":"terminal"}' },
-        { signalType: 'INTERACTION_CLUSTER', timestampMs: 0, durationMs: 5000, confidence: 0.6, payload: '{"clusterType":"typing"}' },
+        { signalType: SignalType.SPEECH_SEGMENT, timestampMs: 0, durationMs: 2000, confidence: 0.95, payload: '{"text":"hello"}' },
+        { signalType: SignalType.SCENE_CHANGE, timestampMs: 1000, durationMs: 0, confidence: 0.8, payload: '{"description":"coding"}' },
+        { signalType: SignalType.UI_TRANSITION, timestampMs: 2000, durationMs: 500, confidence: 0.7, payload: '{"from":"editor","to":"terminal"}' },
+        { signalType: SignalType.INTERACTION_CLUSTER, timestampMs: 0, durationMs: 5000, confidence: 0.6, payload: '{"clusterType":"typing"}' },
       ];
 
       const grouped = groupSignalsForGateway(raw);
@@ -66,8 +67,8 @@ describe('signal-fetcher', () => {
 
     it('skips unknown signal types', () => {
       const raw = [
-        { signalType: 'CURSOR_MOVEMENT', timestampMs: 100, durationMs: 0, confidence: 1, payload: '{"x":100}' },
-        { signalType: 'TYPING_EVENT', timestampMs: 200, durationMs: 0, confidence: 1, payload: '{"key":"a"}' },
+        { signalType: SignalType.CURSOR_MOVEMENT, timestampMs: 100, durationMs: 0, confidence: 1, payload: '{"x":100}' },
+        { signalType: SignalType.TYPING_EVENT, timestampMs: 200, durationMs: 0, confidence: 1, payload: '{"key":"a"}' },
       ];
 
       const grouped = groupSignalsForGateway(raw);
@@ -77,7 +78,7 @@ describe('signal-fetcher', () => {
 
     it('includes timestamp metadata in grouped signals', () => {
       const raw = [
-        { signalType: 'SPEECH_SEGMENT', timestampMs: 5000, durationMs: 3000, confidence: 0.9, payload: '{"text":"test"}' },
+        { signalType: SignalType.SPEECH_SEGMENT, timestampMs: 5000, durationMs: 3000, confidence: 0.9, payload: '{"text":"test"}' },
       ];
 
       const grouped = groupSignalsForGateway(raw);
@@ -90,9 +91,9 @@ describe('signal-fetcher', () => {
 
     it('handles multiple signals of the same type', () => {
       const raw = [
-        { signalType: 'SPEECH_SEGMENT', timestampMs: 0, durationMs: 1000, confidence: 0.9, payload: '{"text":"first"}' },
-        { signalType: 'SPEECH_SEGMENT', timestampMs: 2000, durationMs: 1500, confidence: 0.85, payload: '{"text":"second"}' },
-        { signalType: 'SPEECH_SEGMENT', timestampMs: 5000, durationMs: 800, confidence: 0.95, payload: '{"text":"third"}' },
+        { signalType: SignalType.SPEECH_SEGMENT, timestampMs: 0, durationMs: 1000, confidence: 0.9, payload: '{"text":"first"}' },
+        { signalType: SignalType.SPEECH_SEGMENT, timestampMs: 2000, durationMs: 1500, confidence: 0.85, payload: '{"text":"second"}' },
+        { signalType: SignalType.SPEECH_SEGMENT, timestampMs: 5000, durationMs: 800, confidence: 0.95, payload: '{"text":"third"}' },
       ];
 
       const grouped = groupSignalsForGateway(raw);

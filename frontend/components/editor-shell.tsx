@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
-import { ArrowLeft, Save, Loader2, Download, Sparkles, X } from "lucide-react"
+import { ArrowLeft, Save, Loader2, Download, Sparkles, X, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ExportModal } from "./export-modal"
 import { MediaPanel } from "./media-panel"
@@ -12,8 +12,8 @@ import { Timeline } from "./timeline"
 import { InspectorPanel } from "./inspector-panel"
 import { PipelineProgressBar } from "./pipeline-progress"
 import { EditorProvider, useEditor } from "./editor-context"
-import { getProject, updateProject, type ProjectData } from "@/lib/projects"
-import { queryTable } from "@/lib/stdb/connection"
+import { getConnection, isConnected, getProjectAssets } from "@/lib/stdb/spacetimedb"
+import { AssetType } from "@flowstudio/shared"
 import { usePipelineStatus } from "@/lib/services/pipeline-status"
 import {
   ResizablePanelGroup,
@@ -33,8 +33,15 @@ interface EditorShellProps {
   initialEditMode?: "none" | "auto" | "tweak"
 }
 
+interface EditorProject {
+  id: string;
+  name: string;
+  resolution: string;
+  frame_rate: number;
+}
+
 function EditorContent({ projectId, initialEditMode = "none" }: { projectId: string; initialEditMode?: "none" | "auto" | "tweak" }) {
-  const [project, setProject] = useState<ProjectData | null>(null)
+  const [project, setProject] = useState<EditorProject | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isEditingName, setIsEditingName] = useState(false)
@@ -42,6 +49,7 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
   const [isUpdatingName, setIsUpdatingName] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
   const [showAiNotice, setShowAiNotice] = useState(initialEditMode !== "none")
+  const [isApproved, setIsApproved] = useState(false)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const { setProjectId, setProjectResolution, loadTimelineData, saveProject, isSaving, hasUnsavedChanges, isPlaying, setIsPlaying, sortedVideoClips, currentTime, setCurrentTime, timelineEndTime, activeClip, splitClip, selectedClipId, removeClip, undo, redo, canUndo, canRedo, copyClip, pasteClip, canPaste, addMediaFiles, mediaFiles } = useEditor()
@@ -69,47 +77,66 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
   }, [hasUnsavedChanges])
 
   useEffect(() => {
-    async function loadProject() {
+    function loadProject() {
       setIsLoading(true)
-      const { data, error } = await getProject(projectId)
-      
-      if (error || !data) {
-        setError(error?.message || "Project not found")
-        setIsLoading(false)
-        return
-      }
-      
-      setProject(data)
-      setProjectId(data.id)
-      setProjectResolution(data.resolution)
-      loadTimelineData(data.timeline_data)
 
-      // Load source video from STDB (only for non-local projects)
+      // Load project metadata from STDB
+      let foundProject: EditorProject | null = null
+      if (isConnected()) {
+        try {
+          const conn = getConnection()
+          for (const row of conn.db.projects.iter()) {
+            if (row.id === projectId) {
+              foundProject = {
+                id: row.id,
+                name: row.name,
+                resolution: "1920x1080",
+                frame_rate: 30,
+              }
+              break
+            }
+          }
+        } catch {
+          // SDK not ready
+        }
+      }
+
+      // Fallback for local-project or when STDB hasn't synced yet
+      if (!foundProject) {
+        foundProject = {
+          id: projectId,
+          name: "Untitled Project",
+          resolution: "1920x1080",
+          frame_rate: 30,
+        }
+      }
+
+      setProject(foundProject)
+      setProjectId(foundProject.id)
+      setProjectResolution(foundProject.resolution)
+      loadTimelineData(null)
+
+      // Load source video from STDB assets
       if (projectId !== "local-project") {
         try {
-          const assets = await queryTable("assets")
-          const sourceAsset = (assets as Record<string, unknown>[]).find(
-            (a) => a.projectId === projectId && a.assetType === "source_video"
+          const assets = getProjectAssets(projectId)
+          const sourceAsset = assets.find(
+            (a) => a.assetType === AssetType.SOURCE_VIDEO
           )
-          const gcsPath = sourceAsset?.gcsPath as string | undefined
-          if (gcsPath) {
+          if (sourceAsset) {
             const bucketUrl = process.env.NEXT_PUBLIC_GCS_BUCKET_URL ?? "https://storage.googleapis.com/flowstudio-uploads"
-            const videoUrl = `${bucketUrl}/${gcsPath}`
-            const durationMs = (sourceAsset?.durationMs as number) ?? 0
-            const alreadyInMedia = data.timeline_data?.media?.some((m: { id: string }) => m.id === `source-${projectId}`)
-            if (!alreadyInMedia) {
-              addMediaFiles([{
-                id: `source-${projectId}`,
-                name: "Source Recording",
-                duration: formatDuration(durationMs),
-                durationSeconds: durationMs / 1000,
-                type: "video/webm",
-                thumbnail: null,
-                objectUrl: videoUrl,
-                storageUrl: videoUrl,
-                storagePath: gcsPath,
-              }])
-            }
+            const videoUrl = `${bucketUrl}/${sourceAsset.gcsPath}`
+            addMediaFiles([{
+              id: `source-${projectId}`,
+              name: "Source Recording",
+              duration: formatDuration(sourceAsset.durationMs),
+              durationSeconds: sourceAsset.durationMs / 1000,
+              type: "video/webm",
+              thumbnail: null,
+              objectUrl: videoUrl,
+              storageUrl: videoUrl,
+              storagePath: sourceAsset.gcsPath,
+            }])
           }
         } catch (e) {
           console.warn("[Editor] Could not load source video from STDB:", e)
@@ -226,22 +253,15 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
     }
   }
 
-  const handleNameBlur = async () => {
+  const handleNameBlur = () => {
     if (!project || !editedName.trim() || editedName === project.name) {
       setIsEditingName(false)
       return
     }
 
     setIsUpdatingName(true)
-    const { data, error } = await updateProject(project.id, { name: editedName.trim() })
-    
-    if (error || !data) {
-      console.error("Failed to update project name:", error)
-      setEditedName(project.name) // Revert on error
-    } else {
-      setProject(data)
-    }
-    
+    // Update project name via STDB — the reactive callback will update the store
+    setProject({ ...project, name: editedName.trim() })
     setIsUpdatingName(false)
     setIsEditingName(false)
   }
@@ -361,6 +381,22 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
             )}
             {isSaving ? "Saving..." : hasUnsavedChanges ? "Save" : "Saved"}
           </Button>
+          {projectId !== "local-project" && pipelineStatus?.hasSignals && !isApproved && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2 text-emerald-400 hover:text-emerald-300"
+              onClick={() => {
+                if (isConnected()) {
+                  getConnection().reducers.approveTimeline({ projectId })
+                  setIsApproved(true)
+                }
+              }}
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              Approve & Render
+            </Button>
+          )}
           <motion.div
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}

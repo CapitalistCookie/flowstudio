@@ -3,3 +3,4 @@ packages:
   - "packages/stdb-module"
   - "packages/workers/*"
   - "claudeFrontend"
+  - "frontend"

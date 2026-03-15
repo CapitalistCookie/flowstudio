@@ -2,6 +2,7 @@
 
 import { useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useAuth } from "@clerk/nextjs"
 import { Pause, Play, Square } from "lucide-react"
 import { useCaptureStore } from "@/lib/capture/capture-store"
 import {
@@ -10,8 +11,7 @@ import {
   resumeCapture,
   stopCapture,
 } from "@/lib/capture/capture-service"
-import { createProject } from "@/lib/projects"
-import { callReducer } from "@/lib/stdb/connection"
+import { getConnection, isConnected } from "@/lib/stdb/spacetimedb"
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000)
@@ -29,6 +29,7 @@ function formatTime(ms: number): string {
 export default function RecordPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { userId } = useAuth()
   const projectId = searchParams.get("projectId")
 
   const status = useCaptureStore((s) => s.status)
@@ -37,27 +38,22 @@ export default function RecordPage() {
 
   useEffect(() => {
     if (!projectId && status === "idle") {
-      ;(async () => {
-        const { data: project } = await createProject({
-          name: "Untitled Recording",
-          resolution: "1920x1080",
-          frame_rate: 30,
-        })
-        if (project) {
-          try {
-            await callReducer("createProject", {
-              name: project.name,
-              ownerId: "local",
-              metadata: JSON.stringify({ localId: project.id }),
-            })
-          } catch {
-            /* ignore */
-          }
-          router.replace(`/record?projectId=${project.id}`)
+      const newId = crypto.randomUUID()
+      if (isConnected()) {
+        try {
+          const conn = getConnection()
+          conn.reducers.createProject({
+            name: "Untitled Recording",
+            ownerId: userId ?? "anon",
+            metadata: JSON.stringify({ id: newId }),
+          })
+        } catch {
+          /* STDB not ready */
         }
-      })()
+      }
+      router.replace(`/record?projectId=${newId}`)
     }
-  }, [projectId, status, router])
+  }, [projectId, status, router, userId])
 
   useEffect(() => {
     if (projectId && status === "idle") {

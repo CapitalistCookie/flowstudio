@@ -14,6 +14,21 @@ services:
       timeout: 3s
       retries: 10
 
+  frontend:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.client
+      args:
+        NEXT_PUBLIC_STDB_HOST: ws://stdb:3000
+        NEXT_PUBLIC_STDB_MODULE: flowstudio
+    ports:
+      - "3001:3000"
+    env_file: .env
+    depends_on:
+      stdb:
+        condition: service_healthy
+    profiles: ["core", "full"]
+
   gateway:
     build:
       context: packages/railtracks-gateway

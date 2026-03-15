@@ -11,7 +11,8 @@
  * Layer 4 (agentic AI loop). See ARCHITECTURE.md §0.
  */
 
-import { queryTable } from '../stdb/connection';
+import { SignalType } from '@flowstudio/shared';
+import { getConnection, isConnected } from '../stdb/spacetimedb';
 
 export interface GatewaySignals {
   speech_segments: Record<string, unknown>[];
@@ -21,10 +22,10 @@ export interface GatewaySignals {
 }
 
 const SIGNAL_TYPE_MAP: Record<string, keyof GatewaySignals> = {
-  SPEECH_SEGMENT: 'speech_segments',
-  SCENE_CHANGE: 'scene_descriptions',
-  UI_TRANSITION: 'ui_transitions',
-  INTERACTION_CLUSTER: 'interaction_clusters',
+  [SignalType.SPEECH_SEGMENT]: 'speech_segments',
+  [SignalType.SCENE_CHANGE]: 'scene_descriptions',
+  [SignalType.UI_TRANSITION]: 'ui_transitions',
+  [SignalType.INTERACTION_CLUSTER]: 'interaction_clusters',
 };
 
 export function signalTypeToGatewayField(signalType: string): string | undefined {
@@ -78,22 +79,37 @@ export function groupSignalsForGateway(
 }
 
 /**
- * Fetch all signals for a project from STDB and group for the gateway.
- * Uses SQL query with WHERE clause for efficiency.
+ * Fetch all signals for a project from the SDK's in-memory cache.
  */
-export async function fetchProjectSignals(
+export function fetchProjectSignals(
   projectId: string,
-): Promise<GatewaySignals> {
-  const allSignals = await queryTable('signals');
-  const projectSignals = allSignals.filter(
-    (s) => s.projectId === projectId,
-  ) as Array<{
+): GatewaySignals {
+  const projectSignals: Array<{
     signalType: string;
     payload: string;
     timestampMs: number;
     durationMs: number;
     confidence: number;
-  }>;
+  }> = [];
+
+  if (isConnected()) {
+    try {
+      const conn = getConnection();
+      for (const row of conn.db.signals.iter()) {
+        if (row.projectId === projectId) {
+          projectSignals.push({
+            signalType: row.signalType,
+            payload: row.payload,
+            timestampMs: Number(row.timestampMs),
+            durationMs: Number(row.durationMs),
+            confidence: Number(row.confidence),
+          });
+        }
+      }
+    } catch {
+      // Connection not ready
+    }
+  }
 
   return groupSignalsForGateway(projectSignals);
 }

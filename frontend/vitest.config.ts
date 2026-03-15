@@ -9,6 +9,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname),
+      // Mock the SpacetimeDB SDK modules that can't be imported in Node test env
+      'spacetimedb/server': path.resolve(__dirname, '__tests__/__mocks__/spacetimedb.ts'),
+      'spacetimedb/sdk': path.resolve(__dirname, '__tests__/__mocks__/spacetimedb.ts'),
+      'spacetimedb': path.resolve(__dirname, '__tests__/__mocks__/spacetimedb.ts'),
     },
   },
 });

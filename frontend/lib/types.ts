@@ -47,6 +47,12 @@ export interface TimelineClipData {
   aiEditType?: string;
 }
 
+export interface TimelineData {
+  clips: TimelineClipData[];
+  media: MediaFileData[];
+  effectBlocks?: EffectBlockData[];
+}
+
 /** DataTransfer type for dragging an effect from the palette onto the timeline. */
 export const EFFECT_DRAG_DATA_TYPE = "application/x-effect-type";
 
@@ -97,18 +103,26 @@ export interface MediaFileData {
 }
 
 // FluxStudio data contracts
+import { ProjectStatus } from '@flowstudio/shared';
 
-export type ProjectStatus =
-  | "recording"
-  | "analyzing"
-  | "review"
-  | "ready"
-  | "exported";
+export { ProjectStatus };
+
+/** Map backend ProjectStatus to a UI display label */
+export function displayStatus(status: ProjectStatus | string): string {
+  switch (status) {
+    case ProjectStatus.CREATED: return 'Created';
+    case ProjectStatus.UPLOADING: return 'Uploading';
+    case ProjectStatus.PROCESSING: return 'Analyzing';
+    case ProjectStatus.READY: return 'Ready';
+    case ProjectStatus.FAILED: return 'Failed';
+    default: return status;
+  }
+}
 
 export interface Project {
   id: string;
   name: string;
-  status: ProjectStatus;
+  status: ProjectStatus | string;
   resolution: string;
   frame_rate: number;
   duration: string;

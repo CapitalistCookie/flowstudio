@@ -33,9 +33,9 @@ SpacetimeDB v2 (a real-time database running as a WASM module on a GCE VM) repla
 ### High-Level Architecture
 
 ```
-                     Browser (Next.js 15)
+                     Browser (Next.js 16)
                             |
-                            | HTTP polling (3s)
+                            | WebSocket (SDK push)
                             v
                    +-----------------------+
                    |  SpacetimeDB v2       |

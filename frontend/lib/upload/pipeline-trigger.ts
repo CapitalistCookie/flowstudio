@@ -5,13 +5,14 @@
  * that kick off the worker pipeline (audio extract, video sample, etc.).
  */
 
-import { callReducer } from '../stdb/connection';
+import { TaskType, AssetType, ProjectStatus } from '@flowstudio/shared';
+import { getConnection, isConnected } from '../stdb/spacetimedb';
 
 const INITIAL_TASK_TYPES = [
-  'AUDIO_EXTRACT',
-  'VIDEO_SAMPLE',
-  'CURSOR_PROCESS',
-  'TYPING_DETECT',
+  TaskType.AUDIO_EXTRACT,
+  TaskType.VIDEO_SAMPLE,
+  TaskType.CURSOR_PROCESS,
+  TaskType.TYPING_DETECT,
 ] as const;
 
 interface TriggerOptions {
@@ -32,33 +33,35 @@ interface TriggerOptions {
  * 3. Update project state to 'processing'
  */
 export async function triggerPipeline(opts: TriggerOptions): Promise<void> {
+  if (!isConnected()) {
+    throw new Error('SpacetimeDB not connected. Cannot trigger pipeline.');
+  }
   const { projectId, gcsPath, fileSize, contentType, durationMs, cursorDataFilename, keyboardDataFilename } = opts;
+  const conn = getConnection();
 
-  await callReducer('createAsset', {
+  conn.reducers.createAsset({
     projectId,
-    assetType: 'source_video',
+    assetType: AssetType.SOURCE_VIDEO,
     gcsPath,
-    sizeBytes: fileSize,
+    sizeBytes: BigInt(fileSize),
     mimeType: contentType,
-    durationMs: durationMs ?? 0,
-    metadata: JSON.stringify({
-      uploadedAt: new Date().toISOString(),
-    }),
+    durationMs: BigInt(durationMs ?? 0),
+    metadata: JSON.stringify({ uploadedAt: new Date().toISOString() }),
   });
 
   const videoFilename = gcsPath.split('/').pop() ?? gcsPath;
 
   for (const taskType of INITIAL_TASK_TYPES) {
     let taskInputAssetIds: string[];
-    if (taskType === 'CURSOR_PROCESS') {
+    if (taskType === TaskType.CURSOR_PROCESS) {
       taskInputAssetIds = cursorDataFilename ? [cursorDataFilename] : [];
-    } else if (taskType === 'TYPING_DETECT') {
+    } else if (taskType === TaskType.TYPING_DETECT) {
       taskInputAssetIds = keyboardDataFilename ? [keyboardDataFilename] : [];
     } else {
       taskInputAssetIds = [videoFilename];
     }
 
-    await callReducer('createTask', {
+    conn.reducers.createTask({
       projectId,
       taskType,
       inputAssetIds: JSON.stringify(taskInputAssetIds),
@@ -67,9 +70,9 @@ export async function triggerPipeline(opts: TriggerOptions): Promise<void> {
     });
   }
 
-  await callReducer('updateProjectState', {
+  conn.reducers.updateProjectState({
     projectId,
-    currentPhase: 'processing',
-    status: 'processing',
+    currentPhase: ProjectStatus.PROCESSING,
+    status: ProjectStatus.PROCESSING,
   });
 }

@@ -7,6 +7,7 @@ import { useCaptureStore } from "@/lib/capture/capture-store"
 import { getRecordedBlob, discardCapture } from "@/lib/capture/capture-service"
 import { uploadToGcs } from "@/lib/upload/upload-service"
 import { triggerPipeline } from "@/lib/upload/pipeline-trigger"
+import { getConnection, isConnected } from "@/lib/stdb/spacetimedb"
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000)
@@ -57,36 +58,62 @@ export default function RecordingPreviewPage() {
 
       setUploadProgress(50)
 
-      // Upload cursor events
+      // Upload cursor events and create STDB asset
       const cursorEvents = useCaptureStore.getState().cursorEvents
       let cursorDataFilename: string | undefined
       if (cursorEvents?.length) {
         const cursorBlob = new Blob([JSON.stringify(cursorEvents)], {
           type: "application/json",
         })
-        const { gcsPath: cursorPath } = await uploadToGcs(
+        const { gcsPath: cursorPath, size: cursorSize } = await uploadToGcs(
           projectId,
           "cursor_events.json",
           cursorBlob,
           "application/json",
         )
         cursorDataFilename = cursorPath.split("/").pop()
+        // Create STDB asset for cursor data
+        if (isConnected()) {
+          const conn = getConnection()
+          conn.reducers.createAsset({
+            projectId,
+            assetType: "cursor_data",
+            gcsPath: cursorPath,
+            sizeBytes: BigInt(cursorSize),
+            mimeType: "application/json",
+            durationMs: BigInt(0),
+            metadata: JSON.stringify({ eventCount: cursorEvents.length }),
+          })
+        }
       }
 
-      // Upload keyboard events
+      // Upload keyboard events and create STDB asset
       const keyboardEvents = useCaptureStore.getState().keyboardEvents
       let keyboardDataFilename: string | undefined
       if (keyboardEvents?.length) {
         const kbBlob = new Blob([JSON.stringify(keyboardEvents)], {
           type: "application/json",
         })
-        const { gcsPath: kbPath } = await uploadToGcs(
+        const { gcsPath: kbPath, size: kbSize } = await uploadToGcs(
           projectId,
           "keyboard_events.json",
           kbBlob,
           "application/json",
         )
         keyboardDataFilename = kbPath.split("/").pop()
+        // Create STDB asset for keyboard data
+        if (isConnected()) {
+          const conn = getConnection()
+          conn.reducers.createAsset({
+            projectId,
+            assetType: "keyboard_data",
+            gcsPath: kbPath,
+            sizeBytes: BigInt(kbSize),
+            mimeType: "application/json",
+            durationMs: BigInt(0),
+            metadata: JSON.stringify({ eventCount: keyboardEvents.length }),
+          })
+        }
       }
 
       setUploadProgress(60)

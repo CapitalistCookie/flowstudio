@@ -4,8 +4,7 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@clerk/nextjs"
 import { motion } from "framer-motion"
-import { createProject } from "@/lib/projects"
-import { callReducer } from "@/lib/stdb/connection"
+import { getConnection, isConnected } from "@/lib/stdb/spacetimedb"
 import { 
   Plus, 
   ArrowRight, 
@@ -57,7 +56,7 @@ export function DashboardView() {
   }, 0)
 
   const editingHoursSaved = (totalDurationSeconds * 2.2) / 3600
-  const demosShipped = projects.filter((project) => project.status === "ready" || project.status === "exported").length
+  const demosShipped = projects.filter((project) => project.status === "ready").length
   const aiEditsApplied = projects.filter((project) => project.confidence >= 80).length
   const deadTimeRemovedMinutes = Math.round((totalDurationSeconds * 0.18) / 60)
 
@@ -121,24 +120,19 @@ export function DashboardView() {
              <motion.button
               whileHover={{ scale: 1.01, borderColor: "rgba(245,166,35,0.3)" }}
               whileTap={{ scale: 0.99 }}
-              onClick={async () => {
-                const { data: project } = await createProject({
-                  name: "Untitled Recording",
-                  resolution: "1920x1080",
-                  frame_rate: 30,
-                })
-                if (project) {
-                  try {
-                    await callReducer("createProject", {
-                      name: project.name,
-                      ownerId: user?.id ?? "anon",
-                      metadata: JSON.stringify({ localId: project.id }),
-                    })
-                  } catch (e) {
-                    console.warn("[STDB] Failed to create project in SpacetimeDB:", e)
-                  }
-                  router.push(`/record?projectId=${project.id}`)
+              onClick={() => {
+                if (!isConnected()) {
+                  console.warn("[STDB] Not connected — cannot create project")
+                  return
                 }
+                const projectId = crypto.randomUUID()
+                const conn = getConnection()
+                conn.reducers.createProject({
+                  name: "Untitled Recording",
+                  ownerId: user?.id ?? "anon",
+                  metadata: JSON.stringify({ id: projectId }),
+                })
+                router.push(`/record?projectId=${projectId}`)
               }}
               className="group relative flex w-full max-w-2xl cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[40px] border-2 border-border/40 bg-card/30 px-12 py-20 transition-all hover:bg-card/50 shadow-2xl shadow-black/5"
              >

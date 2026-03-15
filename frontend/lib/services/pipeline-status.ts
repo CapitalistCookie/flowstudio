@@ -7,8 +7,9 @@
  * can show real-time pipeline progress.
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { queryTable } from '../stdb/connection';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { TaskType } from '@flowstudio/shared';
+import { getConnection, isConnected } from '../stdb/spacetimedb';
 
 export interface TaskStatus {
   taskType: string;
@@ -26,31 +27,42 @@ export interface PipelineStatus {
   hasSignals: boolean;
 }
 
-const PIPELINE_TASK_ORDER = [
-  'AUDIO_EXTRACT',
-  'VIDEO_SAMPLE',
-  'CURSOR_PROCESS',
-  'TYPING_DETECT',
-  'SPEECH_TRANSCRIPTION',
-  'VIDEO_UNDERSTANDING',
-  'UI_CHANGE_DETECT',
-  'INTERACTION_PATTERN',
-  'INTENT_GRAPH',
-  'NARRATIVE_PLAN',
-  'EDIT_PLAN',
-  'TIMELINE_BUILD',
-  'RENDER',
+const PIPELINE_TASK_ORDER: string[] = [
+  TaskType.AUDIO_EXTRACT,
+  TaskType.VIDEO_SAMPLE,
+  TaskType.CURSOR_PROCESS,
+  TaskType.TYPING_DETECT,
+  TaskType.SPEECH_TRANSCRIPTION,
+  TaskType.VIDEO_UNDERSTANDING,
+  TaskType.UI_CHANGE_DETECT,
+  TaskType.INTERACTION_PATTERN,
+  TaskType.INTENT_GRAPH,
+  TaskType.NARRATIVE_PLAN,
+  TaskType.EDIT_PLAN,
+  TaskType.TIMELINE_BUILD,
+  TaskType.RENDER,
 ];
 
-export async function getPipelineStatus(projectId: string): Promise<PipelineStatus> {
-  const allTasks = await queryTable('tasks');
-  const tasks = (allTasks as Array<Record<string, unknown>>)
-    .filter((t) => t.projectId === projectId)
-    .map((t) => ({
-      taskType: t.taskType as string,
-      status: t.status as string,
-      failureReason: (t.failureReason as string) || undefined,
-    }));
+/** Build pipeline status from the SDK's in-memory task cache. */
+export function getPipelineStatus(projectId: string): PipelineStatus {
+  const tasks: TaskStatus[] = [];
+
+  if (isConnected()) {
+    try {
+      const conn = getConnection();
+      for (const row of conn.db.tasks.iter()) {
+        if (row.projectId === projectId) {
+          tasks.push({
+            taskType: row.taskType,
+            status: row.status,
+            failureReason: row.failureReason || undefined,
+          });
+        }
+      }
+    } catch {
+      // Connection not ready yet
+    }
+  }
 
   const bestStatus = new Map<string, TaskStatus>();
   for (const task of tasks) {
@@ -75,7 +87,12 @@ export async function getPipelineStatus(projectId: string): Promise<PipelineStat
   else if (isComplete) currentPhase = 'complete';
   else if (hasFailed) currentPhase = 'failed';
 
-  const signalProducers = ['SPEECH_TRANSCRIPTION', 'VIDEO_UNDERSTANDING', 'UI_CHANGE_DETECT', 'INTERACTION_PATTERN'];
+  const signalProducers = [
+    TaskType.SPEECH_TRANSCRIPTION,
+    TaskType.VIDEO_UNDERSTANDING,
+    TaskType.UI_CHANGE_DETECT,
+    TaskType.INTERACTION_PATTERN,
+  ];
   const hasSignals = signalProducers.every((type) => {
     const task = bestStatus.get(type);
     return task && task.status === 'completed';
@@ -84,33 +101,49 @@ export async function getPipelineStatus(projectId: string): Promise<PipelineStat
   return { tasks: orderedTasks, completedCount, totalCount, currentPhase, isComplete, hasFailed, hasSignals };
 }
 
+/**
+ * React hook that reactively tracks pipeline status.
+ * Uses STDB onInsert/onUpdate callbacks for real-time push (no polling).
+ * Falls back to a slow poll if SDK is not connected yet.
+ */
 export function usePipelineStatus(projectId: string | null, pollIntervalMs = 3000) {
   const [status, setStatus] = useState<PipelineStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const callbacksWired = useRef(false);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(() => {
     if (!projectId) return;
     try {
-      const s = await getPipelineStatus(projectId);
+      const s = getPipelineStatus(projectId);
       setStatus(s);
       setError(null);
-      return s;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch status');
-      return null;
     }
   }, [projectId]);
 
   useEffect(() => {
     if (!projectId) return;
 
+    // Initial read
     refresh();
 
-    const interval = setInterval(async () => {
-      const s = await refresh();
-      if (s && (s.isComplete || s.hasFailed)) {
-        clearInterval(interval);
+    // Wire reactive callbacks if SDK is connected
+    if (isConnected() && !callbacksWired.current) {
+      try {
+        const conn = getConnection();
+        const onTaskChange = () => refresh();
+        conn.db.tasks.onInsert(onTaskChange);
+        conn.db.tasks.onUpdate(onTaskChange);
+        callbacksWired.current = true;
+      } catch {
+        // SDK not ready — fall through to polling
       }
+    }
+
+    // Fallback poll for when SDK hasn't connected yet
+    const interval = setInterval(() => {
+      refresh();
     }, pollIntervalMs);
 
     return () => clearInterval(interval);

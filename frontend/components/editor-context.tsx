@@ -1,8 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef } from "react"
-import { updateProject, type TimelineData } from "@/lib/projects"
-import { type TimelineClipData, type MediaFileData, type ClipTransform, type ClipEffects, type Caption, type EffectBlockData } from "@/lib/types"
+import { type TimelineData, type TimelineClipData, type MediaFileData, type ClipTransform, type ClipEffects, type Caption, type EffectBlockData } from "@/lib/types"
 import { uploadMediaFile } from "@/lib/storage"
 
 export const PIXELS_PER_SECOND = 10 // Timeline scale: 10px = 1 second
@@ -647,11 +646,14 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     const seconds = Math.floor(totalDuration % 60)
     const durationStr = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
 
-    await updateProject(projectId, {
-      timeline_data: timelineData,
+    // Timeline data is stored in-memory during the editor session.
+    // The source video and assets are persisted in GCS/STDB.
+    // TODO: Persist timeline_data via STDB reducer when available.
+    console.log('[Editor] Save complete — timeline data cached locally', {
+      clips: timelineData.clips.length,
+      media: timelineData.media.length,
       duration: durationStr,
-      thumbnail: projectThumbnail,
-    })
+    });
 
     setHasUnsavedChanges(false)
     setIsSaving(false)

@@ -1,7 +1,12 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { initConnection, isConnected, disconnect } from '@/lib/stdb/connection';
+import {
+  initSpacetimeDb,
+  disconnectSpacetimeDb,
+  setOnProjectsChanged,
+} from '@/lib/stdb/spacetimedb';
+import { useProjectStore } from '@/lib/stores/project-store';
 
 type StdbStatus = 'connecting' | 'connected' | 'error' | 'disabled';
 
@@ -19,14 +24,34 @@ export function StdbProvider({ children }: { children: ReactNode }) {
     let mounted = true;
     let retryTimer: ReturnType<typeof setTimeout>;
 
+    // Wire project store updates from STDB callbacks
+    setOnProjectsChanged((projects) => {
+      if (!mounted) return;
+      const store = useProjectStore.getState();
+      store.setStdbProjects(projects);
+    });
+
     const connect = async () => {
       if (!mounted) return;
       setStatus('connecting');
 
       try {
-        await initConnection(
-          () => { if (mounted) setStatus('connected'); },
-          () => { if (mounted) setStatus('error'); },
+        await initSpacetimeDb(
+          () => {
+            if (mounted) {
+              setStatus('connected');
+              // Hydrate project store on connect
+              useProjectStore.getState().fetchProjects();
+            }
+          },
+          () => {
+            if (mounted) {
+              setStatus('error');
+              retryTimer = setTimeout(() => {
+                if (mounted) setRetryCount((c) => c + 1);
+              }, 5000);
+            }
+          },
         );
       } catch {
         if (mounted) {
@@ -43,7 +68,8 @@ export function StdbProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted = false;
       clearTimeout(retryTimer);
-      disconnect();
+      setOnProjectsChanged(null);
+      disconnectSpacetimeDb();
     };
   }, [retryCount]);
 

@@ -3,6 +3,7 @@
  * X-09: Frontend-to-gateway signal format contract.
  */
 import { describe, it, expect } from 'vitest';
+import { SignalType } from '@flowstudio/shared';
 import { groupSignalsForGateway, type GatewaySignals } from '../lib/services/signal-fetcher';
 
 describe('Signal–gateway contract', () => {
@@ -27,7 +28,7 @@ describe('Signal–gateway contract', () => {
   it('speech segments include timestampMs, durationMs, confidence fields', () => {
     const raw = [
       {
-        signalType: 'SPEECH_SEGMENT',
+        signalType: SignalType.SPEECH_SEGMENT,
         payload: '{"text":"hello"}',
         timestampMs: 1000,
         durationMs: 500,
@@ -46,7 +47,7 @@ describe('Signal–gateway contract', () => {
   it('scene descriptions include timestampMs, durationMs, confidence fields', () => {
     const raw = [
       {
-        signalType: 'SCENE_CHANGE',
+        signalType: SignalType.SCENE_CHANGE,
         payload: '{"description":"user coding"}',
         timestampMs: 2000,
         durationMs: 0,

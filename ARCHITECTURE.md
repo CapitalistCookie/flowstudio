@@ -118,12 +118,12 @@ NOT `{"name": "My Project", "ownerId": "user-123", "metadata": "{}"}`.
                    |                  BROWSER                        |
                    |                                                 |
                    |   Next.js Client (port 3000)                    |
-                   |   - HTTP polling (3s) for table reads           |
-                   |   - HTTP calls for reducer invocations          |
+                   |   - WebSocket SDK (real-time push)              |
+                   |   - Typed reducer calls via SDK                 |
                    |   - Direct GCS upload via signed URL            |
                    +---------+---+----------+------------------------+
                              |   |          |
-                    HTTP poll|   |HTTP      |HTTP PUT (signed URL)
+                    WebSocket|   |WS        |HTTP PUT (signed URL)
                              |   |          |
                +-------------+   |     +----v-----------+
                |                 |     | Cloud Function  |
@@ -1349,7 +1349,7 @@ table callbacks automatically, updating stores in real-time.
 `setActiveProjectForSync()`. Projects and folders sync globally.
 - `forceSync()` triggers an immediate poll cycle (called after reducer mutations).
 
-**Data flow:** `stdbSdkSync` poll timer --> `queryTable()` HTTP SQL --> parse rows -->
+**Data flow:** SpacetimeDB SDK WebSocket subscription --> `onInsert`/`onUpdate`/`onDelete` callbacks -->
 Zustand store setter --> React re-render via `useStore()` selectors.
 
 ### 6c. Upload Flow
