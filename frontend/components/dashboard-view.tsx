@@ -2,42 +2,25 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useUser } from "@clerk/nextjs"
+import { useAuth } from "@/lib/auth/use-auth"
 import { motion } from "framer-motion"
 import { getConnection, isConnected } from "@/lib/stdb/spacetimedb"
-import { 
-  Plus, 
-  ArrowRight, 
-  Clock, 
-  TrendingUp, 
+import {
+  Plus,
+  ArrowRight,
+  TrendingUp,
   Rocket,
   Sparkles,
-  Scissors
+  Scissors,
+  Clock
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { WorkspaceSidebar } from "@/components/workspace-sidebar"
 import { useProjectStore } from "@/lib/stores/project-store"
 
-function parseDurationToSeconds(duration: string): number {
-  const parts = duration.split(":").map(Number)
-  if (parts.some(Number.isNaN)) return 0
-
-  if (parts.length === 3) {
-    const [hours, minutes, seconds] = parts
-    return hours * 3600 + minutes * 60 + seconds
-  }
-
-  if (parts.length === 2) {
-    const [minutes, seconds] = parts
-    return minutes * 60 + seconds
-  }
-
-  return 0
-}
-
 export function DashboardView() {
   const router = useRouter()
-  const { user } = useUser()
+  const { user } = useAuth()
   const { projects, fetchProjects, isLoading } = useProjectStore()
 
   useEffect(() => {
@@ -51,21 +34,23 @@ export function DashboardView() {
   // Get recent projects (last 3)
   const recentProjects = projects.slice(0, 3)
 
-  const totalDurationSeconds = projects.reduce((sum, project) => {
-    return sum + parseDurationToSeconds(project.duration)
-  }, 0)
-
-  const editingHoursSaved = (totalDurationSeconds * 2.2) / 3600
+  const totalSecondsRemoved = projects.reduce(
+    (sum, p) => sum + (p.editStats?.secondsRemoved ?? 0), 0
+  )
+  const totalEdits = projects.reduce(
+    (sum, p) => sum + (p.editStats?.editCount ?? 0), 0
+  )
   const demosShipped = projects.filter((project) => project.status === "ready").length
-  const aiEditsApplied = projects.filter((project) => project.confidence >= 80).length
-  const deadTimeRemovedMinutes = Math.round((totalDurationSeconds * 0.18) / 60)
+  const deadTimeRemovedMinutes = Math.round(totalSecondsRemoved / 60)
 
   const stats = [
-    { label: "Editing hours saved", value: `${editingHoursSaved.toFixed(1)}h`, icon: Clock },
+    { label: "Footage removed", value: `${deadTimeRemovedMinutes}m`, icon: Scissors },
     { label: "Demos shipped", value: `${demosShipped}`, icon: Rocket },
-    { label: "AI edits applied", value: `${aiEditsApplied}`, icon: Sparkles },
-    { label: "Dead time removed", value: `${deadTimeRemovedMinutes}m`, icon: Scissors },
+    { label: "Total edits", value: `${totalEdits}`, icon: Sparkles },
   ]
+
+  // Firebase: displayName for social logins, email prefix as fallback
+  const displayName = user?.displayName || user?.email?.split('@')[0] || "Alex"
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background">
@@ -76,7 +61,7 @@ export function DashboardView() {
         <div className="dashboard-grid-fade pointer-events-none absolute inset-0 z-0 opacity-55" />
 
         <div className="relative z-10 mx-auto max-w-6xl px-8 py-12 lg:px-16 flex flex-col min-h-full">
-          
+
           {/* ── Top Greeting ── */}
           <motion.header
             initial={{ opacity: 0, y: 10 }}
@@ -84,7 +69,7 @@ export function DashboardView() {
             className="mb-10"
           >
             <h1 className="text-5xl font-bold tracking-tight text-foreground">
-              {greeting}, {user?.firstName || "Alex"}
+              {greeting}, {displayName}
             </h1>
             <p className="mt-3 text-xl text-muted-foreground">
               Your demo. Exactly how you want it.
@@ -95,7 +80,7 @@ export function DashboardView() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05 }}
-            className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
+            className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3"
           >
             {stats.map((stat) => {
               const Icon = stat.icon
@@ -125,11 +110,12 @@ export function DashboardView() {
                   console.warn("[STDB] Not connected — cannot create project")
                   return
                 }
+                if (!user?.uid) return
                 const projectId = crypto.randomUUID()
                 const conn = getConnection()
                 conn.reducers.createProject({
                   name: "Untitled Recording",
-                  ownerId: user?.id ?? "anon",
+                  ownerId: user.uid,
                   metadata: JSON.stringify({ id: projectId }),
                 })
                 router.push(`/record?projectId=${projectId}`)
@@ -145,7 +131,7 @@ export function DashboardView() {
                     Record your screen and FlowStudio will automatically engineer a polished showcase.
                   </p>
                 </div>
-                
+
                 {/* Visual Accent */}
                 <div className="absolute bottom-0 left-0 h-1 w-full bg-gradient-to-r from-transparent via-flux-amber/20 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
              </motion.button>
@@ -155,9 +141,9 @@ export function DashboardView() {
           <section className="mt-auto pt-20">
             <div className="mb-8 flex items-center justify-between">
               <h3 className="text-2xl font-bold text-foreground">Recent Projects</h3>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 className="group cursor-pointer text-muted-foreground hover:text-foreground"
                 onClick={() => router.push("/projects")}
               >
@@ -187,7 +173,7 @@ export function DashboardView() {
                   >
                     <div className="relative aspect-video overflow-hidden rounded-[28px] border border-border/60 bg-card shadow-sm transition-all hover:border-flux-amber/30 hover:shadow-xl hover:-translate-y-1">
                       <div className="absolute inset-0 bg-gradient-to-br from-flux-amber/5 to-flux-teal/5" />
-                      
+
                       {/* Thumbnail Placeholder Overlay */}
                       <div className="absolute inset-0 flex items-center justify-center opacity-30 group-hover:opacity-50 transition-opacity">
                         <TrendingUp size={48} className="text-muted-foreground/20" />

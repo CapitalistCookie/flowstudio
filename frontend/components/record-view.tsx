@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Play, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,8 @@ function formatTime(seconds: number): string {
 
 export function RecordView() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const projectId = searchParams.get("projectId")
   const { isRecording, isPaused, elapsedSeconds, startRecording, pauseRecording, resumeRecording, stopRecording, tick } = useRecordingStore()
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const [showPreviewModal, setShowPreviewModal] = useState(false)
@@ -57,14 +59,12 @@ export function RecordView() {
 
   const handleContinueToStudio = () => {
     setShowPreviewModal(false)
-    router.push("/studio")
+    router.push(projectId ? `/studio?projectId=${projectId}` : "/studio")
   }
 
   const handleExportDirectly = () => {
-    // Logic to trigger export directly from recording
     setShowPreviewModal(false)
-    // For now, we'll route to studio with a query param to trigger export
-    router.push("/studio?action=export")
+    router.push(projectId ? `/studio?projectId=${projectId}&action=export` : "/studio?action=export")
   }
 
   return (

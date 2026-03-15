@@ -2,7 +2,7 @@
 
 import React, { type ReactNode } from "react"
 import { useRouter } from "next/navigation"
-import { useUser, SignOutButton } from "@clerk/nextjs"
+import { useAuth } from "@/lib/auth/use-auth"
 import { Folder, LayoutDashboard, LogOut, Plus, Settings } from "lucide-react"
 import { FluxLogo } from "@/components/flux-logo"
 import { useProjectStore } from "@/lib/stores/project-store"
@@ -40,7 +40,7 @@ function SidebarItem({
 
 export function WorkspaceSidebar({ active, showProjectList = true }: WorkspaceSidebarProps) {
   const router = useRouter()
-  const { user } = useUser()
+  const { user, signOut } = useAuth()
   const { projects, stdbProjects, folders } = useProjectStore()
 
   return (
@@ -84,7 +84,7 @@ export function WorkspaceSidebar({ active, showProjectList = true }: WorkspaceSi
                   items.push(
                     <button
                       key={project.id}
-                      onClick={() => router.push("/studio")}
+                      onClick={() => router.push(`/studio?projectId=${project.id}`)}
                       className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs text-muted-foreground transition-all hover:bg-secondary hover:text-foreground"
                     >
                       <div className="h-1 w-1 rounded-full bg-border" />
@@ -114,7 +114,7 @@ export function WorkspaceSidebar({ active, showProjectList = true }: WorkspaceSi
                     items.push(
                       <button
                         key={project.id}
-                        onClick={() => router.push("/studio")}
+                        onClick={() => router.push(`/studio?projectId=${project.id}`)}
                         className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs text-muted-foreground transition-all hover:bg-secondary hover:text-foreground"
                       >
                         <div className="h-1 w-1 rounded-full" style={{ backgroundColor: folder.color + '60' }} />
@@ -154,7 +154,7 @@ export function WorkspaceSidebar({ active, showProjectList = true }: WorkspaceSi
         <div className="flex items-center gap-3 rounded-xl p-2 transition-colors hover:bg-secondary/50">
           <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full ring-2 ring-flux-amber/20">
             <img
-              src={user?.imageUrl || "https://avatar.vercel.sh/guest"}
+              src={user?.photoURL || "https://avatar.vercel.sh/guest"}
               alt="Profile"
               className="h-full w-full object-cover"
             />
@@ -162,22 +162,21 @@ export function WorkspaceSidebar({ active, showProjectList = true }: WorkspaceSi
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <span className="truncate text-sm font-semibold text-foreground">
-              {user?.firstName || user?.username || "Creative"}
+              {user?.displayName || user?.email?.split('@')[0] || "Creative"}
             </span>
             <span className="truncate text-[10px] text-muted-foreground">
-              {user?.primaryEmailAddress?.emailAddress || "Free Tier"}
+              {user?.email || "Free Tier"}
             </span>
           </div>
 
-          <SignOutButton>
-            <button
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-destructive"
-              aria-label="Log out"
-              title="Log out"
-            >
-              <LogOut size={16} />
-            </button>
-          </SignOutButton>
+          <button
+            onClick={() => signOut()}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-destructive"
+            aria-label="Log out"
+            title="Log out"
+          >
+            <LogOut size={16} />
+          </button>
         </div>
       </div>
     </aside>

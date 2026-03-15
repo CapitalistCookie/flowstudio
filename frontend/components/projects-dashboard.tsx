@@ -60,8 +60,8 @@ export function ProjectsDashboard() {
 
   const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" })
 
-  const handleOpenProject = (_projectId: string) => {
-    router.push("/studio")
+  const handleOpenProject = (projectId: string) => {
+    router.push(`/studio?projectId=${projectId}`)
   }
 
   const readyCount = projects.filter(p => p.status === "ready" || p.status === "exported").length

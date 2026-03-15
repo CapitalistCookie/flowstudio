@@ -4,19 +4,45 @@ import { ProjectStatus } from '@flowstudio/shared'
 import { getProjects as getStdbProjects, getFolders as getStdbFolders, getConnection, isConnected, type StdbProject, type StdbFolder } from "../stdb/spacetimedb"
 
 function stdbProjectToProject(p: StdbProject): Project {
+  let editStats: Project["editStats"]
+  let duration = "00:00"
+
+  if (p.metadata) {
+    try {
+      const meta = JSON.parse(p.metadata)
+      if (
+        meta &&
+        typeof meta.editStats === 'object' &&
+        meta.editStats !== null &&
+        typeof meta.editStats.outputSeconds === 'number' &&
+        typeof meta.editStats.secondsRemoved === 'number' &&
+        typeof meta.editStats.editCount === 'number'
+      ) {
+        editStats = meta.editStats
+        const secs = Math.max(0, Math.floor(meta.editStats.outputSeconds))
+        const m = Math.floor(secs / 60)
+        const s = secs % 60
+        duration = `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`
+      }
+    } catch {
+      // ignore malformed metadata
+    }
+  }
+
   return {
     id: p.id,
     name: p.name,
     status: p.status as ProjectStatus,
     resolution: "1920x1080",
     frame_rate: 30,
-    duration: "00:00",
+    duration,
     thumbnail: null,
     confidence: 0,
     created_at: new Date(p.createdAt).toISOString(),
     updated_at: new Date(p.updatedAt).toISOString(),
     category: "Uncategorized",
     folderId: p.folderId || undefined,
+    editStats,
   }
 }
 

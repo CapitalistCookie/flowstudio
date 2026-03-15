@@ -12,7 +12,9 @@ import { Timeline } from "./timeline"
 import { InspectorPanel } from "./inspector-panel"
 import { PipelineProgressBar } from "./pipeline-progress"
 import { EditorProvider, useEditor } from "./editor-context"
+import { useEditStats } from "./use-edit-stats"
 import { getConnection, isConnected, getProjectAssets } from "@/lib/stdb/spacetimedb"
+import { useAuth } from "@/lib/auth/use-auth"
 import { AssetType } from "@flowstudio/shared"
 import { usePipelineStatus } from "@/lib/services/pipeline-status"
 import {
@@ -40,6 +42,29 @@ interface EditorProject {
   frame_rate: number;
 }
 
+function formatSecondsShort(s: number): string {
+  const rounded = Math.round(s)
+  if (rounded >= 60) {
+    const m = Math.floor(rounded / 60)
+    const sec = rounded % 60
+    return sec > 0 ? `${m}:${sec.toString().padStart(2, "0")}` : `${m}m`
+  }
+  return `${rounded}s`
+}
+
+function EditStatsDisplay() {
+  const { outputSeconds, secondsRemoved, editCount } = useEditStats()
+  if (editCount === 0) return null
+  return (
+    <>
+      <div className="h-4 w-px bg-border" />
+      <div className="text-xs text-muted-foreground">
+        {formatSecondsShort(outputSeconds)} output • {formatSecondsShort(secondsRemoved)} removed • {editCount} {editCount === 1 ? "edit" : "edits"}
+      </div>
+    </>
+  )
+}
+
 function EditorContent({ projectId, initialEditMode = "none" }: { projectId: string; initialEditMode?: "none" | "auto" | "tweak" }) {
   const [project, setProject] = useState<EditorProject | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -53,6 +78,7 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
   const nameInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const { setProjectId, setProjectResolution, loadTimelineData, saveProject, isSaving, hasUnsavedChanges, isPlaying, setIsPlaying, sortedVideoClips, currentTime, setCurrentTime, timelineEndTime, activeClip, splitClip, selectedClipId, removeClip, undo, redo, canUndo, canRedo, copyClip, pasteClip, canPaste, addMediaFiles, mediaFiles } = useEditor()
+  const { user } = useAuth()
   const [autoEditTriggered, setAutoEditTriggered] = useState(false)
   const { status: pipelineStatus } = usePipelineStatus(projectId !== "local-project" ? projectId : null)
   const searchParams = useSearchParams()
@@ -87,6 +113,12 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
           const conn = getConnection()
           for (const row of conn.db.projects.iter()) {
             if (row.id === projectId) {
+              // Ownership check
+              if (user?.uid && row.ownerId && row.ownerId !== user.uid) {
+                setError("You don't have access to this project")
+                setIsLoading(false)
+                return
+              }
               foundProject = {
                 id: row.id,
                 name: row.name,
@@ -146,7 +178,7 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
       setIsLoading(false)
     }
     loadProject()
-  }, [projectId, setProjectId, setProjectResolution, loadTimelineData, addMediaFiles])
+  }, [projectId, user?.uid, setProjectId, setProjectResolution, loadTimelineData, addMediaFiles])
 
   // When pipeline signals are ready and auto mode, show AI notice
   useEffect(() => {
@@ -285,19 +317,6 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
     }
   }, [isEditingName])
 
-  // When pipeline signals are ready and we haven't auto-triggered yet, show AI notice
-  useEffect(() => {
-    if (
-      pipelineStatus?.hasSignals &&
-      !autoEditTriggered &&
-      initialEditMode === "auto" &&
-      mediaFiles.length > 0
-    ) {
-      setAutoEditTriggered(true)
-      setShowAiNotice(true)
-    }
-  }, [pipelineStatus?.hasSignals, autoEditTriggered, initialEditMode, mediaFiles.length])
-
   if (isLoading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
@@ -365,6 +384,7 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
           <div className="text-xs text-muted-foreground">
             {project.resolution} • {project.frame_rate} fps
           </div>
+          <EditStatsDisplay />
         </div>
         <div className="flex items-center gap-2">
           <Button

@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef } from "react"
 import { type TimelineData, type TimelineClipData, type MediaFileData, type ClipTransform, type ClipEffects, type Caption, type EffectBlockData } from "@/lib/types"
 import { uploadMediaFile } from "@/lib/storage"
+import { computeEditStats } from "@/lib/compute-edit-stats"
 
 export const PIXELS_PER_SECOND = 10 // Timeline scale: 10px = 1 second
 
@@ -635,24 +636,22 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       })),
     }
 
-    // Calculate duration
-    const totalDuration = timelineClips.reduce((max, clip) => {
-      const clipEnd = (clip.startTime + clip.duration) / PIXELS_PER_SECOND
-      return Math.max(max, clipEnd)
-    }, 0)
+    // Compute edit stats (shared logic with useEditStats hook)
+    const editStats = computeEditStats(timelineClips, mediaFiles)
 
-    const hours = Math.floor(totalDuration / 3600)
-    const minutes = Math.floor((totalDuration % 3600) / 60)
-    const seconds = Math.floor(totalDuration % 60)
+    const hours = Math.floor(editStats.outputSeconds / 3600)
+    const minutes = Math.floor((editStats.outputSeconds % 3600) / 60)
+    const seconds = Math.floor(editStats.outputSeconds % 60)
     const durationStr = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
 
     // Timeline data is stored in-memory during the editor session.
     // The source video and assets are persisted in GCS/STDB.
-    // TODO: Persist timeline_data via STDB reducer when available.
+    // TODO: Persist timeline_data and editStats via STDB reducer when available.
     console.log('[Editor] Save complete — timeline data cached locally', {
       clips: timelineData.clips.length,
       media: timelineData.media.length,
       duration: durationStr,
+      editStats,
     });
 
     setHasUnsavedChanges(false)

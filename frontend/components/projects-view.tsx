@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useProjectStore } from "@/lib/stores/project-store"
+import { useAuth } from "@/lib/auth/use-auth"
 import { getConnection, isConnected } from "@/lib/stdb/spacetimedb"
 import { WorkspaceSidebar } from "@/components/workspace-sidebar"
 import { FolderCard } from "@/components/folder-card"
@@ -63,6 +64,7 @@ function sortProjects(list: Project[], mode: SortMode): Project[] {
 
 export function ProjectsView() {
   const router = useRouter()
+  const { user } = useAuth()
   const {
     projects,
     stdbProjects,
@@ -121,9 +123,9 @@ export function ProjectsView() {
   }, [projects, stdbProjects, sortMode, visibilityMode, starredProjectIds, activeFolderId])
 
   const handleCreateFolder = async (name: string, color: string) => {
-    if (!isConnected()) return
+    if (!isConnected() || !user?.uid) return
     try {
-      getConnection().reducers.createFolder({ name, ownerId: '', color, sortOrder: folders.length })
+      getConnection().reducers.createFolder({ name, ownerId: user.uid, color, sortOrder: folders.length })
     } catch (err) {
       console.error('Failed to create folder:', err)
     }
@@ -288,7 +290,7 @@ export function ProjectsView() {
                       key={project.id}
                       variants={{ hidden: { opacity: 0, y: 14 }, visible: { opacity: 1, y: 0 } }}
                       className="group cursor-pointer overflow-hidden rounded-xl border border-border bg-card shadow-sm transition hover:-translate-y-0.5 hover:border-flux-amber/35 hover:shadow-md"
-                      onClick={() => router.push("/studio")}
+                      onClick={() => router.push(`/studio?projectId=${project.id}`)}
                     >
                       <div className="relative aspect-video border-b border-border bg-gradient-to-br from-secondary/80 to-secondary/40">
                         {project.thumbnail ? (
@@ -328,7 +330,7 @@ export function ProjectsView() {
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-44">
-                              <DropdownMenuItem onClick={() => router.push("/studio")}>
+                              <DropdownMenuItem onClick={() => router.push(`/studio?projectId=${project.id}`)}>
                                 <Play className="mr-2 h-3.5 w-3.5" /> Open
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => duplicateProject(project.id)}>
@@ -349,7 +351,13 @@ export function ProjectsView() {
                         </div>
 
                         <div className="space-y-1 text-xs text-muted-foreground">
-                          <div>Title: {project.duration}</div>
+                          <div className="inline-flex items-center gap-1">
+                            <Film className="h-3 w-3" />
+                            {project.duration}
+                            {project.editStats && (
+                              <> • {Math.round(project.editStats.secondsRemoved)}s removed • {project.editStats.editCount} {project.editStats.editCount === 1 ? "edit" : "edits"}</>
+                            )}
+                          </div>
                           <div className="inline-flex items-center gap-1">
                             <Clock className="h-3 w-3" />
                             Edited {formatDate(project.updated_at)}
