@@ -240,7 +240,7 @@ Add these secrets to the repo:
 | All reducers | `packages/stdb-module/src/index.ts` (11 reducers) |
 | Worker base class | `packages/workers/shared/src/base-worker.ts` |
 | SpacetimeDB type stubs | `packages/stdb-module/src/spacetimedb-server.d.ts` |
-| Upload flow | `claudeFrontend/src/app/project/[id]/page.tsx` |
+| Upload flow | `frontend/app/record/preview/page.tsx` + `frontend/lib/upload/pipeline-trigger.ts` |
 | Terraform entry | `infra/terraform/main.tf` |
 | Worker Dockerfile | `infra/docker/Dockerfile.worker` |
 | Deploy all script | `infra/scripts/deploy-all.sh` |

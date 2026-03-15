@@ -182,7 +182,7 @@ NOT `{"name": "My Project", "ownerId": "user-123", "metadata": "{}"}`.
   Workers subscribe to the `tasks` table and react to new pending tasks via callbacks,
   eliminating the previous 1s poll delay.
 
-  **Connection module (frontend):** `claudeFrontend/src/lib/spacetimedb.ts` -- singleton
+  **Connection module (frontend):** `frontend/lib/stdb/spacetimedb.ts` -- singleton
   `DbConnection`, subscribes on connect, wires table callbacks to stores.
 
   **Connection module (workers):** `packages/workers/shared/src/base-worker.ts` --
@@ -1310,19 +1310,19 @@ grep -rn 'signals/' packages/workers/ --include='*.ts'
 
 ### 6a. SpacetimeDB Connection
 
-**Source:** `/home/user/FlowStudio/claudeFrontend/src/lib/spacetimedb.ts`
+**Source:** `frontend/lib/stdb/spacetimedb.ts`
 
 **Native SDK pattern:** A singleton module using the SpacetimeDB TypeScript SDK (v2.0.4)
 over WebSocket. On connect, subscribes to all 5 public tables and wires `onInsert`/
 `onUpdate`/`onDelete` callbacks to Zustand stores for real-time push updates.
 
 ```typescript
-export function initSpacetimeDb(config: SyncConfig): Promise<void> { /* connect + subscribe */ }
+export function initSpacetimeDb(): Promise<void> { /* connect + subscribe */ }
 export function getConnection(): DbConnection { /* singleton accessor */ }
-export function syncStoresForProject(projectStore, signalStore): void { /* re-sync on project switch */ }
-export function setActiveProjectForSync(id: string | null): void { /* scope filter */ }
-export function disconnectSpacetimeDb(): void { /* tear down */ }
-export function isConnected(): boolean { /* connection.isActive */ }
+export function isConnected(): boolean { /* connection + subscription check */ }
+export function getProjects(): StdbProject[] { /* read from STDB cache */ }
+export function getFolders(): StdbFolder[] { /* read from STDB cache */ }
+export function getProjectAssets(projectId: string): StdbAsset[] { /* filtered cache read */ }
 ```
 
 **Table subscriptions:** On connect, subscribes to `SELECT * FROM {table}` for all 5
@@ -1332,7 +1332,7 @@ insert, update, or delete. BigInt fields are converted to Number at the store bo
 **Reducer calls:** Components use typed reducer calls via `getConnection().reducers.*`,
 e.g. `getConnection().reducers.createProject({ name, ownerId, metadata })`.
 
-**Module bindings:** `/home/user/FlowStudio/claudeFrontend/src/module_bindings/index.ts`
+**Module bindings:** `frontend/lib/stdb/module_bindings/index.ts`
 defines table schemas and reducer signatures using the SDK's `table()`, `schema()`,
 `reducerSchema()`, and `reducers()` functions.
 
@@ -1354,7 +1354,7 @@ Zustand store setter --> React re-render via `useStore()` selectors.
 
 ### 6c. Upload Flow
 
-**Source:** `/home/user/FlowStudio/claudeFrontend/src/app/project/[id]/page.tsx`
+**Source:** `frontend/app/record/preview/page.tsx` and `frontend/lib/upload/pipeline-trigger.ts`
 
 Step-by-step sequence:
 

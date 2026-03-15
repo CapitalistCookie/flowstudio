@@ -12,7 +12,7 @@ All notable changes to FlowStudio are documented in this file.
 Initial deployment of FlowStudio to GCP.
 
 ### Added
-- Monorepo scaffold: `claudeFrontend`, `packages/shared`, `packages/stdb-module`, `infra/`
+- Monorepo scaffold: `frontend`, `packages/shared`, `packages/stdb-module`, `infra/`
 - Full implementation (phases 1-6): project CRUD, asset upload, 13-stage task DAG, signal ingestion, worker orchestration
 - SpacetimeDB module with tables: projects, assets, tasks, signals, project_state, worker_configs
 - Next.js client with project dashboard, create dialog, project detail page, file upload

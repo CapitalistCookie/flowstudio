@@ -94,11 +94,11 @@ gcloud config get-value project  # Should show quanta-ai-dev-941522
 - `packages/workers/narrative-planner/src/worker.ts` — AnthropicVertex
 - `packages/workers/edit-planner/src/worker.ts` — AnthropicVertex
 - `packages/shared/src/utils.ts` — crypto.randomUUID()
-- `claudeFrontend/src/app/page.tsx` — removed .js imports
-- `claudeFrontend/src/app/project/[id]/page.tsx` — removed .js imports
-- `claudeFrontend/src/components/Header.tsx` — removed .js imports
-- `claudeFrontend/src/components/CreateProjectDialog.tsx` — removed .js imports
-- `claudeFrontend/src/lib/hooks.ts` — removed .js imports
+- `frontend/app/page.tsx` — removed .js imports
+- `frontend/app/record/preview/page.tsx` — removed .js imports
+- `frontend/components/Header.tsx` — removed .js imports
+- `frontend/components/CreateProjectDialog.tsx` — removed .js imports
+- `frontend/lib/hooks.ts` — removed .js imports
 - `infra/terraform/secrets.tf` — removed anthropic, added vertex IAM
 - `infra/terraform/cloud-run.tf` — vertex_workers, deletion_protection
 - `infra/terraform/network.tf` — VPC connector throughput

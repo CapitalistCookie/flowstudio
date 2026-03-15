@@ -34,10 +34,10 @@ SpacetimeDB v2 (a real-time database running as a WASM module on a GCE VM) repla
 ### High-Level Architecture
 
 ```
-                Browser (Next.js 16)                        Browser (Next.js 15 — claudeFrontend)
-                       |                                              |
-                       | WebSocket (SDK push)                         | WebSocket (SDK push)
-                       v                                              v
+                Browser (Next.js 15 — frontend/)
+                       |
+                       | WebSocket (SDK push)
+                       v
               +-----------------------+
               |  SpacetimeDB v2       |
               |  (GCE VM + Nginx)     |
@@ -218,7 +218,7 @@ FlowStudio/
 │   │       ├── flow.py                     # Railtracks flow definitions
 │   │       ├── gcs_tools.py                # GCS integration
 │   │       └── agents/                     # IntentAgent, NarrativeAgent, EditAgent
-│   ├── claudeFrontend/                     # @flowstudio/frontend — Next.js 15 monitoring dashboard
+│   ├── frontend/                            # @flowstudio/frontend — Next.js 15 app (auth, editor, STDB)
 │   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   └── src/
@@ -450,10 +450,10 @@ This is the CI gate. Zero errors required before merge.
 
 ---
 
-### `@flowstudio/frontend` (claudeFrontend)
+### `@flowstudio/frontend` (frontend)
 
-**Path:** `packages/claudeFrontend/`
-**Purpose:** Next.js 15 monitoring dashboard for creating projects, uploading videos, and monitoring pipeline progress in real time. Includes admin tools, Railtracks integration, and auto-generated SpacetimeDB type bindings.
+**Path:** `frontend/`
+**Purpose:** Next.js 15 frontend for creating projects, uploading videos, editing via the Inspector panel, and monitoring pipeline progress in real time. Includes Clerk auth, Railtracks gateway integration, and SpacetimeDB SDK type bindings.
 
 **Routes:**
 
@@ -840,25 +840,24 @@ The frontend connects to SpacetimeDB via the native TypeScript SDK over WebSocke
 
 ---
 
-### 6d. claudeFrontend (Monitoring Dashboard)
+### 6d. Frontend (App)
 
-**Path:** `packages/claudeFrontend/`
+**Path:** `frontend/`
 
-A lightweight Next.js 15 dashboard for project monitoring with auto-generated SpacetimeDB type bindings.
+The production Next.js 15 app with Clerk auth, SpacetimeDB integration, video editor (timeline, Inspector panel), and Railtracks gateway connection.
 
 #### SpacetimeDB Connection Management
 
-File: `claudeFrontend/src/lib/spacetimedb.ts`
+File: `frontend/lib/stdb/spacetimedb.ts`
 
 A singleton module managing the SpacetimeDB WebSocket connection via the native SDK (v2.0.4). On connect, it subscribes to all 5 public tables and wires `onInsert`/`onUpdate`/`onDelete` callbacks to Zustand stores for real-time push updates. Reducer calls are type-safe through generated bindings (`getConnection().reducers.createProject({...})`). BigInt fields from the SDK are converted to Number at the store boundary.
 
-- `initSpacetimeDb(config)` connects via WebSocket, subscribes to tables, wires store callbacks
+- `initSpacetimeDb()` connects via WebSocket, subscribes to tables, wires store callbacks
 - `getConnection()` returns the singleton `DbConnection` for typed reducer calls
-- `syncStoresForProject(projectStore, signalStore)` re-syncs scoped data on project switch
-- `setActiveProjectForSync(id)` sets the active project filter for scoped table callbacks
-- `disconnectSpacetimeDb()` tears down the connection
+- `isConnected()` checks connection and subscription status
+- `getProjects()` / `getFolders()` / `getProjectAssets()` — helpers to read STDB cache
 
-Module bindings: `claudeFrontend/src/module_bindings/index.ts` — typed table schemas and reducer definitions matching the STDB module.
+Module bindings: `frontend/lib/stdb/module_bindings/index.ts` — typed table schemas and reducer definitions matching the STDB module.
 
 ---
 
