@@ -470,6 +470,7 @@ export function Timeline() {
     removeEffectBlock,
     selectedEffectBlockId,
     setSelectedEffectBlockId,
+    setTimelineViewportWidth,
   } = useEditor()
 
   // Editing actions
@@ -500,6 +501,8 @@ export function Timeline() {
   // Local state for smooth playhead animation
   const [localPlayheadPosition, setLocalPlayheadPosition] = useState(currentTime * pixelsPerSecond)
   const animationRef = useRef<number | null>(null)
+  const currentTimeRef = useRef(currentTime)
+  currentTimeRef.current = currentTime
 
   // Sync local position with context when not playing or when currentTime/zoom changes
   useEffect(() => {
@@ -519,8 +522,8 @@ export function Timeline() {
     }
 
     const animate = () => {
-      // Read current time from context and update local position
-      setLocalPlayheadPosition(currentTime * pixelsPerSecond)
+      // Read current time from ref (avoids stale closure / deps restart)
+      setLocalPlayheadPosition(currentTimeRef.current * pixelsPerSecond)
       animationRef.current = requestAnimationFrame(animate)
     }
 
@@ -532,7 +535,7 @@ export function Timeline() {
         animationRef.current = null
       }
     }
-  }, [isPlaying, currentTime, pixelsPerSecond])
+  }, [isPlaying, pixelsPerSecond])
 
   const playheadPosition = localPlayheadPosition
 
@@ -587,6 +590,19 @@ export function Timeline() {
   } | null>(null)
   const timelineRef = useRef<HTMLDivElement>(null)
   const pendingEffectBlockUpdateRef = useRef<{ blockId: string; startTime?: number; duration?: number } | null>(null)
+
+  // Measure timeline viewport width for zoomToFit
+  useEffect(() => {
+    const el = timelineRef.current
+    if (!el) return
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setTimelineViewportWidth(entry.contentRect.width)
+      }
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [setTimelineViewportWidth])
 
   const [fxExpanded, setFxExpanded] = useState(false)
   const [timelineBodyHeight, setTimelineBodyHeight] = useState(280)
@@ -1231,15 +1247,31 @@ export function Timeline() {
         }
       }
 
+      // Determine clip type from media MIME type, auto-route to correct track
+      const isAudioMedia = media.type.startsWith("audio/")
+      const clipType: "video" | "audio" = isAudioMedia ? "audio" : "video"
+      // If audio media is dropped on a video track, auto-route to A1
+      const resolvedTrackId = isAudioMedia && trackId.startsWith("V") ? "A1" : trackId
+
+      // Recalculate start position for the resolved track (when auto-routed)
+      if (resolvedTrackId !== trackId && previewPosition === undefined) {
+        const clipsOnResolved = timelineClips.filter((clip) => clip.trackId === resolvedTrackId)
+        if (clipsOnResolved.length === 0) {
+          startPosition = 0
+        } else {
+          startPosition = clipsOnResolved.reduce((max, clip) => Math.max(max, clip.startTime + clip.duration), 0)
+        }
+      }
+
       const newClip: TimelineClip = {
         id: `clip-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         mediaId: media.id,
-        trackId,
+        trackId: resolvedTrackId,
         startTime: startPosition,
         duration: clipDuration,
         mediaOffset: mediaOffset,
         label: clipLabel,
-        type: trackId.startsWith("V") ? "video" : "audio",
+        type: clipType,
         transform: DEFAULT_CLIP_TRANSFORM,
         effects: DEFAULT_CLIP_EFFECTS,
       }
@@ -1289,27 +1321,44 @@ export function Timeline() {
     [setCurrentTime, setSelectedClipId, getTimeFromMouseEvent, setIsScrubbing, isPlaying, setIsPlaying]
   )
 
-  // Handle scrubbing mousemove
+  // Handle scrubbing mousemove — RAF-throttled to avoid 30-50ms/frame jank
+  const pendingScrubTimeRef = useRef<number | null>(null)
+  const scrubRafRef = useRef<number | null>(null)
+
   const handleScrubMove = useCallback(
     (e: MouseEvent) => {
       if (!isScrubbing) return
-      // Prevent text selection and default behaviors during drag
       e.preventDefault()
       e.stopPropagation()
       const newTime = getTimeFromMouseEvent(e)
       if (newTime !== null) {
-        // Allow dragging past the timeline end
-        const clampedTime = Math.max(0, newTime)
-        setCurrentTime(clampedTime)
+        pendingScrubTimeRef.current = Math.max(0, newTime)
+        if (scrubRafRef.current === null) {
+          scrubRafRef.current = requestAnimationFrame(() => {
+            if (pendingScrubTimeRef.current !== null) {
+              setCurrentTime(pendingScrubTimeRef.current)
+              pendingScrubTimeRef.current = null
+            }
+            scrubRafRef.current = null
+          })
+        }
       }
     },
     [isScrubbing, setCurrentTime, getTimeFromMouseEvent]
   )
 
-  // Handle scrubbing mouseup
+  // Handle scrubbing mouseup — flush any pending RAF
   const handleScrubEnd = useCallback(() => {
+    if (scrubRafRef.current !== null) {
+      cancelAnimationFrame(scrubRafRef.current)
+      scrubRafRef.current = null
+    }
+    if (pendingScrubTimeRef.current !== null) {
+      setCurrentTime(pendingScrubTimeRef.current)
+      pendingScrubTimeRef.current = null
+    }
     setIsScrubbing(false)
-  }, [])
+  }, [setCurrentTime])
 
   // Add/remove scrubbing event listeners
   useEffect(() => {

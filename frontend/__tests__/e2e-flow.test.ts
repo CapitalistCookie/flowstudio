@@ -104,7 +104,7 @@ describe('E2E data flow contracts', () => {
       const timelineClip = {
         id: 'ai-123-0-abc',
         mediaId: 'source-proj-abc',
-        trackId: 'Track 4',
+        trackId: 'V2',
         startTime: 40, // pixels (outputStartMs / 1000 * PIXELS_PER_SECOND)
         duration: 50, // pixels
         mediaOffset: 50, // pixels (sourceStartMs / 1000 * PIXELS_PER_SECOND)
@@ -118,7 +118,7 @@ describe('E2E data flow contracts', () => {
       
       expect(timelineClip.aiEditType).toBe('zoom');
       expect(timelineClip.transform.scale).toBe(150);
-      expect(timelineClip.trackId).toBe('Track 4');
+      expect(timelineClip.trackId).toBe('V2');
     });
   });
   

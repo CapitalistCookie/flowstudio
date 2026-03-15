@@ -137,7 +137,7 @@ describe('E2E Contract: Gateway → Frontend', () => {
     const plan: EditDecision[] = GATEWAY_EDIT_PLAN_RESPONSE.edit_plan;
     const clips = editPlanToTimelineClips(plan, 'media-1');
 
-    const sortedByTrack3 = clips.filter((c) => c.trackId === 'Track 3').sort((a, b) => a.startTime - b.startTime);
+    const sortedByTrack3 = clips.filter((c) => c.trackId === 'V1').sort((a, b) => a.startTime - b.startTime);
 
     for (let i = 1; i < sortedByTrack3.length; i++) {
       const prev = sortedByTrack3[i - 1]!;
@@ -153,7 +153,7 @@ describe('E2E Contract: Gateway → Frontend', () => {
 
     expect(zoomClip).toBeDefined();
     expect(zoomClip!.transform.scale).toBe(150);
-    expect(zoomClip!.trackId).toBe('Track 4');
+    expect(zoomClip!.trackId).toBe('V2');
   });
 
   it('speedup clip has shorter output duration than source', () => {
@@ -210,7 +210,7 @@ describe('E2E Contract: Reprompt Flow', () => {
     const manualClip: TimelineClip = {
       id: 'manual-1',
       mediaId: 'media-1',
-      trackId: 'Track 3',
+      trackId: 'V1',
       startTime: 0,
       duration: 50,
       mediaOffset: 0,

@@ -13,9 +13,16 @@ import { InspectorPanel } from "./inspector-panel"
 import { PipelineProgressBar } from "./pipeline-progress"
 import { EditorProvider, useEditor } from "./editor-context"
 import { useEditStats } from "./use-edit-stats"
-import { getConnection, isConnected, getProjectAssets } from "@/lib/stdb/spacetimedb"
+import { getConnection, isConnected, getProjectAssets, subscribeToProject } from "@/lib/stdb/spacetimedb"
 import { useAuth } from "@/lib/auth/use-auth"
 import { AssetType } from "@flowstudio/shared"
+import { useCaptureStore } from "@/lib/capture/capture-store"
+import { useStdbStatus } from "@/components/stdb-provider"
+import { usePresence } from "@/hooks/use-presence"
+import { useProjectLock } from "@/hooks/use-project-lock"
+import { PresenceAvatars } from "./presence-avatars"
+import { LockStatusBanner } from "./lock-status-banner"
+import { LockTakeoverDialog } from "./lock-takeover-dialog"
 import { usePipelineStatus } from "@/lib/services/pipeline-status"
 import {
   ResizablePanelGroup,
@@ -77,11 +84,15 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
   const [isApproved, setIsApproved] = useState(false)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
-  const { setProjectId, setProjectResolution, loadTimelineData, saveProject, isSaving, hasUnsavedChanges, isPlaying, setIsPlaying, sortedVideoClips, currentTime, setCurrentTime, timelineEndTime, activeClip, splitClip, selectedClipId, removeClip, undo, redo, canUndo, canRedo, copyClip, pasteClip, canPaste, addMediaFiles, mediaFiles } = useEditor()
+  const { setProjectId, setProjectResolution, loadTimelineData, loadFromStdb, saveProject, isSaving, hasUnsavedChanges, isPlaying, setIsPlaying, sortedVideoClips, currentTime, setCurrentTime, timelineEndTime, activeClip, splitClip, selectedClipId, removeClip, undo, redo, canUndo, canRedo, copyClip, pasteClip, canPaste, addMediaFiles, mediaFiles } = useEditor()
   const { user } = useAuth()
   const [autoEditTriggered, setAutoEditTriggered] = useState(false)
   const { status: pipelineStatus } = usePipelineStatus(projectId !== "local-project" ? projectId : null)
   const searchParams = useSearchParams()
+  const { users: presenceUsers } = usePresence(projectId !== "local-project" ? projectId : null)
+  const { isEditor: hasLock, lockHolder, acquireLock: doAcquireLock, releaseLock: doReleaseLock, forceAcquire: doForceAcquire } = useProjectLock(projectId !== "local-project" ? projectId : null)
+  const stdbStatus = useStdbStatus()
+  const [showTakeoverDialog, setShowTakeoverDialog] = useState(false)
 
   // Handle direct export action from recording
   useEffect(() => {
@@ -103,6 +114,8 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
   }, [hasUnsavedChanges])
 
   useEffect(() => {
+    let cancelled = false
+
     function loadProject() {
       setIsLoading(true)
 
@@ -148,10 +161,22 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
       setProjectResolution(foundProject.resolution)
       loadTimelineData(null)
 
+      // Subscribe to project-scoped STDB tables and load persisted timeline data
+      if (projectId !== "local-project" && isConnected()) {
+        subscribeToProject(projectId)
+          .then(() => {
+            if (!cancelled) loadFromStdb(projectId)
+          })
+          .catch((err) => {
+            if (!cancelled) console.warn("[Editor] Project subscription failed:", err)
+          })
+      }
+
       // Load source video from STDB assets
+      let assets: ReturnType<typeof getProjectAssets> = []
       if (projectId !== "local-project") {
         try {
-          const assets = getProjectAssets(projectId)
+          assets = getProjectAssets(projectId)
           const sourceAsset = assets.find(
             (a) => a.assetType === AssetType.SOURCE_VIDEO
           )
@@ -173,12 +198,32 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
         } catch (e) {
           console.warn("[Editor] Could not load source video from STDB:", e)
         }
+
+        // Fallback: if no source asset found but capture store has a blob, use it directly
+        if (!assets?.find((a) => a.assetType === AssetType.SOURCE_VIDEO)) {
+          const captureBlobUrl = useCaptureStore.getState().blobUrl
+          const captureElapsed = useCaptureStore.getState().elapsedMs
+          if (captureBlobUrl) {
+            console.log("[Editor] Using capture store blob as fallback source video")
+            addMediaFiles([{
+              id: `capture-${projectId}`,
+              name: "Recording (unsaved)",
+              duration: formatDuration(captureElapsed),
+              durationSeconds: captureElapsed / 1000,
+              type: "video/webm",
+              thumbnail: null,
+              objectUrl: captureBlobUrl,
+            }])
+          }
+        }
       }
 
       setIsLoading(false)
     }
     loadProject()
-  }, [projectId, user?.uid, setProjectId, setProjectResolution, loadTimelineData, addMediaFiles])
+
+    return () => { cancelled = true }
+  }, [projectId, user?.uid, setProjectId, setProjectResolution, loadTimelineData, addMediaFiles, stdbStatus, loadFromStdb])
 
   // When pipeline signals are ready and auto mode, show AI notice
   useEffect(() => {
@@ -387,12 +432,18 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
           <EditStatsDisplay />
         </div>
         <div className="flex items-center gap-2">
+          <PresenceAvatars users={presenceUsers} />
+          {!hasLock && projectId !== "local-project" && (
+            <div className="text-xs text-amber-400 font-medium px-2 py-1 rounded bg-amber-500/10">
+              Read-only
+            </div>
+          )}
           <Button
             variant="ghost"
             size="sm"
             className="gap-2"
             onClick={handleSave}
-            disabled={isSaving || !hasUnsavedChanges}
+            disabled={isSaving || !hasUnsavedChanges || !hasLock}
           >
             {isSaving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -452,6 +503,28 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
         </div>
       )}
 
+      {/* Lock status banner */}
+      {projectId !== "local-project" && (
+        <LockStatusBanner
+          isEditor={hasLock}
+          lockHolder={lockHolder}
+          onAcquireLock={doAcquireLock}
+          onForceAcquire={() => setShowTakeoverDialog(true)}
+          isOwner={!!user?.uid}
+        />
+      )}
+
+      {/* Lock takeover confirmation dialog */}
+      <LockTakeoverDialog
+        open={showTakeoverDialog}
+        lockHolderName={lockHolder?.name ?? "Unknown"}
+        onConfirm={() => {
+          doForceAcquire()
+          setShowTakeoverDialog(false)
+        }}
+        onCancel={() => setShowTakeoverDialog(false)}
+      />
+
       {/* Export Modal */}
       <ExportModal open={showExportModal} onOpenChange={setShowExportModal} />
 
@@ -506,8 +579,10 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
 }
 
 export function EditorShell({ projectId, initialEditMode = "none" }: EditorShellProps) {
+  const { isEditor } = useProjectLock(projectId)
+
   return (
-    <EditorProvider>
+    <EditorProvider isEditor={isEditor}>
       <EditorContent projectId={projectId} initialEditMode={initialEditMode} />
     </EditorProvider>
   )

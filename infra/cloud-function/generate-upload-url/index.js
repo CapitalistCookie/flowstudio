@@ -59,7 +59,7 @@ exports.generateUploadUrl = async (req, res) => {
     return;
   }
 
-  const { projectId, filename, contentType } = req.body;
+  const { projectId, filename, contentType, folder: requestedFolder } = req.body;
 
   if (!projectId || !filename || !contentType) {
     res.status(400).json({ error: "Missing required fields" });
@@ -77,19 +77,27 @@ exports.generateUploadUrl = async (req, res) => {
     return;
   }
 
-  // Validate content type: video (e.g. .mp4) or audio (e.g. .mp3)
+  // Validate content type: video, audio, or image (for thumbnails/media)
   const isVideo = contentType.startsWith("video/");
   const isAudio = contentType.startsWith("audio/");
-  if (!isVideo && !isAudio) {
+  const isImage = contentType.startsWith("image/");
+  if (!isVideo && !isAudio && !isImage) {
     res
       .status(400)
       .json({
-        error: "Only video (.mp4, etc.) or audio (.mp3) files are accepted",
+        error: "Only video, audio, or image files are accepted",
       });
     return;
   }
 
-  const folder = isVideo ? "source_video" : "audio_track";
+  // Determine folder: use requested folder if valid, otherwise derive from content type
+  const ALLOWED_FOLDERS = ["source_video", "audio_track", "media_files"];
+  let folder;
+  if (requestedFolder && ALLOWED_FOLDERS.includes(requestedFolder)) {
+    folder = requestedFolder;
+  } else {
+    folder = isVideo ? "source_video" : isAudio ? "audio_track" : "media_files";
+  }
   const gcsPath = `projects/${projectId}/${folder}/${filename}`;
   const file = storage.bucket(BUCKET).file(gcsPath);
 
@@ -101,7 +109,7 @@ exports.generateUploadUrl = async (req, res) => {
       contentType: contentType || "video/mp4",
     });
 
-    res.json({ url, gcsPath: `gs://${BUCKET}/${gcsPath}` });
+    res.json({ url, signedUrl: url, gcsPath: `gs://${BUCKET}/${gcsPath}` });
   } catch (err) {
     console.error("Failed to generate signed URL:", err);
     res.status(500).json({ error: "Failed to generate upload URL" });

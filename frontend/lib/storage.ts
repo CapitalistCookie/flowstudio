@@ -2,6 +2,28 @@ const DB_NAME = 'FlowStudioMediaDB'
 const STORE_NAME = 'mediaFiles'
 const DB_VERSION = 1
 
+// Track blob URLs for cleanup
+const activeBlobUrls = new Set<string>()
+
+function trackBlobUrl(url: string): string {
+  activeBlobUrls.add(url)
+  return url
+}
+
+export function revokeBlobUrl(url: string) {
+  if (activeBlobUrls.has(url)) {
+    URL.revokeObjectURL(url)
+    activeBlobUrls.delete(url)
+  }
+}
+
+export function revokeAllBlobUrls() {
+  for (const url of activeBlobUrls) {
+    URL.revokeObjectURL(url)
+  }
+  activeBlobUrls.clear()
+}
+
 interface MediaRecord {
   path: string
   file: Blob | File
@@ -57,7 +79,7 @@ export async function uploadMediaFile(
 
       request.onsuccess = () => {
         // Create an object URL for immediate use
-        const url = URL.createObjectURL(file)
+        const url = trackBlobUrl(URL.createObjectURL(file))
         resolve({
           data: { path, url },
           error: null
@@ -86,7 +108,7 @@ export async function getMediaFileUrl(path: string): Promise<{ url: string | nul
       request.onsuccess = () => {
         if (request.result) {
           const record = request.result as MediaRecord
-          const url = URL.createObjectURL(record.file)
+          const url = trackBlobUrl(URL.createObjectURL(record.file))
           resolve({ url, error: null })
         } else {
           resolve({ url: null, error: new Error('File not found') })

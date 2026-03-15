@@ -371,33 +371,34 @@ function MediaTab({
   const getVideoDuration = useCallback(
     (file: File): Promise<{ formatted: string; seconds: number }> => {
       return new Promise((resolve) => {
-        const video = document.createElement("video");
-        video.preload = "metadata";
+        const isAudio = file.type.startsWith("audio/") || /\.(mp3|wav|m4a|aac|flac|ogg)$/i.test(file.name);
+        const el = document.createElement(isAudio ? "audio" : "video");
+        el.preload = "metadata";
 
         // Timeout after 10 seconds
         const timeout = setTimeout(() => {
           console.warn("Duration loading timeout for:", file.name);
-          URL.revokeObjectURL(video.src);
+          URL.revokeObjectURL(el.src);
           resolve({ formatted: "00:00", seconds: 0 });
         }, 10000);
 
-        video.onloadedmetadata = () => {
+        el.onloadedmetadata = () => {
           clearTimeout(timeout);
           resolve({
-            formatted: formatDuration(video.duration),
-            seconds: video.duration,
+            formatted: formatDuration(el.duration),
+            seconds: el.duration,
           });
-          URL.revokeObjectURL(video.src);
+          URL.revokeObjectURL(el.src);
         };
 
-        video.onerror = () => {
+        el.onerror = () => {
           clearTimeout(timeout);
-          console.error("Error loading video metadata:", file.name);
+          console.error("Error loading media metadata:", file.name);
           resolve({ formatted: "00:00", seconds: 0 });
-          URL.revokeObjectURL(video.src);
+          URL.revokeObjectURL(el.src);
         };
 
-        video.src = URL.createObjectURL(file);
+        el.src = URL.createObjectURL(file);
       });
     },
     [],
@@ -405,24 +406,28 @@ function MediaTab({
 
   const processFiles = useCallback(
     async (files: FileList | File[]) => {
-      const videoFiles = Array.from(files).filter((file) => {
+      const mediaFiles = Array.from(files).filter((file) => {
         // Accept video files or mp4/mov/webm/avi by extension if MIME type is missing
         const isVideoType = file.type.startsWith("video/");
         const hasVideoExt = /\.(mp4|mov|webm|avi|mkv|m4v)$/i.test(file.name);
-        return isVideoType || hasVideoExt;
+        // Accept audio files
+        const isAudioType = file.type.startsWith("audio/");
+        const hasAudioExt = /\.(mp3|wav|m4a|aac|flac|ogg)$/i.test(file.name);
+        return isVideoType || hasVideoExt || isAudioType || hasAudioExt;
       });
 
-      if (videoFiles.length === 0) {
-        console.warn("No video files found in selection");
+      if (mediaFiles.length === 0) {
+        console.warn("No media files found in selection");
         return;
       }
 
       const processedFiles: MediaFile[] = [];
 
-      for (const file of videoFiles) {
+      for (const file of mediaFiles) {
+        const isAudio = file.type.startsWith("audio/") || /\.(mp3|wav|m4a|aac|flac|ogg)$/i.test(file.name);
         try {
           const [thumbnail, durationData] = await Promise.all([
-            generateThumbnail(file).catch(() => null),
+            isAudio ? Promise.resolve(null) : generateThumbnail(file).catch(() => null),
             getVideoDuration(file).catch(() => ({
               formatted: "00:00",
               seconds: 0,
@@ -436,7 +441,7 @@ function MediaTab({
             duration: durationData.formatted,
             durationSeconds: durationData.seconds,
             thumbnail,
-            type: file.type || "video/mp4", // Default to mp4 if type is missing
+            type: file.type || (isAudio ? "audio/mpeg" : "video/mp4"),
             objectUrl: URL.createObjectURL(file),
           });
         } catch (err) {
@@ -449,7 +454,7 @@ function MediaTab({
             duration: "00:00",
             durationSeconds: 0,
             thumbnail: null,
-            type: file.type || "video/mp4",
+            type: file.type || (isAudio ? "audio/mpeg" : "video/mp4"),
             objectUrl: URL.createObjectURL(file),
           });
         }
@@ -711,7 +716,7 @@ function MediaTab({
         <input
           ref={fileInputRef}
           type="file"
-          accept="video/*"
+          accept="video/*,audio/*"
           multiple
           className="hidden"
           onChange={handleFileSelect}

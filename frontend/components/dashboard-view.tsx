@@ -44,7 +44,7 @@ export function DashboardView() {
   const deadTimeRemovedMinutes = Math.round(totalSecondsRemoved / 60)
 
   const stats = [
-    { label: "Footage removed", value: `${deadTimeRemovedMinutes}m`, icon: Scissors },
+    { label: "Dead time cut", value: `${deadTimeRemovedMinutes}m`, icon: Scissors },
     { label: "Demos shipped", value: `${demosShipped}`, icon: Rocket },
     { label: "Total edits", value: `${totalEdits}`, icon: Sparkles },
   ]

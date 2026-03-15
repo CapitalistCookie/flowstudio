@@ -94,3 +94,65 @@ export interface WorkerConfig {
   concurrency: number;
   metadata: string;       // JSON string
 }
+
+/** SpacetimeDB: timeline_clips table */
+export interface TimelineClipRow {
+  id: string;
+  projectId: string;
+  mediaFileId: string;
+  trackId: string;
+  startTime: number;      // pixels from left
+  duration: number;       // width in pixels
+  mediaOffset: number;    // offset into source media (pixels)
+  label: string;
+  clipType: string;       // "video" | "audio"
+  transform: string;      // JSON string of ClipTransform
+  effects: string;        // JSON string of ClipEffects
+  aiReasoning: string;
+  sortOrder: number;
+  updatedBy: string;
+}
+
+/** SpacetimeDB: media_files table */
+export interface MediaFileRow {
+  id: string;
+  projectId: string;
+  name: string;
+  durationSeconds: number;
+  fileType: string;
+  gcsPath: string;
+  gcsUrl: string;
+  sizeBytes: number;
+  captionsJson: string;   // JSON string of Caption[]
+}
+
+/** SpacetimeDB: effect_blocks table */
+export interface EffectBlockRow {
+  id: string;
+  projectId: string;
+  effectType: string;
+  startTime: number;
+  duration: number;
+  config: string;         // JSON string
+}
+
+/** SpacetimeDB: project_presence table */
+export interface ProjectPresenceRow {
+  id: string;             // identity hex
+  projectId: string;
+  firebaseUid: string;
+  displayName: string;
+  color: string;
+  lastHeartbeat: number;
+  currentTimelinePosition: number;
+}
+
+/** SpacetimeDB: project_locks table */
+export interface ProjectLockRow {
+  projectId: string;      // primary key
+  lockedBy: string;       // firebase UID
+  lockedByName: string;
+  lockedAt: number;
+  expiresAt: number;
+  lockVersion: number;
+}

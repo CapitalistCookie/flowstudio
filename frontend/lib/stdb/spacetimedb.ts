@@ -12,6 +12,9 @@
 
 import { DbConnection, type SubscriptionEventContext, type ErrorContext } from './module_bindings';
 import type { ProjectStatus } from '@flowstudio/shared';
+import { stdbClipToLocalClip, stdbMediaToLocalMedia, stdbEffectToLocalEffect } from './converters';
+import type { TimelineClip, MediaFile } from '@/components/editor-context';
+import type { EffectBlockData } from '@/lib/types';
 
 // ─── Connection singleton ────────────────────────────────────────────
 
@@ -80,10 +83,44 @@ type OnDisconnectCallback = () => void;
 type OnProjectsChanged = (projects: StdbProject[]) => void;
 type OnFoldersChanged = (folders: StdbFolder[]) => void;
 
+// Store-friendly types (bigint → number)
+export interface StdbPresenceUser {
+  id: string;
+  projectId: string;
+  firebaseUid: string;
+  displayName: string;
+  color: string;
+  lastHeartbeat: number;
+  currentTimelinePosition: number;
+}
+
+export interface StdbProjectLock {
+  projectId: string;
+  lockedBy: string;
+  lockedByName: string;
+  lockedAt: number;
+  expiresAt: number;
+  lockVersion: number;
+}
+
+// Project-scoped subscription callbacks
+type OnTimelineClipsChanged = (clips: TimelineClip[]) => void;
+type OnMediaFilesChanged = (files: MediaFile[]) => void;
+type OnEffectBlocksChanged = (blocks: EffectBlockData[]) => void;
+type OnPresenceChanged = (users: StdbPresenceUser[]) => void;
+type OnLockChanged = (lock: StdbProjectLock | null) => void;
+
 let onConnectCb: OnConnectCallback | null = null;
 let onDisconnectCb: OnDisconnectCallback | null = null;
 let onProjectsChangedCb: OnProjectsChanged | null = null;
 let onFoldersChangedCb: OnFoldersChanged | null = null;
+let onTimelineClipsChangedCb: OnTimelineClipsChanged | null = null;
+let onMediaFilesChangedCb: OnMediaFilesChanged | null = null;
+let onEffectBlocksChangedCb: OnEffectBlocksChanged | null = null;
+let onPresenceChangedCb: OnPresenceChanged | null = null;
+let onLockChangedCb: OnLockChanged | null = null;
+let subscribedProjectId: string | null = null;
+let projectSubscriptionActive = false;
 
 export function setOnProjectsChanged(cb: OnProjectsChanged | null) {
   onProjectsChangedCb = cb;
@@ -93,22 +130,115 @@ export function setOnFoldersChanged(cb: OnFoldersChanged | null) {
   onFoldersChangedCb = cb;
 }
 
+export function setOnTimelineClipsChanged(cb: OnTimelineClipsChanged | null) {
+  onTimelineClipsChangedCb = cb;
+}
+
+export function setOnMediaFilesChanged(cb: OnMediaFilesChanged | null) {
+  onMediaFilesChangedCb = cb;
+}
+
+export function setOnEffectBlocksChanged(cb: OnEffectBlocksChanged | null) {
+  onEffectBlocksChangedCb = cb;
+}
+
+export function setOnPresenceChanged(cb: OnPresenceChanged | null) {
+  onPresenceChangedCb = cb;
+}
+
+export function setOnLockChanged(cb: OnLockChanged | null) {
+  onLockChangedCb = cb;
+}
+
+// Debounce helpers
+let projectsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let foldersDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
 function notifyProjectsChanged() {
   if (!onProjectsChangedCb || !connection) return;
-  const projects: StdbProject[] = [];
-  for (const row of connection.db.projects.iter()) {
-    projects.push(projectRowToStore(row));
-  }
-  onProjectsChangedCb(projects);
+  if (projectsDebounceTimer) clearTimeout(projectsDebounceTimer);
+  projectsDebounceTimer = setTimeout(() => {
+    if (!onProjectsChangedCb || !connection) return;
+    const projects: StdbProject[] = [];
+    for (const row of connection.db.projects.iter()) {
+      projects.push(projectRowToStore(row));
+    }
+    onProjectsChangedCb(projects);
+  }, 100);
 }
 
 function notifyFoldersChanged() {
   if (!onFoldersChangedCb || !connection) return;
-  const folders: StdbFolder[] = [];
-  for (const row of connection.db.folders.iter()) {
-    folders.push(folderRowToStore(row));
+  if (foldersDebounceTimer) clearTimeout(foldersDebounceTimer);
+  foldersDebounceTimer = setTimeout(() => {
+    if (!onFoldersChangedCb || !connection) return;
+    const folders: StdbFolder[] = [];
+    for (const row of connection.db.folders.iter()) {
+      folders.push(folderRowToStore(row));
+    }
+    onFoldersChangedCb(folders);
+  }, 100);
+}
+
+function notifyTimelineClipsChanged() {
+  if (!onTimelineClipsChangedCb || !connection || !subscribedProjectId) return;
+  const clips: TimelineClip[] = [];
+  for (const row of connection.db.timelineClips.byProjectId.filter(subscribedProjectId)) {
+    clips.push(stdbClipToLocalClip(row as any));
   }
-  onFoldersChangedCb(folders);
+  onTimelineClipsChangedCb(clips);
+}
+
+function notifyMediaFilesChanged() {
+  if (!onMediaFilesChangedCb || !connection || !subscribedProjectId) return;
+  const files: MediaFile[] = [];
+  for (const row of connection.db.mediaFiles.byProjectId.filter(subscribedProjectId)) {
+    files.push(stdbMediaToLocalMedia(row as any));
+  }
+  onMediaFilesChangedCb(files);
+}
+
+function notifyEffectBlocksChanged() {
+  if (!onEffectBlocksChangedCb || !connection || !subscribedProjectId) return;
+  const blocks: EffectBlockData[] = [];
+  for (const row of connection.db.effectBlocks.byProjectId.filter(subscribedProjectId)) {
+    blocks.push(stdbEffectToLocalEffect(row as any));
+  }
+  onEffectBlocksChangedCb(blocks);
+}
+
+function notifyPresenceChanged() {
+  if (!onPresenceChangedCb || !connection || !subscribedProjectId) return;
+  const users: StdbPresenceUser[] = [];
+  for (const row of connection.db.projectPresence.byProjectId.filter(subscribedProjectId)) {
+    users.push({
+      id: (row as any).id,
+      projectId: (row as any).projectId,
+      firebaseUid: (row as any).firebaseUid,
+      displayName: (row as any).displayName,
+      color: (row as any).color,
+      lastHeartbeat: toNum((row as any).lastHeartbeat),
+      currentTimelinePosition: (row as any).currentTimelinePosition,
+    });
+  }
+  onPresenceChangedCb(users);
+}
+
+function notifyLockChanged() {
+  if (!onLockChangedCb || !connection || !subscribedProjectId) return;
+  const lock = connection.db.projectLocks.projectId.find(subscribedProjectId);
+  if (lock) {
+    onLockChangedCb({
+      projectId: (lock as any).projectId,
+      lockedBy: (lock as any).lockedBy,
+      lockedByName: (lock as any).lockedByName,
+      lockedAt: toNum((lock as any).lockedAt),
+      expiresAt: toNum((lock as any).expiresAt),
+      lockVersion: (lock as any).lockVersion,
+    });
+  } else {
+    onLockChangedCb(null);
+  }
 }
 
 // ─── Row converters ──────────────────────────────────────────────────
@@ -264,9 +394,6 @@ export function initSpacetimeDb(
             currentUid
               ? `SELECT * FROM folders WHERE ownerId = '${currentUid}'`
               : 'SELECT * FROM folders WHERE 1=0',
-            'SELECT * FROM assets',
-            'SELECT * FROM tasks',
-            'SELECT * FROM signals',
           ]);
       })
       .onConnectError((_ctx: ErrorContext, err: Error) => {
@@ -299,6 +426,124 @@ function wireTableCallbacks(conn: DbConnection) {
   conn.db.folders.onDelete(() => notifyFoldersChanged());
 }
 
+/**
+ * Subscribe to project-scoped tables (timeline_clips, media_files, etc.)
+ * Call this when entering the editor for a specific project.
+ */
+export function subscribeToProject(projectId: string): Promise<void> {
+  if (!connection) return Promise.reject(new Error('Not connected'));
+  if (subscribedProjectId === projectId && projectSubscriptionActive) return Promise.resolve();
+
+  subscribedProjectId = projectId;
+  projectSubscriptionActive = false;
+
+  return new Promise<void>((resolve, reject) => {
+    connection!.subscriptionBuilder()
+      .onApplied(() => {
+        console.log(`[STDB] Project subscription applied for ${projectId}`);
+        projectSubscriptionActive = true;
+        wireProjectCallbacks(connection!);
+        resolve();
+      })
+      .onError((ctx: any) => {
+        console.error('[STDB] Project subscription error:', ctx);
+        reject(new Error('Project subscription failed'));
+      })
+      .subscribe([
+        `SELECT * FROM assets WHERE projectId = '${projectId}'`,
+        `SELECT * FROM tasks WHERE projectId = '${projectId}'`,
+        `SELECT * FROM signals WHERE projectId = '${projectId}'`,
+        `SELECT * FROM timeline_clips WHERE projectId = '${projectId}'`,
+        `SELECT * FROM media_files WHERE projectId = '${projectId}'`,
+        `SELECT * FROM effect_blocks WHERE projectId = '${projectId}'`,
+        `SELECT * FROM project_presence WHERE projectId = '${projectId}'`,
+        `SELECT * FROM project_locks WHERE projectId = '${projectId}'`,
+      ]);
+  });
+}
+
+function wireProjectCallbacks(conn: DbConnection) {
+  conn.db.timelineClips.onInsert(() => notifyTimelineClipsChanged());
+  conn.db.timelineClips.onUpdate(() => notifyTimelineClipsChanged());
+  conn.db.timelineClips.onDelete(() => notifyTimelineClipsChanged());
+
+  conn.db.mediaFiles.onInsert(() => notifyMediaFilesChanged());
+  conn.db.mediaFiles.onUpdate(() => notifyMediaFilesChanged());
+  conn.db.mediaFiles.onDelete(() => notifyMediaFilesChanged());
+
+  conn.db.effectBlocks.onInsert(() => notifyEffectBlocksChanged());
+  conn.db.effectBlocks.onUpdate(() => notifyEffectBlocksChanged());
+  conn.db.effectBlocks.onDelete(() => notifyEffectBlocksChanged());
+
+  conn.db.projectPresence.onInsert(() => notifyPresenceChanged());
+  conn.db.projectPresence.onUpdate(() => notifyPresenceChanged());
+  conn.db.projectPresence.onDelete(() => notifyPresenceChanged());
+
+  conn.db.projectLocks.onInsert(() => notifyLockChanged());
+  conn.db.projectLocks.onUpdate(() => notifyLockChanged());
+  conn.db.projectLocks.onDelete(() => notifyLockChanged());
+}
+
+// ─── Query helpers for project-scoped data ──────────────────────────
+
+export function getTimelineClips(projectId: string): TimelineClip[] {
+  if (!connection || !projectSubscriptionActive) return [];
+  const clips: TimelineClip[] = [];
+  for (const row of connection.db.timelineClips.byProjectId.filter(projectId)) {
+    clips.push(stdbClipToLocalClip(row as any));
+  }
+  return clips;
+}
+
+export function getMediaFiles(projectId: string): MediaFile[] {
+  if (!connection || !projectSubscriptionActive) return [];
+  const files: MediaFile[] = [];
+  for (const row of connection.db.mediaFiles.byProjectId.filter(projectId)) {
+    files.push(stdbMediaToLocalMedia(row as any));
+  }
+  return files;
+}
+
+export function getEffectBlocks(projectId: string): EffectBlockData[] {
+  if (!connection || !projectSubscriptionActive) return [];
+  const blocks: EffectBlockData[] = [];
+  for (const row of connection.db.effectBlocks.byProjectId.filter(projectId)) {
+    blocks.push(stdbEffectToLocalEffect(row as any));
+  }
+  return blocks;
+}
+
+export function getProjectPresence(projectId: string): StdbPresenceUser[] {
+  if (!connection || !projectSubscriptionActive) return [];
+  const users: StdbPresenceUser[] = [];
+  for (const row of connection.db.projectPresence.byProjectId.filter(projectId)) {
+    users.push({
+      id: (row as any).id,
+      projectId: (row as any).projectId,
+      firebaseUid: (row as any).firebaseUid,
+      displayName: (row as any).displayName,
+      color: (row as any).color,
+      lastHeartbeat: toNum((row as any).lastHeartbeat),
+      currentTimelinePosition: (row as any).currentTimelinePosition,
+    });
+  }
+  return users;
+}
+
+export function getProjectLock(projectId: string): StdbProjectLock | null {
+  if (!connection || !projectSubscriptionActive) return null;
+  const lock = connection.db.projectLocks.projectId.find(projectId);
+  if (!lock) return null;
+  return {
+    projectId: (lock as any).projectId,
+    lockedBy: (lock as any).lockedBy,
+    lockedByName: (lock as any).lockedByName,
+    lockedAt: toNum((lock as any).lockedAt),
+    expiresAt: toNum((lock as any).expiresAt),
+    lockVersion: (lock as any).lockVersion,
+  };
+}
+
 /** Disconnect and clean up. */
 export function disconnectSpacetimeDb() {
   if (tokenRefreshCleanup) {
@@ -309,11 +554,18 @@ export function disconnectSpacetimeDb() {
     connection.disconnect();
     connection = null;
     subscriptionActive = false;
+    projectSubscriptionActive = false;
+    subscribedProjectId = null;
     currentUid = null;
     onConnectCb = null;
     onDisconnectCb = null;
     onProjectsChangedCb = null;
     onFoldersChangedCb = null;
+    onTimelineClipsChangedCb = null;
+    onMediaFilesChangedCb = null;
+    onEffectBlocksChangedCb = null;
+    onPresenceChangedCb = null;
+    onLockChangedCb = null;
   }
 }
 
@@ -343,9 +595,16 @@ export function getFolders(): StdbFolder[] {
 export function getProjectAssets(projectId: string): StdbAsset[] {
   if (!connection || !subscriptionActive) return [];
   const assets: StdbAsset[] = [];
-  for (const row of connection.db.assets.iter()) {
-    if (row.projectId === projectId) {
+  try {
+    for (const row of connection.db.assets.byProjectId.filter(projectId)) {
       assets.push(assetRowToStore(row));
+    }
+  } catch {
+    // Fall back to full iter if index unavailable
+    for (const row of connection.db.assets.iter()) {
+      if (row.projectId === projectId) {
+        assets.push(assetRowToStore(row));
+      }
     }
   }
   return assets;

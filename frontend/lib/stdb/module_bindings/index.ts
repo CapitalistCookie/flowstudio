@@ -101,9 +101,82 @@ const signals = table({
   createdAt: t.u64(),
 });
 
+// ─── Timeline Persistence Tables ─────────────────────────────────────
+
+const timelineClips = table({
+  name: 'timeline_clips', public: true,
+  indexes: [{ accessor: 'byProjectId', algorithm: 'btree' as const, columns: ['projectId'] as const }],
+}, {
+  id: t.string().primaryKey(),
+  projectId: t.string(),
+  mediaFileId: t.string(),
+  trackId: t.string(),
+  startTime: t.f64(),
+  duration: t.f64(),
+  mediaOffset: t.f64(),
+  label: t.string(),
+  clipType: t.string(),
+  transform: t.string(),
+  effects: t.string(),
+  aiReasoning: t.string(),
+  sortOrder: t.i32(),
+  updatedBy: t.string(),
+});
+
+const mediaFilesTable = table({
+  name: 'media_files', public: true,
+  indexes: [{ accessor: 'byProjectId', algorithm: 'btree' as const, columns: ['projectId'] as const }],
+}, {
+  id: t.string().primaryKey(),
+  projectId: t.string(),
+  name: t.string(),
+  durationSeconds: t.f64(),
+  fileType: t.string(),
+  gcsPath: t.string(),
+  gcsUrl: t.string(),
+  sizeBytes: t.u64(),
+  captionsJson: t.string(),
+});
+
+const effectBlocks = table({
+  name: 'effect_blocks', public: true,
+  indexes: [{ accessor: 'byProjectId', algorithm: 'btree' as const, columns: ['projectId'] as const }],
+}, {
+  id: t.string().primaryKey(),
+  projectId: t.string(),
+  effectType: t.string(),
+  startTime: t.f64(),
+  duration: t.f64(),
+  config: t.string(),
+});
+
+const projectPresence = table({
+  name: 'project_presence', public: true,
+  indexes: [{ accessor: 'byProjectId', algorithm: 'btree' as const, columns: ['projectId'] as const }],
+}, {
+  id: t.string().primaryKey(),
+  projectId: t.string(),
+  firebaseUid: t.string(),
+  displayName: t.string(),
+  color: t.string(),
+  lastHeartbeat: t.u64(),
+  currentTimelinePosition: t.f64(),
+});
+
+const projectLocks = table({
+  name: 'project_locks', public: true,
+}, {
+  projectId: t.string().primaryKey(),
+  lockedBy: t.string(),
+  lockedByName: t.string(),
+  lockedAt: t.u64(),
+  expiresAt: t.u64(),
+  lockVersion: t.i32(),
+});
+
 // ─── Schema & Reducers ───────────────────────────────────────────────
 
-const s = schema({ projects, folders, assets, tasks, signals });
+const s = schema({ projects, folders, assets, tasks, signals, timelineClips, mediaFiles: mediaFilesTable, effectBlocks, projectPresence, projectLocks });
 
 const r = reducers(
   reducerSchema('create_project', {
@@ -164,6 +237,37 @@ const r = reducers(
   reducerSchema('register_identity', {
     firebaseUid: t.string(),
   }),
+  // Timeline reducers
+  reducerSchema('upsert_timeline_clip', {
+    projectId: t.string(), clipId: t.string(), mediaFileId: t.string(), trackId: t.string(),
+    startTime: t.f64(), duration: t.f64(), mediaOffset: t.f64(), label: t.string(),
+    clipType: t.string(), transform: t.string(), effects: t.string(), aiReasoning: t.string(), sortOrder: t.i32(),
+  }),
+  reducerSchema('remove_timeline_clip', { clipId: t.string() }),
+  reducerSchema('batch_upsert_timeline_clips', { projectId: t.string(), clipsJson: t.string() }),
+  reducerSchema('clear_project_timeline', { projectId: t.string() }),
+  // Media file reducers
+  reducerSchema('create_media_file', {
+    id: t.string(), projectId: t.string(), name: t.string(), durationSeconds: t.f64(),
+    fileType: t.string(), gcsPath: t.string(), gcsUrl: t.string(), sizeBytes: t.u64(), captionsJson: t.string(),
+  }),
+  reducerSchema('update_media_file_captions', { mediaFileId: t.string(), captionsJson: t.string() }),
+  reducerSchema('remove_media_file', { mediaFileId: t.string() }),
+  // Effect block reducers
+  reducerSchema('upsert_effect_block', {
+    id: t.string(), projectId: t.string(), effectType: t.string(),
+    startTime: t.f64(), duration: t.f64(), config: t.string(),
+  }),
+  reducerSchema('remove_effect_block', { effectBlockId: t.string() }),
+  // Presence reducers
+  reducerSchema('join_project', { projectId: t.string(), displayName: t.string() }),
+  reducerSchema('leave_project', {}),
+  reducerSchema('heartbeat_presence', { currentTimelinePosition: t.f64() }),
+  // Lock reducers
+  reducerSchema('acquire_lock', { projectId: t.string(), displayName: t.string() }),
+  reducerSchema('renew_lock', { projectId: t.string() }),
+  reducerSchema('release_lock', { projectId: t.string() }),
+  reducerSchema('force_release_lock', { projectId: t.string() }),
 );
 
 // ─── Remote Module ───────────────────────────────────────────────────
@@ -262,4 +366,61 @@ export type SignalRow = {
   confidence: number;
   payload: string;
   createdAt: bigint;
+};
+
+export type TimelineClipRow = {
+  id: string;
+  projectId: string;
+  mediaFileId: string;
+  trackId: string;
+  startTime: number;
+  duration: number;
+  mediaOffset: number;
+  label: string;
+  clipType: string;
+  transform: string;
+  effects: string;
+  aiReasoning: string;
+  sortOrder: number;
+  updatedBy: string;
+};
+
+export type MediaFileRow = {
+  id: string;
+  projectId: string;
+  name: string;
+  durationSeconds: number;
+  fileType: string;
+  gcsPath: string;
+  gcsUrl: string;
+  sizeBytes: bigint;
+  captionsJson: string;
+};
+
+export type EffectBlockRow = {
+  id: string;
+  projectId: string;
+  effectType: string;
+  startTime: number;
+  duration: number;
+  config: string;
+};
+
+export type ProjectPresenceRow = {
+  id: string;
+  projectId: string;
+  firebaseUid: string;
+  displayName: string;
+  color: string;
+  lastHeartbeat: bigint;
+  currentTimelinePosition: number;
+};
+
+export type ProjectLockRow = {
+  projectId: string;
+  lockedBy: string;
+  lockedByName: string;
+  lockedAt: bigint;
+  expiresAt: bigint;
+  lockVersion: number;
 };

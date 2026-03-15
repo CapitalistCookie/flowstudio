@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { CheckCircle2, Loader2, Sparkles, Upload } from "lucide-react"
+import { CheckCircle2, Loader2, Sparkles, Wand2 } from "lucide-react"
 import { useCaptureStore } from "@/lib/capture/capture-store"
 import { getRecordedBlob, discardCapture } from "@/lib/capture/capture-service"
 import { uploadToGcs } from "@/lib/upload/upload-service"
@@ -138,11 +138,66 @@ export default function RecordingPreviewPage() {
     }
   }
 
-  const goToStudioRefine = () => {
+  const [refineUploadProgress, setRefineUploadProgress] = useState(0)
+  const [isRefineUploading, setIsRefineUploading] = useState(false)
+
+  const goToStudioRefine = async () => {
+    if (!blobUrl || !projectId) {
+      // No recording or project — just navigate
+      const params = new URLSearchParams({ edits: "refine" })
+      if (projectId) params.set("projectId", projectId)
+      router.push(`/studio?${params}`)
+      return
+    }
+
     setPendingAction("refine")
-    const params = new URLSearchParams({ edits: "refine" })
-    if (projectId) params.set("projectId", projectId)
-    router.push(`/studio?${params}`)
+    setIsRefineUploading(true)
+    setRefineUploadProgress(10)
+
+    try {
+      const blob = await getRecordedBlob()
+      if (!blob) throw new Error("No recording data available")
+
+      setRefineUploadProgress(40)
+
+      const filename = `recording_${Date.now()}.webm`
+      const { gcsPath, size } = await uploadToGcs(
+        projectId,
+        filename,
+        blob,
+        "video/webm",
+      )
+
+      setRefineUploadProgress(70)
+
+      // Create STDB SOURCE_VIDEO asset (same as auto path, but no pipeline trigger)
+      if (isConnected()) {
+        const conn = getConnection()
+        conn.reducers.createAsset({
+          projectId,
+          assetType: "source_video",
+          gcsPath,
+          sizeBytes: BigInt(size),
+          mimeType: "video/webm",
+          durationMs: BigInt(elapsedMs),
+          metadata: JSON.stringify({ source: "recording", mode: "refine" }),
+        })
+      }
+
+      setRefineUploadProgress(100)
+      discardCapture()
+
+      const params = new URLSearchParams({ edits: "refine" })
+      params.set("projectId", projectId)
+      router.push(`/studio?${params}`)
+    } catch (err) {
+      console.error("[Refine] Upload failed:", err)
+      setPendingAction(null)
+      setIsRefineUploading(false)
+      setRefineUploadProgress(0)
+      setUploadError(err instanceof Error ? err.message : "Upload failed")
+      setUploadState("error")
+    }
   }
 
   const goToStudioAuto = () => {
@@ -253,9 +308,9 @@ export default function RecordingPreviewPage() {
                 ) : uploadState === "done" ? (
                   <CheckCircle2 className="h-4 w-4" />
                 ) : (
-                  <Upload className="h-4 w-4" />
+                  <Sparkles className="h-4 w-4" />
                 )}
-                {uploadState === "done" ? "Uploaded" : "Upload & Auto Edit"}
+                {uploadState === "done" ? "Uploaded" : "Apply Auto Edit"}
               </button>
               <button
                 type="button"
@@ -263,8 +318,8 @@ export default function RecordingPreviewPage() {
                 disabled={pendingAction !== null}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#F5A623] px-5 text-sm font-semibold text-[#1A1916] shadow-lg transition duration-200 hover:scale-[1.01] hover:bg-[#E79A21] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {pendingAction === "refine" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                Apply + Refine
+                {pendingAction === "refine" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                {isRefineUploading ? "Uploading..." : "Refine in Studio"}
               </button>
 
               {isAutoProcessing && (

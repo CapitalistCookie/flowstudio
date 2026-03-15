@@ -36,7 +36,7 @@ describe('Reprompt Loop: Version Management', () => {
     const manualClip: TimelineClip = {
       id: 'manual-clip',
       mediaId: MEDIA_ID,
-      trackId: 'Track 3',
+      trackId: 'V1',
       startTime: 0,
       duration: 100,
       mediaOffset: 0,
@@ -60,7 +60,7 @@ describe('Reprompt Loop: Version Management', () => {
       {
         id: 'manual-1',
         mediaId: MEDIA_ID,
-        trackId: 'Track 3',
+        trackId: 'V1',
         startTime: 0,
         duration: 50,
         mediaOffset: 0,
@@ -103,26 +103,26 @@ describe('Reprompt Loop: Edit Type Variety', () => {
     expect(clips[0].aiEditType).toBe('speedup');
   });
 
-  it('transition edits are placed on Track 1', () => {
+  it('transition edits are placed on V1', () => {
     const plan = [makeEdit({ editType: 'transition' })];
     const clips = editPlanToTimelineClips(plan, MEDIA_ID);
-    expect(clips[0].trackId).toBe('Track 1');
+    expect(clips[0].trackId).toBe('V1');
   });
 
-  it('overlay edits are placed on Track 4 (higher track)', () => {
+  it('overlay edits are placed on V2 (higher track)', () => {
     const plan = [makeEdit({ editType: 'overlay' })];
     const clips = editPlanToTimelineClips(plan, MEDIA_ID);
-    expect(clips[0].trackId).toBe('Track 4');
+    expect(clips[0].trackId).toBe('V2');
   });
 
-  it('zoom and pan edits go to Track 4 for layering', () => {
+  it('zoom and pan edits go to V2 for layering', () => {
     const plan = [
       makeEdit({ editType: 'zoom', parameters: { zoomLevel: 1.8 } }),
       makeEdit({ editType: 'pan', parameters: { panX: 100, panY: -50 } }),
     ];
     const clips = editPlanToTimelineClips(plan, MEDIA_ID);
-    expect(clips[0].trackId).toBe('Track 4');
-    expect(clips[1].trackId).toBe('Track 4');
+    expect(clips[0].trackId).toBe('V2');
+    expect(clips[1].trackId).toBe('V2');
   });
 });
 

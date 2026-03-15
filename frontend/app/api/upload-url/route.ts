@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { projectId, filename, contentType } = body;
+  const { projectId, filename, contentType, folder } = body;
 
   if (!projectId || !filename || !contentType) {
     return NextResponse.json(
@@ -40,12 +40,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid filename' }, { status: 400 });
   }
 
-  const ALLOWED_CONTENT_TYPES = [
-    'video/webm', 'video/mp4', 'video/quicktime',
-    'audio/webm', 'audio/mp4', 'audio/mpeg',
-    'application/json',
-  ];
-  if (!ALLOWED_CONTENT_TYPES.includes(contentType)) {
+  const ALLOWED_CONTENT_PREFIXES = ['video/', 'audio/', 'image/', 'application/json'];
+  if (!ALLOWED_CONTENT_PREFIXES.some(prefix => contentType === prefix || contentType.startsWith(prefix))) {
     return NextResponse.json({ error: 'Unsupported content type' }, { status: 400 });
   }
 
@@ -53,7 +49,7 @@ export async function POST(request: NextRequest) {
     const upstream = await fetch(`${UPLOAD_FUNCTION_URL}/generate-upload-url`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectId, filename, contentType }),
+      body: JSON.stringify({ projectId, filename, contentType, folder }),
     });
 
     if (!upstream.ok) {

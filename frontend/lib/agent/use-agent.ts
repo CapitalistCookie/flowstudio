@@ -84,7 +84,10 @@ export function useVideoAgent() {
           const { fetchWithAuth } = await import('@/lib/auth/fetch-with-auth');
           const res = await fetchWithAuth(`${GATEWAY_URL}/api/v1/reprompt`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              ...(process.env.NEXT_PUBLIC_GATEWAY_API_KEY ? { 'X-API-Key': process.env.NEXT_PUBLIC_GATEWAY_API_KEY } : {}),
+            },
             body: JSON.stringify({
               project_id: projectIdRef.current || 'default',
               previous_edit_plan: currentEditPlan,
@@ -144,7 +147,10 @@ export function useVideoAgent() {
           const { fetchWithAuth: fetchWithAuth2 } = await import('@/lib/auth/fetch-with-auth');
           const res = await fetchWithAuth2(`${GATEWAY_URL}/api/v1/generate-edits`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              ...(process.env.NEXT_PUBLIC_GATEWAY_API_KEY ? { 'X-API-Key': process.env.NEXT_PUBLIC_GATEWAY_API_KEY } : {}),
+            },
             body: JSON.stringify({
               project_id: projectIdRef.current || 'default',
               signals,

@@ -43,6 +43,12 @@ export enum AssetType {
   TRANSCRIPT = 'transcript',
 }
 
+/** Colors for presence avatars */
+export const PRESENCE_COLORS = [
+  '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
+  '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F',
+] as const;
+
 /** Signal types produced by workers */
 export enum SignalType {
   SPEECH_SEGMENT = 'speech_segment',

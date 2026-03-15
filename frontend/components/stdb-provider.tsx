@@ -55,11 +55,14 @@ export function StdbProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      const retryDelay = Math.min(5000 * Math.pow(2, retryCount), 30000);
+
       try {
         await initSpacetimeDb(
           () => {
             if (mounted) {
               setStatus('connected');
+              setRetryCount(0); // Reset backoff on success
               // Hydrate project store on connect
               useProjectStore.getState().fetchProjects();
             }
@@ -69,7 +72,7 @@ export function StdbProvider({ children }: { children: ReactNode }) {
               setStatus('error');
               retryTimer = setTimeout(() => {
                 if (mounted) setRetryCount((c) => c + 1);
-              }, 5000);
+              }, retryDelay);
             }
           },
           firebaseToken,
@@ -80,7 +83,7 @@ export function StdbProvider({ children }: { children: ReactNode }) {
           setStatus('error');
           retryTimer = setTimeout(() => {
             if (mounted) setRetryCount((c) => c + 1);
-          }, 5000);
+          }, retryDelay);
         }
       }
     };
@@ -100,9 +103,15 @@ export function StdbProvider({ children }: { children: ReactNode }) {
     <StdbContext.Provider value={{ status }}>
       {children}
       {status === 'error' && (
-        <div className="fixed bottom-4 right-4 z-50 rounded-lg border border-amber-500/50 bg-amber-950/90 px-4 py-2 text-sm text-amber-200 shadow-lg backdrop-blur-sm">
-          <span className="mr-2">⚠</span>
-          SpacetimeDB unavailable — retrying...
+        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-3 rounded-lg border border-amber-500/50 bg-amber-950/90 px-4 py-2 text-sm text-amber-200 shadow-lg backdrop-blur-sm">
+          <span>⚠ SpacetimeDB unavailable — retrying...</span>
+          <button
+            type="button"
+            onClick={() => setRetryCount((c) => c + 1)}
+            className="rounded border border-amber-500/50 px-2 py-0.5 text-xs font-medium text-amber-100 hover:bg-amber-500/20 transition-colors"
+          >
+            Retry now
+          </button>
         </div>
       )}
     </StdbContext.Provider>

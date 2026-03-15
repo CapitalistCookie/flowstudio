@@ -193,6 +193,81 @@ const userIdentities = table({ name: "user_identities", public: false }, {
   firebaseUid: t.string(),
 });
 
+// ─── Timeline Persistence Tables ──────────────────────────────────────
+
+const timelineClips = table({ name: "timeline_clips", public: true }, {
+  id: t.string().primaryKey(),
+  projectId: t.string(),
+  mediaFileId: t.string(),
+  trackId: t.string(),
+  startTime: t.f64(),
+  duration: t.f64(),
+  mediaOffset: t.f64(),
+  label: t.string(),
+  clipType: t.string(),       // "video" | "audio"
+  transform: t.string(),      // JSON string
+  effects: t.string(),        // JSON string
+  aiReasoning: t.string(),
+  sortOrder: t.i32(),
+  updatedBy: t.string(),
+}, {
+  indexes: [
+    { name: 'byProjectId', algorithm: 'btree' as const, columns: ['projectId'] },
+  ],
+});
+
+const mediaFiles = table({ name: "media_files", public: true }, {
+  id: t.string().primaryKey(),
+  projectId: t.string(),
+  name: t.string(),
+  durationSeconds: t.f64(),
+  fileType: t.string(),
+  gcsPath: t.string(),
+  gcsUrl: t.string(),
+  sizeBytes: t.u64(),
+  captionsJson: t.string(),    // JSON string of Caption[]
+}, {
+  indexes: [
+    { name: 'byProjectId', algorithm: 'btree' as const, columns: ['projectId'] },
+  ],
+});
+
+const effectBlocks = table({ name: "effect_blocks", public: true }, {
+  id: t.string().primaryKey(),
+  projectId: t.string(),
+  effectType: t.string(),
+  startTime: t.f64(),
+  duration: t.f64(),
+  config: t.string(),          // JSON string
+}, {
+  indexes: [
+    { name: 'byProjectId', algorithm: 'btree' as const, columns: ['projectId'] },
+  ],
+});
+
+const projectPresence = table({ name: "project_presence", public: true }, {
+  id: t.string().primaryKey(),  // identity hex
+  projectId: t.string(),
+  firebaseUid: t.string(),
+  displayName: t.string(),
+  color: t.string(),
+  lastHeartbeat: t.u64(),
+  currentTimelinePosition: t.f64(),
+}, {
+  indexes: [
+    { name: 'byProjectId', algorithm: 'btree' as const, columns: ['projectId'] },
+  ],
+});
+
+const projectLocks = table({ name: "project_locks", public: true }, {
+  projectId: t.string().primaryKey(),
+  lockedBy: t.string(),        // firebase UID
+  lockedByName: t.string(),
+  lockedAt: t.u64(),
+  expiresAt: t.u64(),
+  lockVersion: t.i32(),
+});
+
 // Phase 2.4: Watchdog schedule table
 const watchdogSchedule = table(
   { name: "watchdog_schedule", scheduled: (): any => runWatchdog },
@@ -203,6 +278,11 @@ const watchdogSchedule = table(
 );
 
 // Schema
+const LOCK_EXPIRY_MS = BigInt(30 * 60 * 1000);      // 30 minutes
+const PRESENCE_STALE_MS = BigInt(2 * 60 * 1000);    // 2 minutes
+const MAX_BATCH_CLIPS = 200;
+const PRESENCE_COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'];
+
 const stdb = (schema as any)({
   projects,
   folders,
@@ -213,6 +293,11 @@ const stdb = (schema as any)({
   workerConfigs,
   watchdogSchedule,
   userIdentities,
+  timelineClips,
+  mediaFiles,
+  effectBlocks,
+  projectPresence,
+  projectLocks,
 });
 
 // Phase 2.3: Lifecycle reducers
@@ -230,14 +315,26 @@ export const onConnect = stdb.clientConnected((ctx: any) => {
 });
 
 export const onDisconnect = stdb.clientDisconnected((ctx: any) => {
-  console.log(`[FlowStudio] Client disconnected: ${ctx.sender}`);
-  // TODO: Mark worker inactive and release stale claimed tasks.
-  // Currently, workers do not store their identity mapping, so we cannot directly
-  // match a disconnected client identity to a workerConfigs entry. The watchdog
-  // reducer (runWatchdog) handles stale claimed tasks by checking all tasks with
-  // claimedAt timestamps older than STALE_TASK_THRESHOLD_MS and resets them to pending.
-  // This design ensures cleanup happens consistently even if clientDisconnected is not
-  // called (e.g., network abrupt failure without explicit disconnect).
+  const senderHex = getSenderHex(ctx);
+  console.log(`[FlowStudio] Client disconnected: ${senderHex}`);
+
+  // Clean up presence rows for this identity
+  for (const presence of ctx.db.projectPresence.iter()) {
+    if (presence.id === senderHex) {
+      ctx.db.projectPresence.id.delete(senderHex);
+      break;
+    }
+  }
+
+  // Release any locks held by this identity
+  const mapping = ctx.db.userIdentities.identity.find(senderHex);
+  if (mapping) {
+    for (const lock of ctx.db.projectLocks.iter()) {
+      if (lock.lockedBy === mapping.firebaseUid) {
+        ctx.db.projectLocks.projectId.delete(lock.projectId);
+      }
+    }
+  }
 });
 
 // Phase 2.4: Watchdog reducer
@@ -263,6 +360,30 @@ export const runWatchdog = stdb.reducer(
     }
     if (resetCount > 0) {
       console.log(`[Watchdog] Reset ${resetCount} stale tasks`);
+    }
+
+    // Clean stale presence (>2 min without heartbeat)
+    let presenceCleanCount = 0;
+    for (const presence of ctx.db.projectPresence.iter()) {
+      if (presence.lastHeartbeat > 0n && (now - presence.lastHeartbeat) > PRESENCE_STALE_MS) {
+        ctx.db.projectPresence.id.delete(presence.id);
+        presenceCleanCount++;
+      }
+    }
+    if (presenceCleanCount > 0) {
+      console.log(`[Watchdog] Cleaned ${presenceCleanCount} stale presence entries`);
+    }
+
+    // Release expired locks
+    let lockCleanCount = 0;
+    for (const lock of ctx.db.projectLocks.iter()) {
+      if (lock.expiresAt > 0n && now > lock.expiresAt) {
+        ctx.db.projectLocks.projectId.delete(lock.projectId);
+        lockCleanCount++;
+      }
+    }
+    if (lockCleanCount > 0) {
+      console.log(`[Watchdog] Released ${lockCleanCount} expired locks`);
     }
   }
 );
@@ -614,6 +735,245 @@ export const approveTimeline = stdb.reducer(
     if (state) ctx.db.projectState.projectId.update({ ...state, currentPhase: 'rendering', lastUpdated: now });
     const project = ctx.db.projects.id.find(projectId);
     if (project) ctx.db.projects.id.update({ ...project, status: 'rendering', updatedAt: now });
+  },
+);
+
+// ─── Timeline Reducers ──────────────────────────────────────────────
+
+export const upsertTimelineClip = stdb.reducer(
+  "upsertTimelineClip",
+  { projectId: t.string(), clipId: t.string(), mediaFileId: t.string(), trackId: t.string(), startTime: t.f64(), duration: t.f64(), mediaOffset: t.f64(), label: t.string(), clipType: t.string(), transform: t.string(), effects: t.string(), aiReasoning: t.string(), sortOrder: t.i32() },
+  (ctx: any, args: any) => {
+    assertProjectOwnership(ctx, args.projectId);
+    const callerUid = getCallerUid(ctx)!;
+    const existing = ctx.db.timelineClips.id.find(args.clipId);
+    const row = { id: args.clipId, projectId: args.projectId, mediaFileId: args.mediaFileId, trackId: args.trackId, startTime: args.startTime, duration: args.duration, mediaOffset: args.mediaOffset, label: args.label, clipType: args.clipType, transform: args.transform, effects: args.effects, aiReasoning: args.aiReasoning, sortOrder: args.sortOrder, updatedBy: callerUid };
+    if (existing) {
+      ctx.db.timelineClips.id.update(row);
+    } else {
+      ctx.db.timelineClips.insert(row);
+    }
+  },
+);
+
+export const removeTimelineClip = stdb.reducer(
+  "removeTimelineClip",
+  { clipId: t.string() },
+  (ctx: any, args: any) => {
+    const clip = ctx.db.timelineClips.id.find(args.clipId);
+    if (!clip) throw new Error('Clip not found');
+    assertProjectOwnership(ctx, clip.projectId);
+    ctx.db.timelineClips.id.delete(args.clipId);
+  },
+);
+
+export const batchUpsertTimelineClips = stdb.reducer(
+  "batchUpsertTimelineClips",
+  { projectId: t.string(), clipsJson: t.string() },
+  (ctx: any, args: any) => {
+    assertProjectOwnership(ctx, args.projectId);
+    const callerUid = getCallerUid(ctx)!;
+    let clips: any[];
+    try { clips = JSON.parse(args.clipsJson); } catch { throw new Error('Invalid clipsJson'); }
+    if (clips.length > MAX_BATCH_CLIPS) throw new Error(`Batch too large (max ${MAX_BATCH_CLIPS})`);
+    for (const c of clips) {
+      const row = { id: c.id, projectId: args.projectId, mediaFileId: c.mediaFileId, trackId: c.trackId, startTime: c.startTime, duration: c.duration, mediaOffset: c.mediaOffset, label: c.label, clipType: c.clipType, transform: JSON.stringify(c.transform ?? {}), effects: JSON.stringify(c.effects ?? {}), aiReasoning: c.aiReasoning ?? '', sortOrder: c.sortOrder ?? 0, updatedBy: callerUid };
+      const existing = ctx.db.timelineClips.id.find(c.id);
+      if (existing) {
+        ctx.db.timelineClips.id.update(row);
+      } else {
+        ctx.db.timelineClips.insert(row);
+      }
+    }
+  },
+);
+
+export const clearProjectTimeline = stdb.reducer(
+  "clearProjectTimeline",
+  { projectId: t.string() },
+  (ctx: any, args: any) => {
+    assertProjectOwnership(ctx, args.projectId);
+    for (const clip of ctx.db.timelineClips.byProjectId.filter(args.projectId)) {
+      ctx.db.timelineClips.id.delete(clip.id);
+    }
+  },
+);
+
+// ─── Media File Reducers ────────────────────────────────────────────
+
+export const createMediaFile = stdb.reducer(
+  "createMediaFile",
+  { id: t.string(), projectId: t.string(), name: t.string(), durationSeconds: t.f64(), fileType: t.string(), gcsPath: t.string(), gcsUrl: t.string(), sizeBytes: t.u64(), captionsJson: t.string() },
+  (ctx: any, args: any) => {
+    assertProjectOwnership(ctx, args.projectId);
+    ctx.db.mediaFiles.insert({ id: args.id, projectId: args.projectId, name: args.name, durationSeconds: args.durationSeconds, fileType: args.fileType, gcsPath: args.gcsPath, gcsUrl: args.gcsUrl, sizeBytes: args.sizeBytes, captionsJson: args.captionsJson });
+  },
+);
+
+export const updateMediaFileCaptions = stdb.reducer(
+  "updateMediaFileCaptions",
+  { mediaFileId: t.string(), captionsJson: t.string() },
+  (ctx: any, args: any) => {
+    const mf = ctx.db.mediaFiles.id.find(args.mediaFileId);
+    if (!mf) throw new Error('Media file not found');
+    assertProjectOwnership(ctx, mf.projectId);
+    ctx.db.mediaFiles.id.update({ ...mf, captionsJson: args.captionsJson });
+  },
+);
+
+export const removeMediaFile = stdb.reducer(
+  "removeMediaFile",
+  { mediaFileId: t.string() },
+  (ctx: any, args: any) => {
+    const mf = ctx.db.mediaFiles.id.find(args.mediaFileId);
+    if (!mf) throw new Error('Media file not found');
+    assertProjectOwnership(ctx, mf.projectId);
+    ctx.db.mediaFiles.id.delete(args.mediaFileId);
+  },
+);
+
+// ─── Effect Block Reducers ──────────────────────────────────────────
+
+export const upsertEffectBlock = stdb.reducer(
+  "upsertEffectBlock",
+  { id: t.string(), projectId: t.string(), effectType: t.string(), startTime: t.f64(), duration: t.f64(), config: t.string() },
+  (ctx: any, args: any) => {
+    assertProjectOwnership(ctx, args.projectId);
+    const existing = ctx.db.effectBlocks.id.find(args.id);
+    const row = { id: args.id, projectId: args.projectId, effectType: args.effectType, startTime: args.startTime, duration: args.duration, config: args.config };
+    if (existing) {
+      ctx.db.effectBlocks.id.update(row);
+    } else {
+      ctx.db.effectBlocks.insert(row);
+    }
+  },
+);
+
+export const removeEffectBlock = stdb.reducer(
+  "removeEffectBlock",
+  { effectBlockId: t.string() },
+  (ctx: any, args: any) => {
+    const eb = ctx.db.effectBlocks.id.find(args.effectBlockId);
+    if (!eb) throw new Error('Effect block not found');
+    assertProjectOwnership(ctx, eb.projectId);
+    ctx.db.effectBlocks.id.delete(args.effectBlockId);
+  },
+);
+
+// ─── Presence Reducers ──────────────────────────────────────────────
+
+export const joinProject = stdb.reducer(
+  "joinProject",
+  { projectId: t.string(), displayName: t.string() },
+  (ctx: any, args: any) => {
+    const callerUid = getCallerUid(ctx);
+    if (!callerUid) throw new Error('Identity not registered');
+    const senderHex = getSenderHex(ctx);
+    const now = nowMs(ctx);
+
+    // Assign a color based on existing presence count
+    let colorIndex = 0;
+    for (const p of ctx.db.projectPresence.byProjectId.filter(args.projectId)) {
+      colorIndex++;
+    }
+
+    const existing = ctx.db.projectPresence.id.find(senderHex);
+    const row = { id: senderHex, projectId: args.projectId, firebaseUid: callerUid, displayName: args.displayName, color: PRESENCE_COLORS[colorIndex % PRESENCE_COLORS.length], lastHeartbeat: now, currentTimelinePosition: 0.0 };
+    if (existing) {
+      ctx.db.projectPresence.id.update(row);
+    } else {
+      ctx.db.projectPresence.insert(row);
+    }
+  },
+);
+
+export const leaveProject = stdb.reducer(
+  "leaveProject",
+  {},
+  (ctx: any) => {
+    const senderHex = getSenderHex(ctx);
+    const existing = ctx.db.projectPresence.id.find(senderHex);
+    if (existing) {
+      ctx.db.projectPresence.id.delete(senderHex);
+    }
+  },
+);
+
+export const heartbeatPresence = stdb.reducer(
+  "heartbeatPresence",
+  { currentTimelinePosition: t.f64() },
+  (ctx: any, args: any) => {
+    const senderHex = getSenderHex(ctx);
+    const existing = ctx.db.projectPresence.id.find(senderHex);
+    if (!existing) return; // Not in a project
+    ctx.db.projectPresence.id.update({ ...existing, lastHeartbeat: nowMs(ctx), currentTimelinePosition: args.currentTimelinePosition });
+  },
+);
+
+// ─── Locking Reducers ───────────────────────────────────────────────
+
+export const acquireLock = stdb.reducer(
+  "acquireLock",
+  { projectId: t.string(), displayName: t.string() },
+  (ctx: any, args: any) => {
+    const callerUid = getCallerUid(ctx);
+    if (!callerUid) throw new Error('Identity not registered');
+    assertProjectOwnership(ctx, args.projectId);
+    const now = nowMs(ctx);
+
+    const existing = ctx.db.projectLocks.projectId.find(args.projectId);
+    if (existing) {
+      // Check if expired
+      if (now > existing.expiresAt) {
+        // Expired — replace
+        ctx.db.projectLocks.projectId.update({ projectId: args.projectId, lockedBy: callerUid, lockedByName: args.displayName, lockedAt: now, expiresAt: now + LOCK_EXPIRY_MS, lockVersion: existing.lockVersion + 1 });
+      } else if (existing.lockedBy === callerUid) {
+        // Already held by caller — renew
+        ctx.db.projectLocks.projectId.update({ ...existing, expiresAt: now + LOCK_EXPIRY_MS });
+      } else {
+        throw new Error(`Project locked by ${existing.lockedByName}`);
+      }
+    } else {
+      ctx.db.projectLocks.insert({ projectId: args.projectId, lockedBy: callerUid, lockedByName: args.displayName, lockedAt: now, expiresAt: now + LOCK_EXPIRY_MS, lockVersion: 1 });
+    }
+  },
+);
+
+export const renewLock = stdb.reducer(
+  "renewLock",
+  { projectId: t.string() },
+  (ctx: any, args: any) => {
+    const callerUid = getCallerUid(ctx);
+    if (!callerUid) throw new Error('Identity not registered');
+    const lock = ctx.db.projectLocks.projectId.find(args.projectId);
+    if (!lock) throw new Error('No lock exists');
+    if (lock.lockedBy !== callerUid) throw new Error('Lock not held by caller');
+    ctx.db.projectLocks.projectId.update({ ...lock, expiresAt: nowMs(ctx) + LOCK_EXPIRY_MS });
+  },
+);
+
+export const releaseLock = stdb.reducer(
+  "releaseLock",
+  { projectId: t.string() },
+  (ctx: any, args: any) => {
+    const callerUid = getCallerUid(ctx);
+    if (!callerUid) throw new Error('Identity not registered');
+    const lock = ctx.db.projectLocks.projectId.find(args.projectId);
+    if (!lock) return; // No lock — no-op
+    if (lock.lockedBy !== callerUid) throw new Error('Lock not held by caller');
+    ctx.db.projectLocks.projectId.delete(args.projectId);
+  },
+);
+
+export const forceReleaseLock = stdb.reducer(
+  "forceReleaseLock",
+  { projectId: t.string() },
+  (ctx: any, args: any) => {
+    // Only the project owner can force-release
+    assertProjectOwnership(ctx, args.projectId);
+    const lock = ctx.db.projectLocks.projectId.find(args.projectId);
+    if (!lock) return;
+    ctx.db.projectLocks.projectId.delete(args.projectId);
   },
 );
 

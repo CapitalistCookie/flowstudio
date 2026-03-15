@@ -36,7 +36,7 @@ describe('editPlanToTimelineClips', () => {
     expect(clip.type).toBe('video');
     expect(clip.aiEditType).toBe('cut');
     expect(clip.aiReasoning).toBe('Test edit');
-    expect(clip.trackId).toBe('Track 3');
+    expect(clip.trackId).toBe('V1');
   });
 
   it('positions clips based on outputStartMs', () => {
@@ -63,7 +63,7 @@ describe('editPlanToTimelineClips', () => {
     const clips = editPlanToTimelineClips(plan, MEDIA_ID);
     expect(clips[0].transform.scale).toBe(200);
     expect(clips[0].aiEditType).toBe('zoom');
-    expect(clips[0].trackId).toBe('Track 4');
+    expect(clips[0].trackId).toBe('V2');
   });
 
   it('applies default zoom when zoomLevel not specified', () => {
@@ -81,28 +81,28 @@ describe('editPlanToTimelineClips', () => {
     const clips = editPlanToTimelineClips(plan, MEDIA_ID);
     expect(clips[0].transform.positionX).toBe(50);
     expect(clips[0].transform.positionY).toBe(-30);
-    expect(clips[0].trackId).toBe('Track 4');
+    expect(clips[0].trackId).toBe('V2');
   });
 
-  it('places overlay edits on Track 4 with 70% opacity', () => {
+  it('places overlay edits on V2 with 70% opacity', () => {
     const plan: EditDecision[] = [
       makeEdit({ editType: 'overlay' }),
     ];
     const clips = editPlanToTimelineClips(plan, MEDIA_ID);
-    expect(clips[0].trackId).toBe('Track 4');
+    expect(clips[0].trackId).toBe('V2');
     expect(clips[0].transform.opacity).toBe(70);
   });
 
-  it('each edit type maps to correct track (layered per ARCHITECTURE)', () => {
+  it('each edit type maps to correct track', () => {
     const trackAssertions: Array<{ editType: string; expectedTrack: string }> = [
-      { editType: 'zoom', expectedTrack: 'Track 4' },
-      { editType: 'pan', expectedTrack: 'Track 4' },
-      { editType: 'overlay', expectedTrack: 'Track 4' },
-      { editType: 'trim', expectedTrack: 'Track 3' },
-      { editType: 'cut', expectedTrack: 'Track 3' },
-      { editType: 'speedup', expectedTrack: 'Track 2' },
-      { editType: 'slowdown', expectedTrack: 'Track 2' },
-      { editType: 'transition', expectedTrack: 'Track 1' },
+      { editType: 'zoom', expectedTrack: 'V2' },
+      { editType: 'pan', expectedTrack: 'V2' },
+      { editType: 'overlay', expectedTrack: 'V2' },
+      { editType: 'trim', expectedTrack: 'V1' },
+      { editType: 'cut', expectedTrack: 'V1' },
+      { editType: 'speedup', expectedTrack: 'V1' },
+      { editType: 'slowdown', expectedTrack: 'V1' },
+      { editType: 'transition', expectedTrack: 'V1' },
     ];
     for (const { editType, expectedTrack } of trackAssertions) {
       const plan = [makeEdit({ editType: editType as EditDecision['editType'], parameters: editType === 'speedup' ? { speed: 2 } : editType === 'slowdown' ? { speed: 0.5 } : editType === 'transition' ? { transitionType: 'crossfade' } : {} })];
@@ -213,16 +213,16 @@ describe('editPlanToTimelineClips', () => {
   });
 
   describe('track assignment by edit type', () => {
-    it('maps each edit type to the correct track per ARCHITECTURE', () => {
+    it('maps each edit type to the correct track', () => {
       const trackExpectations: Array<{ editType: string; expectedTrack: string }> = [
-        { editType: 'cut', expectedTrack: 'Track 3' },
-        { editType: 'trim', expectedTrack: 'Track 3' },
-        { editType: 'speedup', expectedTrack: 'Track 2' },
-        { editType: 'slowdown', expectedTrack: 'Track 2' },
-        { editType: 'zoom', expectedTrack: 'Track 4' },
-        { editType: 'pan', expectedTrack: 'Track 4' },
-        { editType: 'transition', expectedTrack: 'Track 1' },
-        { editType: 'overlay', expectedTrack: 'Track 4' },
+        { editType: 'cut', expectedTrack: 'V1' },
+        { editType: 'trim', expectedTrack: 'V1' },
+        { editType: 'speedup', expectedTrack: 'V1' },
+        { editType: 'slowdown', expectedTrack: 'V1' },
+        { editType: 'zoom', expectedTrack: 'V2' },
+        { editType: 'pan', expectedTrack: 'V2' },
+        { editType: 'transition', expectedTrack: 'V1' },
+        { editType: 'overlay', expectedTrack: 'V2' },
       ];
       for (const { editType, expectedTrack } of trackExpectations) {
         const plan = [makeEdit({ editType, parameters: editType === 'speedup' ? { speed: 2 } : editType === 'slowdown' ? { speed: 0.5 } : {} })];

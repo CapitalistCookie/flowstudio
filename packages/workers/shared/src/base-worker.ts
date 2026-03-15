@@ -353,9 +353,9 @@ export abstract class BaseWorker {
         const conn = this.connection;
         if (!conn) throw new Error('Not connected to SpacetimeDB');
 
-        // Write signals
-        for (const signal of result.signals) {
-          await conn.reducers.writeSignal({
+        // Write signals in parallel for faster dispatch
+        await Promise.all(result.signals.map((signal) =>
+          conn.reducers.writeSignal({
             projectId: task.projectId,
             taskId: task.id,
             signalType: signal.signalType,
@@ -363,8 +363,8 @@ export abstract class BaseWorker {
             durationMs: BigInt(signal.durationMs),
             confidence: signal.confidence,
             payload: JSON.stringify(signal.payload),
-          });
-        }
+          })
+        ));
 
         // Complete the task
         await conn.reducers.completeTask({

@@ -70,6 +70,7 @@ export function VideoPreview() {
     captionStyle,
     getMediaForClip,
     projectResolution,
+    effectBlocks,
   } = useEditor()
 
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -97,7 +98,7 @@ export function VideoPreview() {
   const [showFullscreenControls, setShowFullscreenControls] = useState(true)
 
   // Track playback start time and position for smooth animation
-  const playbackStartRef = useRef<{ startTime: number; startPosition: number } | null>(null)
+  const playbackStartRef = useRef<{ startTime: number; startPosition: number; lastFrameTime: number; currentPos: number } | null>(null)
   const hideControlsTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
 
@@ -120,6 +121,10 @@ export function VideoPreview() {
     opacity: activeClipTransform.opacity / 100,
     filter: filterString || undefined,
   }
+  // Keep effectBlocks in a ref so the RAF loop can read them without being a dep
+  const effectBlocksRef = useRef(effectBlocks)
+  effectBlocksRef.current = effectBlocks
+
   // Animate timeline playback using requestAnimationFrame for smoothness
   useEffect(() => {
     if (!isPlaying) {
@@ -135,14 +140,29 @@ export function VideoPreview() {
     playbackStartRef.current = {
       startTime: performance.now(),
       startPosition: currentTime,
+      lastFrameTime: performance.now(),
+      currentPos: currentTime,
     }
 
     const animate = (now: number) => {
       if (!playbackStartRef.current) return
 
-      // Calculate elapsed time since playback started
-      const elapsed = (now - playbackStartRef.current.startTime) / 1000
-      const newTime = playbackStartRef.current.startPosition + elapsed
+      // Frame-delta accumulation with rate awareness
+      const wallDelta = (now - playbackStartRef.current.lastFrameTime) / 1000
+      playbackStartRef.current.lastFrameTime = now
+
+      // Find effective playback rate at current timeline position
+      const currentTimePixels = playbackStartRef.current.currentPos * PIXELS_PER_SECOND
+      const ffBlock = effectBlocksRef.current.find(
+        (b) =>
+          b.effectType === "fast_forward" &&
+          currentTimePixels >= b.startTime &&
+          currentTimePixels < b.startTime + b.duration
+      )
+      const rate = ffBlock ? ((ffBlock.config?.speed as number) || 2.0) : 1.0
+
+      const newTime = playbackStartRef.current.currentPos + wallDelta * rate
+      playbackStartRef.current.currentPos = newTime
 
       // Stop at end of timeline
       if (newTime >= timelineEndTime) {
@@ -545,6 +565,25 @@ export function VideoPreview() {
       currentVideoRef.current.pause()
     }
   }, [isPlaying, previewMedia, setIsPlaying, useNextVideo])
+
+  // Adjust playback rate for fast_forward effect blocks
+  useEffect(() => {
+    const currentVideo = (useNextVideo ? nextVideoRef : videoRef).current
+    if (!currentVideo) return
+
+    const currentTimePixels = currentTime * PIXELS_PER_SECOND
+    const ffBlock = effectBlocks.find(
+      (b) =>
+        b.effectType === "fast_forward" &&
+        currentTimePixels >= b.startTime &&
+        currentTimePixels < b.startTime + b.duration
+    )
+
+    const targetRate = ffBlock ? (ffBlock.config?.speed as number ?? 2.0) : 1.0
+    if (currentVideo.playbackRate !== targetRate) {
+      currentVideo.playbackRate = targetRate
+    }
+  }, [currentTime, effectBlocks, useNextVideo])
 
   // Handle play/pause for background video
   useEffect(() => {

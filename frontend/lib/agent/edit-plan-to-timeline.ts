@@ -9,28 +9,24 @@ import type { EditDecision } from './use-agent';
 const msToPixels = (ms: number) => (ms / 1000) * PIXELS_PER_SECOND;
 
 /**
- * Layered track assignment per ARCHITECTURE.md:
- * - Track 4 (top): zoom, pan, overlay — visual transforms
- * - Track 3: trim, cut — structural edits
- * - Track 2: speedup, slowdown — speed changes
- * - Track 1: transition — transitions between segments
+ * Layered track assignment:
+ * - V2 (top): zoom, pan, overlay — visual transforms
+ * - V1: trim, cut, speedup, slowdown, transition — structural/speed edits
  */
 function getTrackForEditType(editType: string): string {
   switch (editType) {
     case 'zoom':
     case 'pan':
     case 'overlay':
-      return 'Track 4';
+      return 'V2';
     case 'trim':
     case 'cut':
-      return 'Track 3';
     case 'speedup':
     case 'slowdown':
-      return 'Track 2';
     case 'transition':
-      return 'Track 1';
+      return 'V1';
     default:
-      return 'Track 3';
+      return 'V1';
   }
 }
 

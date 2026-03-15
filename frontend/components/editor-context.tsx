@@ -4,6 +4,8 @@ import { createContext, useContext, useState, useCallback, ReactNode, useEffect,
 import { type TimelineData, type TimelineClipData, type MediaFileData, type ClipTransform, type ClipEffects, type Caption, type EffectBlockData } from "@/lib/types"
 import { uploadMediaFile } from "@/lib/storage"
 import { computeEditStats } from "@/lib/compute-edit-stats"
+import { isConnected, getConnection, getTimelineClips, getMediaFiles as getStdbMediaFiles, getEffectBlocks as getStdbEffectBlocks } from "@/lib/stdb/spacetimedb"
+import { localClipToStdbClip, localEffectToStdbEffect } from "@/lib/stdb/converters"
 
 export const PIXELS_PER_SECOND = 10 // Timeline scale: 10px = 1 second
 
@@ -101,6 +103,8 @@ interface EditorContextType {
   zoomOut: () => void
   zoomToFit: () => void
   pixelsPerSecond: number // Dynamic pixels per second based on zoom level
+  timelineViewportWidth: number
+  setTimelineViewportWidth: (width: number) => void
 
   // Undo/Redo
   undo: () => void
@@ -156,9 +160,15 @@ interface EditorContextType {
   onColorSampled?: (r: number, g: number, b: number) => void
   setColorSampledCallback: (callback: ((r: number, g: number, b: number) => void) | undefined) => void
 
+  // Editor mode
+  isEditor: boolean
+
   // AI edit plan
   applyEditPlan: (clips: TimelineClip[]) => void
   clearAiClips: () => void
+
+  // STDB persistence
+  loadFromStdb: (projectId: string) => void
 
   // Captions
   updateMediaCaptions: (mediaId: string, captions: Caption[]) => void
@@ -171,7 +181,7 @@ interface EditorContextType {
 
 const EditorContext = createContext<EditorContextType | null>(null)
 
-export function EditorProvider({ children }: { children: ReactNode }) {
+export function EditorProvider({ children, isEditor = true }: { children: ReactNode; isEditor?: boolean }) {
   const [projectId, setProjectId] = useState<string | null>(null)
   const [projectResolution, setProjectResolution] = useState<string | null>(null)
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([])
@@ -193,8 +203,12 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   // Timeline zoom (25% = 10min view, 100% = default, 500% = max zoom)
   const [zoomLevel, setZoomLevel] = useState(100)
   const pixelsPerSecond = (PIXELS_PER_SECOND * zoomLevel) / 100
+  const [timelineViewportWidth, setTimelineViewportWidth] = useState(1000)
 
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const hasUnsavedChangesRef = useRef(false)
+  // Keep ref in sync for use in stable callbacks
+  hasUnsavedChangesRef.current = hasUnsavedChanges
 
   // Undo/Redo history
   const historyRef = useRef<TimelineClip[][]>([])
@@ -287,13 +301,16 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       ...timelineClips.map((clip) => (clip.startTime + clip.duration) / PIXELS_PER_SECOND)
     )
     
-    // Target: fit all clips in ~1000px viewport
+    if (maxTime <= 0) {
+      setZoomLevel(100)
+      return
+    }
+
     // Calculate zoom level needed: targetWidth = maxTime * (PIXELS_PER_SECOND * zoom / 100)
     // So: zoom = (targetWidth / (maxTime * PIXELS_PER_SECOND)) * 100
-    const targetViewportWidth = 1000
-    const requiredZoom = Math.max(25, Math.min(500, (targetViewportWidth / (maxTime * PIXELS_PER_SECOND)) * 100))
+    const requiredZoom = Math.max(25, Math.min(500, (timelineViewportWidth / (maxTime * PIXELS_PER_SECOND)) * 100))
     setZoomLevel(Math.round(requiredZoom / 25) * 25) // Round to nearest 25%
-  }, [timelineClips])
+  }, [timelineClips, timelineViewportWidth])
 
   // Copy clip
   const copyClip = useCallback((clipId: string) => {
@@ -337,11 +354,15 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const addMediaFiles = useCallback(async (files: MediaFile[]) => {
     // Add files immediately with uploading state
     // Only mark as uploading if it doesn't already have a storageUrl (e.g., from voice isolation)
-    const filesWithUploading = files.map(f => ({ 
-      ...f, 
-      isUploading: f.storageUrl ? false : !!projectId 
+    const filesWithUploading = files.map(f => ({
+      ...f,
+      isUploading: f.storageUrl ? false : !!projectId
     }))
-    setMediaFiles((prev) => [...prev, ...filesWithUploading])
+    setMediaFiles((prev) => {
+      const existingIds = new Set(prev.map(m => m.id))
+      const newFiles = filesWithUploading.filter(f => !existingIds.has(f.id))
+      return newFiles.length > 0 ? [...prev, ...newFiles] : prev
+    })
     setHasUnsavedChanges(true)
 
     // Upload each file to storage if project exists
@@ -539,12 +560,12 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
     // Restore clips with track migration
     const restoredClips: TimelineClip[] = data.clips.map((clip: TimelineClipData) => {
-      // Migrate old track IDs to new generic ones if necessary
+      // Migrate old track IDs to current naming if necessary
       let trackId = clip.trackId
-      if (trackId === "V2") trackId = "Track 4"
-      if (trackId === "V1") trackId = "Track 3"
-      if (trackId === "A2") trackId = "Track 2"
-      if (trackId === "A1") trackId = "Track 1"
+      if (trackId === "Track 4") trackId = "V2"
+      if (trackId === "Track 3") trackId = "V1"
+      if (trackId === "Track 2") trackId = "A2"
+      if (trackId === "Track 1") trackId = "A1"
 
       return {
         id: clip.id,
@@ -644,22 +665,73 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     const seconds = Math.floor(editStats.outputSeconds % 60)
     const durationStr = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
 
-    // Timeline data is stored in-memory during the editor session.
-    // The source video and assets are persisted in GCS/STDB.
-    // TODO: Persist timeline_data and editStats via STDB reducer when available.
-    console.log('[Editor] Save complete — timeline data cached locally', {
-      clips: timelineData.clips.length,
-      media: timelineData.media.length,
-      duration: durationStr,
-      editStats,
-    });
+    // Persist to STDB if connected and we're the editor
+    if (isEditor && isConnected()) {
+      try {
+        const conn = getConnection();
+        // Batch upsert timeline clips
+        const clipsForStdb = timelineClips.map((clip, i) => localClipToStdbClip(clip, projectId, i));
+        await conn.reducers.batchUpsertTimelineClips({
+          projectId,
+          clipsJson: JSON.stringify(clipsForStdb),
+        });
+
+        // Upsert effect blocks
+        for (const block of effectBlocks) {
+          const stdbBlock = localEffectToStdbEffect(block, projectId);
+          await conn.reducers.upsertEffectBlock(stdbBlock);
+        }
+
+        console.log('[Editor] Save complete — persisted to STDB', {
+          clips: timelineData.clips.length,
+          media: timelineData.media.length,
+          duration: durationStr,
+          editStats,
+        });
+      } catch (err) {
+        console.error('[Editor] STDB save failed, data cached locally', err);
+      }
+    } else {
+      console.log('[Editor] Save complete — timeline data cached locally', {
+        clips: timelineData.clips.length,
+        media: timelineData.media.length,
+        duration: durationStr,
+        editStats,
+      });
+    }
 
     setHasUnsavedChanges(false)
     setIsSaving(false)
   }, [projectId, timelineClips, mediaFiles, effectBlocks, projectThumbnail])
 
-  // Auto-save with debounce
+  // Load state from STDB
+  const loadFromStdb = useCallback((pid: string) => {
+    if (!isConnected()) return;
+    if (hasUnsavedChangesRef.current) {
+      console.warn('[Editor] Skipping STDB load — user has unsaved changes');
+      return;
+    }
+    const clips = getTimelineClips(pid);
+    const media = getStdbMediaFiles(pid);
+    const blocks = getStdbEffectBlocks(pid);
+
+    if (clips.length > 0 || media.length > 0) {
+      console.log(`[Editor] Loaded from STDB: ${clips.length} clips, ${media.length} media, ${blocks.length} effects`);
+      setTimelineClips(clips);
+      setMediaFiles((prev) => {
+        // Merge: keep existing local-only files, add STDB files
+        const existingIds = new Set(prev.map(m => m.id));
+        const newMedia = media.filter(m => !existingIds.has(m.id));
+        return [...prev, ...newMedia];
+      });
+      setEffectBlocks(blocks);
+      setHasUnsavedChanges(false);
+    }
+  }, []);
+
+  // Auto-save with debounce (only when isEditor)
   useEffect(() => {
+    if (!isEditor) return;
     if (!projectId || !hasUnsavedChanges) return
 
     if (saveTimeoutRef.current) {
@@ -708,8 +780,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   }, [timelineEndTime, currentTime, isScrubbing, isPlaying, setIsPlaying])
 
   // Find clip under the playhead
-  // When multiple clips overlap, prioritize the topmost track (Track 4 > 3 > 2 > 1)
-  const tracks = ["Track 4", "Track 3", "Track 2", "Track 1"]
+  // When multiple clips overlap, prioritize the topmost track (V2 > V1 > A2 > A1)
+  const tracks = ["V2", "V1", "A2", "A1"]
   const playheadBasePixels = currentTime * PIXELS_PER_SECOND
   const clipsAtPlayhead = sortedVideoClips.filter(
     (clip) =>
@@ -812,6 +884,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         zoomOut,
         zoomToFit,
         pixelsPerSecond,
+        timelineViewportWidth,
+        setTimelineViewportWidth,
         undo,
         redo,
         canUndo,
@@ -844,8 +918,10 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         setIsEyedropperActive,
         onColorSampled: colorSampledCallback,
         setColorSampledCallback,
+        isEditor,
         applyEditPlan,
         clearAiClips,
+        loadFromStdb,
         updateMediaCaptions,
         getCaptionsForClip,
         showCaptions,
