@@ -1,0 +1,233 @@
+services:
+  # ─── Core Infrastructure ────────────────────────────────────────────
+  stdb:
+    image: clockworklabs/spacetimedb:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - stdb-data:/var/lib/spacetimedb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/database/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  gateway:
+    build:
+      context: packages/railtracks-gateway
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      - STDB_INTERNAL_HOST=stdb:3000
+    depends_on:
+      stdb:
+        condition: service_healthy
+    profiles: ["core", "full"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health').raise_for_status()"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ─── Workers (full profile only) ────────────────────────────────────
+  worker-audio-extract:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+      args:
+        WORKER_NAME: audio-extract
+        NEEDS_FFMPEG: "true"
+    env_file: .env
+    environment:
+      WORKER_NAME: audio-extract
+      STDB_INTERNAL_HOST: stdb:3000
+    depends_on:
+      stdb:
+        condition: service_healthy
+    profiles: ["workers", "full"]
+
+  worker-video-sample:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+      args:
+        WORKER_NAME: video-sample
+        NEEDS_FFMPEG: "true"
+    env_file: .env
+    environment:
+      WORKER_NAME: video-sample
+      STDB_INTERNAL_HOST: stdb:3000
+    depends_on:
+      stdb:
+        condition: service_healthy
+    profiles: ["workers", "full"]
+
+  worker-speech-transcription:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+      args:
+        WORKER_NAME: speech-transcription
+    env_file: .env
+    environment:
+      WORKER_NAME: speech-transcription
+      STDB_INTERNAL_HOST: stdb:3000
+    depends_on:
+      stdb:
+        condition: service_healthy
+    profiles: ["workers", "full"]
+
+  worker-video-understanding:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+      args:
+        WORKER_NAME: video-understanding
+    env_file: .env
+    environment:
+      WORKER_NAME: video-understanding
+      STDB_INTERNAL_HOST: stdb:3000
+    depends_on:
+      stdb:
+        condition: service_healthy
+    profiles: ["workers", "full"]
+
+  worker-cursor-processor:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+      args:
+        WORKER_NAME: cursor-processor
+    env_file: .env
+    environment:
+      WORKER_NAME: cursor-processor
+      STDB_INTERNAL_HOST: stdb:3000
+    depends_on:
+      stdb:
+        condition: service_healthy
+    profiles: ["workers", "full"]
+
+  worker-typing-detector:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+      args:
+        WORKER_NAME: typing-detector
+    env_file: .env
+    environment:
+      WORKER_NAME: typing-detector
+      STDB_INTERNAL_HOST: stdb:3000
+    depends_on:
+      stdb:
+        condition: service_healthy
+    profiles: ["workers", "full"]
+
+  worker-ui-change-detector:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+      args:
+        WORKER_NAME: ui-change-detector
+    env_file: .env
+    environment:
+      WORKER_NAME: ui-change-detector
+      STDB_INTERNAL_HOST: stdb:3000
+    depends_on:
+      stdb:
+        condition: service_healthy
+    profiles: ["workers", "full"]
+
+  worker-interaction-pattern:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+      args:
+        WORKER_NAME: interaction-pattern
+    env_file: .env
+    environment:
+      WORKER_NAME: interaction-pattern
+      STDB_INTERNAL_HOST: stdb:3000
+    depends_on:
+      stdb:
+        condition: service_healthy
+    profiles: ["workers", "full"]
+
+  worker-intent-graph:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+      args:
+        WORKER_NAME: intent-graph
+    env_file: .env
+    environment:
+      WORKER_NAME: intent-graph
+      STDB_INTERNAL_HOST: stdb:3000
+    depends_on:
+      stdb:
+        condition: service_healthy
+    profiles: ["workers", "full"]
+
+  worker-narrative-planner:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+      args:
+        WORKER_NAME: narrative-planner
+    env_file: .env
+    environment:
+      WORKER_NAME: narrative-planner
+      STDB_INTERNAL_HOST: stdb:3000
+    depends_on:
+      stdb:
+        condition: service_healthy
+    profiles: ["workers", "full"]
+
+  worker-edit-planner:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+      args:
+        WORKER_NAME: edit-planner
+    env_file: .env
+    environment:
+      WORKER_NAME: edit-planner
+      STDB_INTERNAL_HOST: stdb:3000
+    depends_on:
+      stdb:
+        condition: service_healthy
+    profiles: ["workers", "full"]
+
+  worker-timeline-builder:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+      args:
+        WORKER_NAME: timeline-builder
+    env_file: .env
+    environment:
+      WORKER_NAME: timeline-builder
+      STDB_INTERNAL_HOST: stdb:3000
+    depends_on:
+      stdb:
+        condition: service_healthy
+    profiles: ["workers", "full"]
+
+  worker-render:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+      args:
+        WORKER_NAME: render
+        NEEDS_FFMPEG: "true"
+    env_file: .env
+    environment:
+      WORKER_NAME: render
+      STDB_INTERNAL_HOST: stdb:3000
+    depends_on:
+      stdb:
+        condition: service_healthy
+    profiles: ["workers", "full"]
+
+volumes:
+  stdb-data:

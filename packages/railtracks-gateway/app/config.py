@@ -14,6 +14,12 @@ class Settings(BaseModel):
     allowed_origins: list[str] = Field(
         default_factory=lambda: os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
     )
+    api_key: str = Field(
+        default_factory=lambda: os.getenv("GATEWAY_API_KEY", "")
+    )
+    rate_limit_rpm: int = Field(
+        default_factory=lambda: int(os.getenv("GATEWAY_RATE_LIMIT_RPM", "30"))
+    )
 
 
 def get_settings() -> Settings:

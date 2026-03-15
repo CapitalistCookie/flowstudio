@@ -1,4 +1,4 @@
-export { BaseWorker, type TaskData, type TaskResult } from './base-worker.js';
+export { BaseWorker, type TaskData, type TaskResult, type WorkerDeps } from './base-worker.js';
 export { Semaphore } from './semaphore.js';
 export { GcsClient } from './gcs-client.js';
 export { StdbClient, type StdbClientConfig } from './stdb-client.js';

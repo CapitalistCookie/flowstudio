@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Send, Mic, Check, AlertCircle, MessageSquarePlus, Zap, Loader2 } from "lucide-react"
+import { Send, Mic, Check, AlertCircle, MessageSquarePlus, Zap, Loader2, Sparkles, RotateCcw, ChevronDown, ChevronUp } from "lucide-react"
 import { useEditor } from "./editor-context"
-import { useVideoAgent, type Message, type ToolCall } from "@/lib/agent/use-agent"
+import { useVideoAgent, type Message, type ToolCall, type EditDecision, type EditPlanVersion } from "@/lib/agent/use-agent"
+import { editPlanToTimelineClips } from "@/lib/agent/edit-plan-to-timeline"
 import { AutoEnhanceModal } from "./auto-enhance-modal"
 import {
   Dialog,
@@ -24,10 +25,11 @@ export function InspectorPanel() {
 }
 
 function AgentTab() {
-  const { messages, input, handleInputChange, handleSubmit, isLoading, isLoadingHistory, sendQuickAction, clearChat, status, sendMessage } = useVideoAgent()
-  const { selectedClipId, currentTime, timelineClips } = useEditor()
+  const { messages, input, handleInputChange, handleSubmit, isLoading, isLoadingHistory, sendQuickAction, clearChat, status, sendMessage, currentEditPlan, editHistory, revertToVersion } = useVideoAgent()
+  const { selectedClipId, currentTime, timelineClips, mediaFiles, applyEditPlan } = useEditor()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const lastAppliedPlanRef = useRef<EditDecision[] | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const [isRecording, setIsRecording] = useState(false)
@@ -35,11 +37,28 @@ function AgentTab() {
   const [transcriptionError, setTranscriptionError] = useState<string | null>(null)
   const [showNewChatDialog, setShowNewChatDialog] = useState(false)
   const [showAutoEnhanceModal, setShowAutoEnhanceModal] = useState(false)
+  const [showVersionHistory, setShowVersionHistory] = useState(false)
+  const [expandedEditPlan, setExpandedEditPlan] = useState<number | null>(null)
 
   // Auto-scroll to bottom when messages change or during streaming
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, status])
+
+  // Auto-apply edit plan to timeline when AI generates one
+  useEffect(() => {
+    if (
+      currentEditPlan.length > 0 &&
+      currentEditPlan !== lastAppliedPlanRef.current
+    ) {
+      lastAppliedPlanRef.current = currentEditPlan;
+      const primaryMedia = mediaFiles[0];
+      if (primaryMedia) {
+        const clips = editPlanToTimelineClips(currentEditPlan, primaryMedia.id);
+        applyEditPlan(clips);
+      }
+    }
+  }, [currentEditPlan, mediaFiles, applyEditPlan]);
 
   // Auto-dismiss transcription error after 5 seconds
   useEffect(() => {
@@ -249,6 +268,65 @@ function AgentTab() {
         onEnhance={(prompt) => sendQuickAction(prompt)}
       />
 
+      {/* Edit Plan Version History */}
+      {editHistory.length > 0 && (
+        <div className="border-b border-border">
+          <button
+            onClick={() => setShowVersionHistory(!showVersionHistory)}
+            className="flex w-full items-center justify-between px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+          >
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="h-3 w-3 text-amber-500" />
+              <span>Edit Plan v{editHistory.length}</span>
+              <span className="text-[9px] normal-case font-normal">({currentEditPlan.length} edits)</span>
+            </div>
+            {showVersionHistory ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
+
+          <AnimatePresence>
+            {showVersionHistory && (
+              <motion.div
+                className="px-3 pb-2 space-y-1.5"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+              >
+                {editHistory.map((version) => (
+                  <div
+                    key={version.version}
+                    className={`flex items-center justify-between rounded px-2 py-1.5 text-[10px] border ${
+                      version.plan === currentEditPlan
+                        ? 'border-amber-500/50 bg-amber-500/10 text-foreground'
+                        : 'border-border bg-muted/50 text-muted-foreground'
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium">v{version.version}</div>
+                      <div className="truncate text-[9px] opacity-70">
+                        {version.feedback ?? 'Initial plan'}
+                      </div>
+                    </div>
+                    {version.plan !== currentEditPlan && (
+                      <motion.button
+                        onClick={() => revertToVersion(version.version)}
+                        className="ml-2 flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] bg-secondary hover:bg-secondary/80 text-foreground transition-colors"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        title={`Revert to v${version.version}`}
+                      >
+                        <RotateCcw className="h-2.5 w-2.5" />
+                        Revert
+                      </motion.button>
+                    )}
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin">
         {/* Loading history indicator */}
@@ -369,6 +447,42 @@ function AgentTab() {
                         transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut" }}
                       />
                     )}
+                  </div>
+                )}
+
+                {/* Inline edit plan details */}
+                {message.editPlan && message.editPlan.length > 0 && (
+                  <div className="px-3 pb-2">
+                    <button
+                      onClick={() => setExpandedEditPlan(expandedEditPlan === i ? null : i)}
+                      className="flex items-center gap-1 text-[9px] text-amber-500 hover:text-amber-400 transition-colors"
+                    >
+                      <Sparkles className="h-2.5 w-2.5" />
+                      {message.editPlan.length} edits
+                      {expandedEditPlan === i ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
+                    </button>
+                    <AnimatePresence>
+                      {expandedEditPlan === i && (
+                        <motion.div
+                          className="mt-1.5 space-y-1"
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                        >
+                          {message.editPlan.map((edit: EditDecision, ei: number) => (
+                            <div key={ei} className="rounded bg-background/50 px-2 py-1 text-[9px]">
+                              <div className="flex items-center gap-1">
+                                <span className="font-semibold text-amber-400">{edit.editType}</span>
+                                <span className="text-muted-foreground">
+                                  {formatMs(edit.sourceStartMs)}–{formatMs(edit.sourceEndMs)}
+                                </span>
+                              </div>
+                              <div className="text-muted-foreground/80 mt-0.5 leading-tight">{edit.reasoning}</div>
+                            </div>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )}
 
@@ -623,4 +737,11 @@ function AgentTab() {
       </Dialog>
     </div>
   )
+}
+
+function formatMs(ms: number): string {
+  const totalSec = Math.floor(ms / 1000)
+  const min = Math.floor(totalSec / 60)
+  const sec = totalSec % 60
+  return `${min}:${sec.toString().padStart(2, '0')}`
 }

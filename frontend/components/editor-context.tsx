@@ -39,6 +39,8 @@ export interface TimelineClip {
   type: "video" | "audio"
   transform: ClipTransform
   effects: ClipEffects
+  aiReasoning?: string
+  aiEditType?: string
 }
 
 export const DEFAULT_CLIP_TRANSFORM: ClipTransform = {
@@ -152,6 +154,10 @@ interface EditorContextType {
   setIsEyedropperActive: (active: boolean) => void
   onColorSampled?: (r: number, g: number, b: number) => void
   setColorSampledCallback: (callback: ((r: number, g: number, b: number) => void) | undefined) => void
+
+  // AI edit plan
+  applyEditPlan: (clips: TimelineClip[]) => void
+  clearAiClips: () => void
 
   // Captions
   updateMediaCaptions: (mediaId: string, captions: Caption[]) => void
@@ -502,6 +508,21 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     setHasUnsavedChanges(true)
   }, [timelineClips])
 
+  const applyEditPlan = useCallback((clips: TimelineClip[]) => {
+    saveToHistory()
+    setTimelineClips((prev) => {
+      const manualClips = prev.filter((c) => !c.aiEditType)
+      return [...manualClips, ...clips]
+    })
+    setHasUnsavedChanges(true)
+  }, [saveToHistory])
+
+  const clearAiClips = useCallback(() => {
+    saveToHistory()
+    setTimelineClips((prev) => prev.filter((c) => !c.aiEditType))
+    setHasUnsavedChanges(true)
+  }, [saveToHistory])
+
   const getMediaForClip = useCallback(
     (clipId: string) => {
       const clip = timelineClips.find((c) => c.id === clipId)
@@ -535,6 +556,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         type: clip.type,
         transform: clip.transform ?? DEFAULT_CLIP_TRANSFORM,
         effects: clip.effects ?? DEFAULT_CLIP_EFFECTS,
+        aiReasoning: clip.aiReasoning,
+        aiEditType: clip.aiEditType,
       }
     })
 
@@ -583,6 +606,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         type: clip.type,
         transform: clip.transform,
         effects: clip.effects,
+        aiReasoning: clip.aiReasoning,
+        aiEditType: clip.aiEditType,
       })),
       media: mediaFiles
         .filter((m) => m.storagePath && m.storageUrl) // Only save uploaded media
@@ -817,6 +842,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         setIsEyedropperActive,
         onColorSampled: colorSampledCallback,
         setColorSampledCallback,
+        applyEditPlan,
+        clearAiClips,
         updateMediaCaptions,
         getCaptionsForClip,
         showCaptions,

@@ -43,6 +43,8 @@ export interface TimelineClipData {
   type: "video" | "audio";
   transform?: ClipTransform;
   effects?: ClipEffects;
+  aiReasoning?: string;
+  aiEditType?: string;
 }
 
 /** DataTransfer type for dragging an effect from the palette onto the timeline. */

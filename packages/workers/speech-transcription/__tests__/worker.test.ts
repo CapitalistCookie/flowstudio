@@ -1,64 +1,47 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TaskType, SignalType } from '@flowstudio/shared';
-import { type TaskData } from '@flowstudio/worker-shared';
+import { type TaskData, type WorkerDeps } from '@flowstudio/worker-shared';
 
-// ─── Mock layer ────────────────────────────────────────────────────────────────
+// ─── Mock deps factory ──────────────────────────────────────────────────────────
 
-const mockGcsUpload = vi.fn<(path: string, data: Buffer, contentType: string) => Promise<void>>();
-const mockGcsDownload = vi.fn<(path: string) => Promise<Buffer>>();
+function createMockDeps(): WorkerDeps & {
+  mockGcsUpload: ReturnType<typeof vi.fn>;
+  mockGcsDownload: ReturnType<typeof vi.fn>;
+} {
+  const mockGcsUpload = vi.fn().mockResolvedValue(undefined);
+  const mockGcsDownload = vi.fn().mockResolvedValue(Buffer.from('fake-audio-data'));
 
-vi.mock('../../shared/src/config.js', () => ({
-  loadConfig: () => ({
-    stdbHost: 'localhost:3000',
-    stdbModule: 'flowstudio',
-    gcsBucket: 'test-bucket',
-    gcsProjectId: 'test-project',
-    workerId: 'speech-transcription-test-1',
-    workerName: 'speech-transcription',
-    concurrency: 2,
-    pollIntervalMs: 100,
-    healthPort: 0,
-    deepgramApiKey: 'test-deepgram-key',
-  }),
-}));
-
-vi.mock('../../shared/src/logger.js', () => ({
-  Logger: class {
-    debug() {}
-    info() {}
-    warn() {}
-    error() {}
-  },
-}));
-
-vi.mock('../../shared/src/gcs-client.js', () => ({
-  GcsClient: class {
-    async upload(path: string, data: Buffer, contentType: string) {
-      return mockGcsUpload(path, data, contentType);
-    }
-    async download(path: string) {
-      return mockGcsDownload(path);
-    }
-    async exists() { return true; }
-  },
-}));
-
-vi.mock('../../shared/src/stdb-client.js', () => ({
-  StdbClient: class {
-    async callReducer() {}
-    async queryTable() { return []; }
-    get isConnected() { return true; }
-    disconnect() {}
-  },
-}));
-
-vi.mock('../../shared/src/health.js', () => ({
-  startHealthServer: () => ({
-    close() {},
-    once() {},
-    address: () => ({ port: 9999 }),
-  }),
-}));
+  return {
+    config: {
+      stdbHost: 'localhost:3000',
+      stdbModule: 'flowstudio',
+      gcsBucket: 'test-bucket',
+      gcsProjectId: 'test-project',
+      workerId: 'speech-transcription-test-1',
+      workerName: 'speech-transcription',
+      concurrency: 2,
+      pollIntervalMs: 100,
+      healthPort: 0,
+      deepgramApiKey: 'test-deepgram-key',
+    },
+    logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as any,
+    gcs: {
+      upload: mockGcsUpload,
+      download: mockGcsDownload,
+      exists: vi.fn().mockResolvedValue(true),
+      getSignedUploadUrl: vi.fn(),
+      getSignedDownloadUrl: vi.fn(),
+    } as any,
+    stdb: {
+      callReducer: vi.fn().mockResolvedValue(undefined),
+      queryTable: vi.fn().mockResolvedValue([]),
+      isConnected: true,
+      disconnect: vi.fn(),
+    } as any,
+    mockGcsUpload,
+    mockGcsDownload,
+  };
+}
 
 // ─── Deepgram mock ────────────────────────────────────────────────────────────
 
@@ -80,11 +63,14 @@ import { SpeechTranscriptionWorker } from '../src/worker.js';
 
 describe('SpeechTranscriptionWorker', () => {
   let worker: SpeechTranscriptionWorker;
+  let mockGcsUpload: ReturnType<typeof vi.fn>;
+  let mockGcsDownload: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    mockGcsUpload.mockResolvedValue(undefined);
-    mockGcsDownload.mockResolvedValue(Buffer.from('fake-audio-data'));
-    worker = new SpeechTranscriptionWorker();
+    const deps = createMockDeps();
+    mockGcsUpload = deps.mockGcsUpload;
+    mockGcsDownload = deps.mockGcsDownload;
+    worker = new SpeechTranscriptionWorker(deps);
   });
 
   afterEach(() => {
@@ -310,29 +296,11 @@ describe('SpeechTranscriptionWorker', () => {
   // ─── T8.4: Missing API key ───────────────────────────────────────────────
 
   test('throws descriptive error when DEEPGRAM_API_KEY not set', async () => {
-    const noKeyConfig = vi.fn(() => ({
-      stdbHost: 'localhost:3000',
-      stdbModule: 'flowstudio',
-      gcsBucket: 'test-bucket',
-      gcsProjectId: 'test-project',
-      workerId: 'speech-transcription-test-1',
-      workerName: 'speech-transcription',
-      concurrency: 2,
-      pollIntervalMs: 100,
-      healthPort: 0,
-      deepgramApiKey: undefined,
-    }));
+    const depsNoKey = createMockDeps();
+    (depsNoKey.config as any).deepgramApiKey = undefined;
 
-    const configMod = await import('../../shared/src/config.js');
-    const originalLoadConfig = configMod.loadConfig;
-    (configMod as Record<string, unknown>).loadConfig = noKeyConfig;
-
-    try {
-      const workerNoKey = new SpeechTranscriptionWorker();
-      await expect(workerNoKey.processTask(makeTask())).rejects.toThrow('DEEPGRAM_API_KEY');
-    } finally {
-      (configMod as Record<string, unknown>).loadConfig = originalLoadConfig;
-    }
+    const workerNoKey = new SpeechTranscriptionWorker(depsNoKey);
+    await expect(workerNoKey.processTask(makeTask())).rejects.toThrow('DEEPGRAM_API_KEY');
   });
 
   // ─── T8.5: Empty audio (no speech) ───────────────────────────────────────

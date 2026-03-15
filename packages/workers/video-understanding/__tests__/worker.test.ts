@@ -1,68 +1,51 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TaskType, SignalType } from '@flowstudio/shared';
-import { type TaskData } from '@flowstudio/worker-shared';
+import { type TaskData, type WorkerDeps } from '@flowstudio/worker-shared';
 
-// ─── Mock layer ────────────────────────────────────────────────────────────────
+// ─── Mock deps factory ──────────────────────────────────────────────────────────
 
-const mockGcsUpload = vi.fn<(path: string, data: Buffer, contentType: string) => Promise<void>>();
-const mockGcsDownload = vi.fn<(path: string) => Promise<Buffer>>();
-const mockGcsExists = vi.fn<(path: string) => Promise<boolean>>();
+function createMockDeps(): WorkerDeps & {
+  mockGcsUpload: ReturnType<typeof vi.fn>;
+  mockGcsDownload: ReturnType<typeof vi.fn>;
+  mockGcsExists: ReturnType<typeof vi.fn>;
+} {
+  const mockGcsUpload = vi.fn().mockResolvedValue(undefined);
+  const mockGcsDownload = vi.fn().mockResolvedValue(Buffer.from('fake-jpeg-data'));
+  const mockGcsExists = vi.fn().mockResolvedValue(true);
 
-vi.mock('../../shared/src/config.js', () => ({
-  loadConfig: () => ({
-    stdbHost: 'localhost:3000',
-    stdbModule: 'flowstudio',
-    gcsBucket: 'test-bucket',
-    gcsProjectId: 'test-project',
-    workerId: 'video-understanding-test-1',
-    workerName: 'video-understanding',
-    concurrency: 2,
-    pollIntervalMs: 100,
-    healthPort: 0,
-    googleAiApiKey: 'test-google-ai-key',
-    googleAiModel: 'gemini-1.5-flash',
-  }),
-}));
-
-vi.mock('../../shared/src/logger.js', () => ({
-  Logger: class {
-    debug() {}
-    info() {}
-    warn() {}
-    error() {}
-  },
-}));
-
-vi.mock('../../shared/src/gcs-client.js', () => ({
-  GcsClient: class {
-    async upload(path: string, data: Buffer, contentType: string) {
-      return mockGcsUpload(path, data, contentType);
-    }
-    async download(path: string) {
-      return mockGcsDownload(path);
-    }
-    async exists(path: string) {
-      return mockGcsExists(path);
-    }
-  },
-}));
-
-vi.mock('../../shared/src/stdb-client.js', () => ({
-  StdbClient: class {
-    async callReducer() {}
-    async queryTable() { return []; }
-    get isConnected() { return true; }
-    disconnect() {}
-  },
-}));
-
-vi.mock('../../shared/src/health.js', () => ({
-  startHealthServer: () => ({
-    close() {},
-    once() {},
-    address: () => ({ port: 9999 }),
-  }),
-}));
+  return {
+    config: {
+      stdbHost: 'localhost:3000',
+      stdbModule: 'flowstudio',
+      gcsBucket: 'test-bucket',
+      gcsProjectId: 'test-project',
+      workerId: 'video-understanding-test-1',
+      workerName: 'video-understanding',
+      concurrency: 2,
+      pollIntervalMs: 100,
+      healthPort: 0,
+      googleAiApiKey: 'test-google-ai-key',
+      googleAiModel: 'gemini-1.5-flash',
+    },
+    logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as any,
+    gcs: {
+      upload: mockGcsUpload,
+      download: mockGcsDownload,
+      exists: mockGcsExists,
+      getSignedUploadUrl: vi.fn(),
+      getSignedDownloadUrl: vi.fn(),
+    } as any,
+    stdb: {
+      callReducer: vi.fn().mockResolvedValue(undefined),
+      queryTable: vi.fn().mockResolvedValue([]),
+      isConnected: true,
+      disconnect: vi.fn(),
+    } as any,
+    mockGcsUpload,
+    mockGcsDownload,
+    mockGcsExists,
+  };
+}
 
 // ─── Gemini mock ───────────────────────────────────────────────────────────────
 
@@ -82,12 +65,16 @@ import { VideoUnderstandingWorker } from '../src/worker.js';
 
 describe('VideoUnderstandingWorker', () => {
   let worker: VideoUnderstandingWorker;
+  let mockGcsUpload: ReturnType<typeof vi.fn>;
+  let mockGcsDownload: ReturnType<typeof vi.fn>;
+  let mockGcsExists: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    mockGcsUpload.mockResolvedValue(undefined);
-    mockGcsExists.mockResolvedValue(true);
-    mockGcsDownload.mockResolvedValue(Buffer.from('fake-jpeg-data'));
-    worker = new VideoUnderstandingWorker();
+    const deps = createMockDeps();
+    mockGcsUpload = deps.mockGcsUpload;
+    mockGcsDownload = deps.mockGcsDownload;
+    mockGcsExists = deps.mockGcsExists;
+    worker = new VideoUnderstandingWorker(deps);
   });
 
   afterEach(() => {
@@ -357,27 +344,11 @@ describe('VideoUnderstandingWorker', () => {
   // ─── Missing API key ────────────────────────────────────────────────────
 
   test('throws descriptive error when GOOGLE_AI_API_KEY not set', async () => {
-    const configMod = await import('../../shared/src/config.js');
-    const original = configMod.loadConfig;
-    (configMod as Record<string, unknown>).loadConfig = () => ({
-      stdbHost: 'localhost:3000',
-      stdbModule: 'flowstudio',
-      gcsBucket: 'test-bucket',
-      gcsProjectId: 'test-project',
-      workerId: 'video-understanding-test-1',
-      workerName: 'video-understanding',
-      concurrency: 2,
-      pollIntervalMs: 100,
-      healthPort: 0,
-      googleAiApiKey: undefined,
-    });
+    const depsNoKey = createMockDeps();
+    (depsNoKey.config as any).googleAiApiKey = undefined;
 
-    try {
-      const workerNoKey = new VideoUnderstandingWorker();
-      await expect(workerNoKey.processTask(makeTask())).rejects.toThrow('GOOGLE_AI_API_KEY');
-    } finally {
-      (configMod as Record<string, unknown>).loadConfig = original;
-    }
+    const workerNoKey = new VideoUnderstandingWorker(depsNoKey);
+    await expect(workerNoKey.processTask(makeTask())).rejects.toThrow('GOOGLE_AI_API_KEY');
   });
 
   // ─── Missing input ──────────────────────────────────────────────────────

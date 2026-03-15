@@ -86,7 +86,7 @@ type VideoFrameCallbackMetadata = {
 }
 
 export function ExportModal({ open, onOpenChange }: ExportModalProps) {
-  const { sortedVideoClips, mediaFiles } = useEditor()
+  const { sortedVideoClips, mediaFiles, timelineClips } = useEditor()
   const router = useRouter()
   const [format, setFormat] = useState<ExportFormat>("webm")
   const [quality, setQuality] = useState<ExportQuality>("medium")
@@ -687,6 +687,7 @@ export function ExportModal({ open, onOpenChange }: ExportModalProps) {
   }
 
   const hasClips = sortedVideoClips.length > 0
+  const aiClipCount = timelineClips.filter((c) => !!c.aiEditType).length
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -698,6 +699,11 @@ export function ExportModal({ open, onOpenChange }: ExportModalProps) {
           </DialogTitle>
           <DialogDescription>
             Render your project to a video file
+            {aiClipCount > 0 && (
+              <span className="block mt-1 text-amber-500">
+                Includes {aiClipCount} AI-generated edit{aiClipCount > 1 ? 's' : ''}
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
 

@@ -98,9 +98,9 @@ class FlowRunResponse(BaseModel):
     run_id: str
     status: FlowRunStatus
     project_id: str
-    intent_graph: list[IntentNode] | None = None
-    narrative_plan: list[NarrativeBeat] | None = None
-    edit_plan: list[EditDecision] | None = None
+    intent_graph: list[dict] | None = None
+    narrative_plan: list[dict] | None = None
+    edit_plan: list[dict] | None = None
     error: str | None = None
     duration_ms: int | None = None
     token_usage: dict | None = None
