@@ -1543,14 +1543,14 @@ account has `roles/secretmanager.secretAccessor` on all three secrets.
 
 ```
 Multi-stage build:
-  Stage 1 (base): node:20.18-slim
+  Stage 1 (base): node:24-slim
     - Copies workspace root configs + shared + client packages
     - Installs deps with pnpm
     - Build args: NEXT_PUBLIC_STDB_HOST, NEXT_PUBLIC_STDB_MODULE,
       NEXT_PUBLIC_UPLOAD_FUNCTION_URL
     - Builds shared then client
 
-  Stage 2 (production): node:20.18-slim
+  Stage 2 (production): node:24-slim
     - Copies .next, package.json, node_modules, shared dist
     - Runs: next start on port 3000
 ```
@@ -1563,13 +1563,13 @@ build args = broken frontend.
 
 ```
 Multi-stage build:
-  Stage 1 (base): node:20.18-slim
+  Stage 1 (base): node:24-slim
     - Conditional FFmpeg install (ARG NEEDS_FFMPEG)
     - Copies workspace root configs + shared + worker-shared + specific worker
     - Installs deps with pnpm (filtered to relevant packages)
     - Builds shared, worker-shared, then specific worker
 
-  Stage 2 (production): node:20.18-slim
+  Stage 2 (production): node:24-slim
     - Conditional FFmpeg install (ARG NEEDS_FFMPEG)
     - Copies dist + package.json for shared, worker-shared, and specific worker
     - Creates /entrypoint.sh that runs:

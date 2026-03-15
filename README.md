@@ -34,7 +34,7 @@ SpacetimeDB v2 (a real-time database running as a WASM module on a GCE VM) repla
 ### High-Level Architecture
 
 ```
-                Browser (Next.js 15 — frontend/)
+                Browser (Next.js 16 — frontend/)
                        |
                        | WebSocket (SDK push)
                        v
@@ -75,7 +75,7 @@ SpacetimeDB v2 (a real-time database running as a WASM module on a GCE VM) repla
 | Layer | Technology | Version |
 |-------|-----------|---------|
 | Language | TypeScript (strict mode) | 5.7.3 |
-| Runtime | Node.js | >= 20.18.0 |
+| Runtime | Node.js | >= 24.0.0 |
 | Package Manager | pnpm (workspaces) | >= 9.0.0 |
 | Frontend (main) | Next.js + React + Tailwind CSS + Clerk Auth | 16.1.6 / 19.2.3 / 4.x |
 | Frontend (monitoring) | Next.js + React + Tailwind CSS | 15.3.2 / 19.1.0 / 4.1.4 |
@@ -100,7 +100,7 @@ SpacetimeDB v2 (a real-time database running as a WASM module on a GCE VM) repla
 
 | Tool | Minimum Version | Install |
 |------|----------------|---------|
-| Node.js | 20.18.0 | https://nodejs.org/ |
+| Node.js | 24.0.0 | https://nodejs.org/ (required for SpacetimeDB SDK v2.0.4 `using` declarations — Node 22/23 do not fully support ES2024 `using`) |
 | pnpm | 9.0.0 | `corepack enable && corepack prepare pnpm@9 --activate` |
 | Python | 3.11+ | Required for Railtracks Gateway |
 | gcloud CLI | latest | https://cloud.google.com/sdk/docs/install |
@@ -1277,6 +1277,9 @@ Follow the step-by-step guide in [Section 6b: How to Create a New Worker](#how-t
 | `pnpm -r exec tsc --noEmit` fails | Type errors | Fix errors before deploying. This is the CI gate. Common causes: missing `@types/*` packages, stale `dist/` from shared packages (rebuild shared first). |
 | Docker build fails with NEXT_PUBLIC errors | `NEXT_PUBLIC_*` vars not passed as build args | Use `build-and-push.sh` which passes them automatically. If building manually, add `--build-arg NEXT_PUBLIC_UPLOAD_FUNCTION_URL=...`. |
 | Gateway returns 500 on `/generate-edits` | LLM API key missing or invalid | Check `LLM_PROVIDER`, `GOOGLE_AI_API_KEY`, or `ANTHROPIC_API_KEY` env vars in the gateway. |
+| Worker crashes with `SyntaxError: Unexpected identifier 'iter'` | SpacetimeDB SDK v2.0.4 uses ES2024 `using` declarations | Upgrade Dockerfile base image to `node:24-slim`. Node.js 24+ fully supports `using` declarations (Node 20–23 do not). |
+| Client build fails with `spacetime:sys@2.0` error | Turbopack can't resolve SpacetimeDB WASM-only native module | Ensure `frontend/next.config.ts` has the `turbopack.resolveAlias` entry pointing to `spacetimedb-stub.ts`. |
+| Client SSR fails with `Failed to load external module spacetimedb` | SpacetimeDB SDK loaded during server-side prerendering | Ensure `StdbProviderWrapper` (dynamic import with `ssr: false`) is used in `layout.tsx`, not direct `StdbProvider`. |
 
 ### How to Debug a Stuck Pipeline
 
@@ -1456,6 +1459,10 @@ The `extractJsonArray()` function is duplicated in 4 worker files (video-underst
 
 ### SpacetimeDB Considerations
 
+- **Node.js 24+ required.** SpacetimeDB SDK v2.0.4 uses ES2024 `using` declarations (`using iter = new IteratorHandle(id)`). Node.js 20–23 do not fully support this syntax. Both Dockerfiles must use `node:24-slim` or later.
+- **Turbopack compatibility.** The SDK's server bindings import `spacetime:sys@2.0`, a native WASM-only module. The frontend uses a stub (`frontend/lib/stdb/spacetimedb-stub.ts`) via Turbopack's `resolveAlias` to bundle client-side code. If upgrading the SDK, verify this import path hasn't changed.
+- **SSR incompatibility.** SpacetimeDB SDK cannot be evaluated during server-side rendering. The `StdbProviderWrapper` component uses `next/dynamic` with `ssr: false` to prevent this. Do not import SpacetimeDB modules directly in Server Components.
+- **worker-shared type exports.** The `@flowstudio/worker-shared` package has `declaration: false` in its tsconfig because SpacetimeDB's schema types aren't portable for `.d.ts` generation. Types are exported directly from `src/index.ts` instead of `dist/index.d.ts`.
 - **ScheduleAt behavior.** The `__init__` reducer uses `ScheduleAt.interval()` which matches the SDK API, but actual behavior depends on the SpacetimeDB v2.0.1 runtime. Test on the GCE VM after module publish.
 - **WASM module constants.** The `stdb-module/src/index.ts` file inlines constants from `@flowstudio/shared` because WASM modules cannot import workspace packages at runtime. Any change to task chaining DAG, retry limits, or stale thresholds must be mirrored in both files.
 

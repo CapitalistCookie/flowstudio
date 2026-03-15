@@ -21,7 +21,7 @@
     "stdb:logs": "cd packages/stdb-module && pnpm run stdb:logs"
   },
   "engines": {
-    "node": ">=20.18.0",
+    "node": ">=24.0.0",
     "pnpm": ">=9.0.0"
   },
   "devDependencies": {

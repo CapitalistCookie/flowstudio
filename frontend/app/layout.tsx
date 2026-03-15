@@ -1,11 +1,11 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { ClerkProvider } from "@clerk/nextjs"
 import { DM_Sans, JetBrains_Mono } from "next/font/google"
 import { Toaster } from "sonner"
 import { CustomCursor } from "@/components/custom-cursor"
 import { ThemeProvider } from "@/components/theme-provider"
-import { StdbProvider } from "@/components/stdb-provider"
+import { StdbProviderWrapper } from "@/components/stdb-provider-wrapper"
+import { AuthProvider } from "@/components/auth-provider"
 import "./globals.css"
 
 const dmSans = DM_Sans({
@@ -36,19 +36,19 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <ClerkProvider>
-      <html lang="en" className={`${dmSans.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
-        <body className="font-sans antialiased grain-overlay" suppressHydrationWarning>
-          <ThemeProvider>
-            <StdbProvider>
+    <html lang="en" className={`${dmSans.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+      <body className="font-sans antialiased grain-overlay" suppressHydrationWarning>
+        <ThemeProvider>
+          <AuthProvider>
+            <StdbProviderWrapper>
               <div className="pointer-events-none fixed inset-0 z-[-1] grid-texture opacity-50" />
               <CustomCursor />
               {children}
               <Toaster position="bottom-right" richColors />
-            </StdbProvider>
-          </ThemeProvider>
-        </body>
-      </html>
-    </ClerkProvider>
+            </StdbProviderWrapper>
+          </AuthProvider>
+        </ThemeProvider>
+      </body>
+    </html>
   )
 }

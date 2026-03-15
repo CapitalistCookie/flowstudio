@@ -8,8 +8,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { table, t, schema } from 'spacetimedb/server';
-import { reducerSchema, reducers } from 'spacetimedb/sdk';
+import { table, t, schema, reducerSchema, reducers } from 'spacetimedb/sdk';
 import {
   DbConnectionBuilder,
   DbConnectionImpl,

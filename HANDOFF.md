@@ -128,9 +128,9 @@ Key milestones:
 
 ## Working Tree Status
 
-**Branch:** `main` (4 commits ahead of origin — need to push)
+**Branch:** `main` (5 commits ahead of origin — need to push, plus uncommitted v7 deployment changes)
 
-**Uncommitted changes:** None
+**Uncommitted changes:** See `docs/2026-03-15_DEPLOYMENT_HANDOFF.md` for full list.
 
 **Untracked (ignorable):**
 - `packages/railtracks-gateway/.railtracks/data/sessions/*.json` — Railtracks session data (should be gitignored)
@@ -223,6 +223,15 @@ See project memory for actual credentials. Must disable gh credential helper to 
 
 ## What's Needed Before Deployment
 
+### RESOLVED: Node.js 24 + SDK Import Fix (v10 Deployed)
+
+Two issues prevented workers from starting. Both are fixed and deployed as v10:
+
+1. **Node.js 24 required** (not 22 as originally assumed). ES2024 `using` declarations only work in Node 24+. Dockerfiles updated to `node:24-slim`, `engines.node` set to `>=24.0.0`.
+2. **Wrong SDK import path.** `module_bindings/index.ts` files imported from `spacetimedb/server` (WASM-only, contains the `using` keyword) instead of `spacetimedb/sdk` (Node.js client SDK). Fixed in worker-shared, frontend, and claudeFrontend.
+
+See `docs/2026-03-15_DEPLOYMENT_HANDOFF.md` for full details.
+
 ### Infrastructure Setup (one-time)
 
 1. **Create Terraform state bucket manually** (chicken-and-egg with Terraform):
@@ -250,8 +259,9 @@ See project memory for actual credentials. Must disable gh credential helper to 
 
 6. **Build and deploy all services:**
    ```bash
+   gcloud config configurations activate flowstudio
    gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin us-east4-docker.pkg.dev
-   ./infra/scripts/deploy-all.sh v1
+   ./infra/scripts/deploy-all.sh v8
    ```
 
 ### GitHub Actions Setup
@@ -269,6 +279,8 @@ Add these secrets to the repo:
 3. **SpacetimeDB ScheduleAt:** The `__init__` reducer uses `ScheduleAt.interval()` which matches the SDK API, but actual behavior depends on SpacetimeDB v2.0.1 runtime. Test on the GCE VM after module publish.
 
 4. **Railtracks session data:** `.railtracks/data/sessions/` should be added to `.gitignore`.
+
+5. **Next.js 16 Turbopack + SpacetimeDB:** The frontend requires a stub module (`frontend/lib/stdb/spacetimedb-stub.ts`) and an SSR wrapper (`frontend/components/stdb-provider-wrapper.tsx`) to work with Turbopack. If upgrading SpacetimeDB SDK, verify the `spacetime:sys@2.0` import path hasn't changed.
 
 ---
 
