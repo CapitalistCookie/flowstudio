@@ -3,7 +3,7 @@
 An AI-powered video editing platform that automatically transforms screen recordings into polished, narrative-driven videos. A source recording is uploaded, decomposed into audio, visual, and interaction signals by 13 specialized workers, then reassembled into an edited output via LLM-driven intent analysis, narrative planning, and FFmpeg rendering.
 
 **Repository:** https://github.com/Dawgsrlife/FlowStudio
-**Stats:** 57 TypeScript files, ~4,600 lines of code, 17 workspace packages
+**Stats:** 254 TypeScript files, ~39,000 lines of code, 19 workspace packages
 
 ---
 
@@ -28,42 +28,45 @@ An AI-powered video editing platform that automatically transforms screen record
 
 FlowStudio is a TypeScript monorepo that processes video files through a 13-stage AI pipeline. The system extracts audio, samples video frames, detects UI changes, analyzes cursor and keyboard interactions, then uses LLMs (Claude and Gemini) to build an intent graph, create a narrative plan, produce an edit decision list, assemble a timeline, and render the final output with FFmpeg.
 
-SpacetimeDB v2 (a real-time database running as a WASM module on a GCE VM) replaces the traditional Postgres + Redis + Celery stack. It handles task coordination, state management, and automatic task chaining. Workers run as Cloud Run services that poll SpacetimeDB for pending tasks via HTTP. The Next.js frontend uses HTTP polling (3s intervals) against SpacetimeDB's SQL and reducer endpoints for project and pipeline status updates. This HTTP bridge architecture is a temporary measure until the SpacetimeDB TypeScript SDK's BSATN support matures, at which point it can be swapped for real-time WebSocket subscriptions with minimal code changes.
+SpacetimeDB v2 (a real-time database running as a WASM module on a GCE VM) replaces the traditional Postgres + Redis + Celery stack. It handles task coordination, state management, and automatic task chaining. Workers and the frontend connect via the native SpacetimeDB TypeScript SDK (v2.0.4) over WebSocket with real-time push subscriptions — table changes arrive instantly via `onInsert`/`onUpdate`/`onDelete` callbacks. A Python FastAPI gateway (Railtracks) provides an agentic orchestration layer for LLM-driven editing workflows with full observability.
 
 ### High-Level Architecture
 
 ```
-                     Browser (Next.js 16)
-                            |
-                            | WebSocket (SDK push)
-                            v
-                   +-----------------------+
-                   |  SpacetimeDB v2       |
-                   |  (GCE VM + Nginx)     |
-                   |  - projects table     |
-                   |  - tasks table        |
-                   |  - signals table      |
-                   |  - assets table       |
-                   |  - project_state      |
-                   |  - worker_configs     |
-                   |  - watchdog schedule  |
-                   +-----------+-----------+
-                               |
-                   HTTP (via VPC connector)
-                               |
-         +---------------------+---------------------+
-         |          |          |          |           |
-     +---v---+ +---v---+ +---v---+ +---v---+  ... (13 total)
-     | audio | | video | |cursor | |typing |
-     |extract| |sample | |process| |detect |
-     +---+---+ +---+---+ +---+---+ +---+---+
-         |          |          |          |
-         +----------+----------+----------+
-                               |
-                          +----v----+
-                          |   GCS   |
-                          |  Bucket |
-                          +---------+
+                Browser (Next.js 16)                        Browser (Next.js 15 — claudeFrontend)
+                       |                                              |
+                       | WebSocket (SDK push)                         | WebSocket (SDK push)
+                       v                                              v
+              +-----------------------+
+              |  SpacetimeDB v2       |
+              |  (GCE VM + Nginx)     |
+              |  - projects table     |
+              |  - tasks table        |
+              |  - signals table      |
+              |  - assets table       |
+              |  - project_state      |
+              |  - worker_configs     |
+              |  - watchdog schedule  |
+              +-----------+-----------+
+                          |
+              WebSocket (native SDK)
+                          |
+        +---------------------+---------------------+
+        |          |          |          |           |
+    +---v---+ +---v---+ +---v---+ +---v---+  ... (13 total)
+    | audio | | video | |cursor | |typing |
+    |extract| |sample | |process| |detect |
+    +---+---+ +---+---+ +---+---+ +---+---+
+        |          |          |          |
+        +----------+----------+----------+
+                          |
+                     +----v----+      +-----------------------+
+                     |   GCS   |<---->| Railtracks Gateway    |
+                     |  Bucket |      | (Python FastAPI)      |
+                     +---------+      | IntentAgent →         |
+                                      | NarrativeAgent →      |
+                                      | EditAgent             |
+                                      +-----------------------+
 ```
 
 ### Tech Stack
@@ -73,17 +76,20 @@ SpacetimeDB v2 (a real-time database running as a WASM module on a GCE VM) repla
 | Language | TypeScript (strict mode) | 5.7.3 |
 | Runtime | Node.js | >= 20.18.0 |
 | Package Manager | pnpm (workspaces) | >= 9.0.0 |
-| Frontend | Next.js + React + Tailwind CSS | 15.3.2 / 19.1.0 / 4.1.4 |
+| Frontend (main) | Next.js + React + Tailwind CSS + Clerk Auth | 16.1.6 / 19.2.3 / 4.x |
+| Frontend (monitoring) | Next.js + React + Tailwind CSS | 15.3.2 / 19.1.0 / 4.1.4 |
 | Database | SpacetimeDB v2 (WASM module, WebSocket push) | 2.0.4 |
 | Object Storage | Google Cloud Storage | -- |
 | Workers | Cloud Run (one service per worker type) | -- |
 | AI / LLM | Anthropic Claude, Google Gemini | claude-sonnet-4-20250514, gemini-1.5-flash |
+| Agentic Gateway | Python FastAPI + Railtracks | FastAPI 0.115+, Railtracks 1.3+ |
 | Speech-to-Text | Deepgram Nova-2 | -- |
 | Video Processing | FFmpeg (via fluent-ffmpeg) | -- |
 | Image Processing | sharp | -- |
 | Infrastructure | Terraform (GCP provider ~6.0) | >= 1.5.0 |
 | CI/CD | GitHub Actions | -- |
 | Container Registry | GCP Artifact Registry | -- |
+| Auth | Clerk | @clerk/nextjs 7.0.4 |
 
 ---
 
@@ -95,9 +101,10 @@ SpacetimeDB v2 (a real-time database running as a WASM module on a GCE VM) repla
 |------|----------------|---------|
 | Node.js | 20.18.0 | https://nodejs.org/ |
 | pnpm | 9.0.0 | `corepack enable && corepack prepare pnpm@9 --activate` |
+| Python | 3.11+ | Required for Railtracks Gateway |
 | gcloud CLI | latest | https://cloud.google.com/sdk/docs/install |
 | Terraform | 1.5.0 | https://developer.hashicorp.com/terraform/install |
-| Docker | latest | https://docs.docker.com/engine/install/ |
+| Docker + Docker Compose | latest | https://docs.docker.com/engine/install/ |
 | spacetime CLI | 2.0.1 | https://spacetimedb.com/docs/getting-started (needed on GCE VM only) |
 
 ### GCP Project Requirements
@@ -112,8 +119,9 @@ SpacetimeDB v2 (a real-time database running as a WASM module on a GCE VM) repla
 | Service | Purpose | Where Used |
 |---------|---------|-----------|
 | Deepgram | Speech transcription (Nova-2) | `speech-transcription` worker |
-| Google AI (Gemini) | Video frame analysis | `video-understanding` worker |
-| Anthropic (Claude) | Intent graph, narrative planning, edit planning | `intent-graph`, `narrative-planner`, `edit-planner` workers |
+| Google AI (Gemini) | Video frame analysis, agentic editing | `video-understanding` worker, Railtracks Gateway |
+| Anthropic (Claude) | Intent graph, narrative planning, edit planning | `intent-graph`, `narrative-planner`, `edit-planner` workers, Railtracks Gateway |
+| Clerk | User authentication | Main frontend (`/frontend`) |
 
 ---
 
@@ -126,6 +134,29 @@ FlowStudio/
 │       ├── ci.yml                          # Typecheck on push/PR to main
 │       ├── deploy.yml                      # Manual deploy workflow (version + services)
 │       └── deploy-stdb.yml                 # Manual SpacetimeDB module publish
+├── frontend/                              # Main client — Next.js 16, Clerk auth, full studio
+│   ├── app/
+│   │   ├── layout.tsx                     # Root layout with Clerk provider
+│   │   ├── page.tsx                       # Landing page
+│   │   ├── dashboard/                     # Projects dashboard
+│   │   ├── projects/                      # All projects view
+│   │   ├── record/                        # Screen capture + upload
+│   │   │   └── preview/                   # Recording playback before pipeline
+│   │   ├── studio/                        # Editor workspace (timeline, inspector, media)
+│   │   ├── settings/                      # User settings
+│   │   ├── sign-in/                       # Clerk sign-in
+│   │   ├── sign-up/                       # Clerk sign-up
+│   │   └── api/                           # API routes (signals, speech-to-text, stdb, upload-url)
+│   ├── components/                        # 24 React components (editor-shell, timeline, inspector, etc.)
+│   └── lib/
+│       ├── stdb/                          # SpacetimeDB connection + hooks
+│       ├── stores/                        # Zustand state management
+│       ├── services/                      # API service clients
+│       ├── capture/                       # Screen capture utilities
+│       ├── upload/                        # Upload service
+│       ├── agent/                         # Agent integration
+│       ├── chromakey.ts                   # Chroma key processing
+│       └── frame-extractor.ts            # Video frame extraction
 ├── infra/
 │   ├── cloud-function/
 │   │   └── generate-upload-url/
@@ -157,6 +188,10 @@ FlowStudio/
 │   │       ├── index.ts                    # Re-exports everything
 │   │       ├── branding.ts                 # Single source of truth for app name, URLs, colors
 │   │       ├── constants.ts                # Task chain DAG, dependencies, initial tasks, retry config
+│   │       ├── schemas.ts                  # Zod validation schemas
+│   │       ├── prompt-registry.ts          # LLM system prompts
+│   │       ├── prompt-security.ts          # Prompt injection guards
+│   │       ├── stdb-reducers.ts            # Reducer definitions
 │   │       ├── utils.ts                    # generateId, gcsAssetPath, safeJsonParse, sleep
 │   │       └── types/
 │   │           ├── enums.ts                # TaskType, TaskStatus, ProjectStatus, AssetType, SignalType
@@ -169,7 +204,20 @@ FlowStudio/
 │   │   └── src/
 │   │       ├── index.ts                    # All tables, reducers, watchdog, task chaining logic
 │   │       └── spacetimedb-server.d.ts     # Type stubs for spacetimedb/server runtime
-│   ├── claudeFrontend/                      # @flowstudio/frontend — Next.js 15 frontend (production)
+│   ├── railtracks-gateway/                 # Python FastAPI — agentic edit pipeline (Railtracks)
+│   │   ├── Dockerfile                      # Python container
+│   │   ├── requirements.txt                # FastAPI, anthropic, google-generativeai, railtracks
+│   │   ├── README.md
+│   │   ├── pytest.ini
+│   │   ├── tests/
+│   │   └── app/
+│   │       ├── main.py                     # FastAPI app, endpoints
+│   │       ├── config.py                   # Configuration
+│   │       ├── schemas.py                  # Pydantic models
+│   │       ├── flow.py                     # Railtracks flow definitions
+│   │       ├── gcs_tools.py                # GCS integration
+│   │       └── agents/                     # IntentAgent, NarrativeAgent, EditAgent
+│   ├── claudeFrontend/                     # @flowstudio/frontend — Next.js 15 monitoring dashboard
 │   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   └── src/
@@ -178,27 +226,32 @@ FlowStudio/
 │   │       │   ├── page.tsx                # Dashboard: project list + create dialog
 │   │       │   ├── error.tsx               # Global error boundary
 │   │       │   ├── globals.css             # Tailwind + CSS variables from branding
-│   │       │   └── project/
-│   │       │       └── [id]/
-│   │       │           └── page.tsx        # Project detail: upload, pipeline status, progress
+│   │       │   ├── dashboard/              # Dashboard view
+│   │       │   ├── projects/               # Projects list
+│   │       │   ├── project/[id]/           # Project detail + studio
+│   │       │   ├── record/                 # Recording
+│   │       │   ├── pitch/                  # Pitch page
+│   │       │   ├── admin/prompts/          # Admin prompt management
+│   │       │   └── api/                    # API routes
 │   │       ├── components/
 │   │       │   ├── Header.tsx              # App header with connection status indicator
 │   │       │   ├── ProjectCard.tsx         # Project list card with status badge
 │   │       │   ├── PipelineStatus.tsx      # Task list with status icons and failure reasons
 │   │       │   └── CreateProjectDialog.tsx # Modal dialog for creating new projects
-│   │       └── lib/
-│   │           ├── stdbConnection.ts        # HTTP bridge: initConnection, callReducer, queryTable, disconnect
-│   │           └── stdbHooks.ts             # useStdbReducer, useConnectionStatus
+│   │       ├── lib/
+│   │       │   ├── spacetimedb.ts          # Native SDK WebSocket connection, typed reducer calls
+│   │       │   └── stdbHooks.ts            # useStdbReducer, useConnectionStatus
+│   │       └── module_bindings/            # Auto-generated SpacetimeDB type bindings
 │   └── workers/
 │       ├── shared/                         # @flowstudio/worker-shared — base worker framework
 │       │   ├── package.json
 │       │   ├── tsconfig.json
 │       │   └── src/
 │       │       ├── index.ts                # Re-exports all shared worker modules
-│       │       ├── base-worker.ts          # BaseWorker abstract class (poll, claim, process, complete)
+│       │       ├── base-worker.ts          # BaseWorker abstract class (WebSocket, reactive claiming)
 │       │       ├── config.ts               # WorkerConfig + loadConfig() from env vars
 │       │       ├── gcs-client.ts           # GcsClient: upload, download, exists, signed URLs, retry
-│       │       ├── stdb-client.ts          # StdbClient: HTTP-only reducer calls + SQL table queries
+│       │       ├── stdb-client.ts          # StdbClient: WebSocket SDK reducer calls + SQL queries
 │       │       ├── semaphore.ts            # Counting semaphore for concurrency control
 │       │       ├── health.ts               # HTTP health check server (/health on port 8080)
 │       │       └── logger.ts               # Structured JSON logger (stdout/stderr)
@@ -217,53 +270,89 @@ FlowStudio/
 │       ├── intent-graph/                   # Worker: build intent hierarchy via Claude
 │       ├── narrative-planner/              # Worker: create narrative beats via Claude
 │       ├── edit-planner/                   # Worker: generate edit decisions via Claude
-│       ├── timeline-builder/               # Worker: assemble timeline from edit decisions
+│       ├── timeline-builder/              # Worker: assemble timeline from edit decisions
 │       └── render/                         # Worker: render final video via FFmpeg
+├── docker-compose.yml                      # Local dev: stdb + frontend + gateway + 13 workers
 ├── package.json                            # Root: scripts (build, typecheck, lint, clean)
-├── pnpm-workspace.yaml                     # Workspace: shared, stdb-module, client, workers/*
+├── pnpm-workspace.yaml                     # Workspace: shared, stdb-module, frontends, gateway, workers/*
 ├── pnpm-lock.yaml                          # Lockfile
 ├── tsconfig.base.json                      # Shared TS config (ES2022, NodeNext, strict)
 ├── .env.example                            # All environment variables with descriptions
-└── HANDOFF.md                              # Build handoff document with verification status
+├── ARCHITECTURE.md                         # Exhaustive internal architecture reference (2,100+ lines)
+└── HANDOFF.md                              # Build handoff: verification status, code sweep results
 ```
 
 ---
 
 ## 4. Getting Started
 
-### Clone and Install
+### Option A: Docker Compose (Recommended for Local Dev)
+
+The fastest way to run the full stack locally:
 
 ```bash
 git clone https://github.com/Dawgsrlife/FlowStudio.git
 cd FlowStudio
+
+# Set up environment
+cp .env.example .env
+# Edit .env with your API keys and config (see Section 10)
+
+# Start core services (SpacetimeDB + frontend + gateway)
+docker compose --profile core up --build
+
+# Or start everything including all 13 workers
+docker compose --profile full up --build
+```
+
+| Profile | Services | Ports |
+|---------|----------|-------|
+| `core` | SpacetimeDB, frontend, Railtracks gateway | 3002 (STDB), 3001 (frontend), 8000 (gateway) |
+| `workers` | All 13 pipeline workers | 8080 per worker |
+| `full` | All of the above | All ports |
+
+### Option B: Manual Setup
+
+```bash
+# 1. Clone and install
+git clone https://github.com/Dawgsrlife/FlowStudio.git
+cd FlowStudio
 corepack enable && corepack prepare pnpm@9 --activate
 pnpm install
-```
 
-### Environment Setup
-
-```bash
+# 2. Copy and fill environment
 cp .env.example .env
-```
+# Edit .env with your values (see Section 10)
 
-Edit `.env` and fill in the values. See [Section 10: Configuration Reference](#10-configuration-reference) for a complete variable-by-variable explanation.
-
-### Build Shared Packages
-
-Shared packages must be built before the client or any worker can run:
-
-```bash
+# 3. Build shared packages (required before anything else)
 pnpm --filter @flowstudio/shared run build
 pnpm --filter @flowstudio/worker-shared run build
-```
 
-### Run the Client Locally
+# 4. Run the main frontend
+cd frontend && pnpm dev
 
-```bash
+# 5. Or run the monitoring dashboard
 pnpm --filter @flowstudio/frontend run dev
 ```
 
-The client starts at `http://localhost:3000`. It requires a running SpacetimeDB instance (local or remote) to function. Set `NEXT_PUBLIC_STDB_HOST` to `http://localhost:3000` for local development.
+### Option C: Railtracks Gateway Only
+
+```bash
+cd packages/railtracks-gateway
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Set up environment
+export LLM_PROVIDER=gemini
+export GOOGLE_AI_API_KEY=your-key
+
+# Run
+uvicorn app.main:app --port 8000 --reload
+
+# Railtracks visualization
+railtracks init && railtracks viz
+```
 
 ### Typecheck Everything
 
@@ -280,7 +369,7 @@ This is the CI gate. Zero errors required before merge.
 ### `@flowstudio/shared`
 
 **Path:** `packages/shared/`
-**Purpose:** Single source of truth for all types, enums, constants, branding, and utility functions shared across the client, workers, and infrastructure.
+**Purpose:** Single source of truth for all types, enums, constants, branding, validation schemas, prompt registry, and utility functions shared across the frontends, workers, and infrastructure.
 
 **Key Exports:**
 
@@ -297,10 +386,14 @@ This is the CI gate. Zero errors required before merge.
 | `INITIAL_TASK_TYPES` | `constants.ts` | 4 tasks created on upload: AUDIO_EXTRACT, VIDEO_SAMPLE, CURSOR_PROCESS, TYPING_DETECT |
 | `Project`, `Task`, `Asset`, `Signal`, `ProjectState`, `WorkerConfig` | `types/tables.ts` | TypeScript interfaces mirroring SpacetimeDB tables |
 | Signal payload interfaces | `types/signals.ts` | SpeechSegmentPayload, SceneChangePayload, UITransitionPayload, etc. |
+| Zod schemas | `schemas.ts` | Runtime validation schemas |
+| LLM prompts | `prompt-registry.ts` | System prompts for LLM workers |
+| Prompt security | `prompt-security.ts` | Prompt injection guards |
+| Reducer definitions | `stdb-reducers.ts` | SpacetimeDB reducer type definitions |
 | `gcsAssetPath()` | `utils.ts` | Build standardized GCS paths: `gs://{bucket}/projects/{projectId}/{assetType}/{filename}` |
 | `safeJsonParse()` | `utils.ts` | JSON.parse with fallback |
 
-**Dependencies:** None (leaf package).
+**Dependencies:** `zod ^3.23.0`
 **Build:** `pnpm --filter @flowstudio/shared run build`
 
 ---
@@ -319,19 +412,103 @@ This is the CI gate. Zero errors required before merge.
 
 ---
 
-### `@flowstudio/frontend`
+### Main Frontend
 
-**Path:** `claudeFrontend/`
-**Purpose:** Next.js 15 frontend dashboard for creating projects, uploading videos, and monitoring pipeline progress in real time.
+**Path:** `frontend/`
+**Purpose:** Full-featured Next.js 16 client application with Clerk authentication, screen recording, video upload, studio editor workspace, and pipeline monitoring.
 
-**Key Exports:** None (standalone application).
+**Key Features:**
+- **Authentication** via Clerk (sign-in, sign-up, session management)
+- **Screen recording** with capture service and frame extraction
+- **Studio workspace** with timeline, inspector panel, media panel, and export
+- **Dashboard** with project management and pipeline progress
+- **SpacetimeDB integration** via native WebSocket SDK (real-time push)
+- **24 React components** including editor-shell, timeline, inspector, cursor-trail, chroma key
+
+**Routes:**
+
+| Route | Description |
+|-------|-------------|
+| `/` | Landing page |
+| `/dashboard` | Projects dashboard |
+| `/projects` | All projects view |
+| `/record` | Screen capture + upload |
+| `/record/preview` | Recording playback before pipeline |
+| `/studio` | Editor workspace (timeline, inspector, media) |
+| `/settings` | User settings |
+| `/sign-in`, `/sign-up` | Clerk authentication |
+| `/api/*` | API routes (signals, speech-to-text, stdb proxy, upload-url) |
+
+**Dependencies:**
+- `next` 16.1.6, `react` 19.2.3, `@clerk/nextjs` 7.0.4
+- `spacetimedb` ^2.0.4, `zustand` ^5.0.11
+- Radix UI, Framer Motion, GSAP, Tailwind CSS
+- `@flowstudio/shared` (workspace)
+
+**Dev:** `cd frontend && pnpm dev`
+
+---
+
+### `@flowstudio/frontend` (claudeFrontend)
+
+**Path:** `packages/claudeFrontend/`
+**Purpose:** Next.js 15 monitoring dashboard for creating projects, uploading videos, and monitoring pipeline progress in real time. Includes admin tools, Railtracks integration, and auto-generated SpacetimeDB type bindings.
+
+**Routes:**
+
+| Route | Description |
+|-------|-------------|
+| `/` | Dashboard: project list + create dialog |
+| `/dashboard` | Dashboard view |
+| `/projects` | Projects list |
+| `/project/[id]` | Project detail: upload, pipeline status, progress |
+| `/project/[id]/studio` | Project studio view |
+| `/record` | Recording |
+| `/pitch` | Pitch page |
+| `/admin/prompts` | Admin prompt management |
 
 **Dependencies:**
 - `@flowstudio/shared` (workspace)
 - `next` 15.3.2, `react` 19.1.0, `tailwindcss` 4.1.4
+- `spacetimedb` ^2.0.4
 
 **Build:** `pnpm --filter @flowstudio/frontend run build`
 **Dev:** `pnpm --filter @flowstudio/frontend run dev`
+
+---
+
+### Railtracks Gateway
+
+**Path:** `packages/railtracks-gateway/`
+**Purpose:** Python FastAPI service providing an agentic AI orchestration layer for the video editing pipeline. Uses Railtracks for full observability of LLM agent chains.
+
+**Architecture:**
+
+```
+Upstream TS Workers → GCS Signals → [Gateway] → Edit Plan → GCS
+                                        │
+                                 IntentAgent (Railtracks)
+                                        │
+                                 NarrativeAgent (Railtracks)
+                                        │
+                                 EditAgent (Railtracks)
+                                        │
+                                 Validation Loop
+```
+
+**API Endpoints:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/generate-edits` | Full pipeline: signals → edit plan |
+| POST | `/api/v1/reprompt` | Modify edit plan with user feedback |
+| GET | `/api/v1/health` | Health check |
+| GET | `/api/v1/runs/{run_id}` | Flow run status |
+
+**Dependencies:** FastAPI 0.115+, Pydantic 2.10+, Anthropic SDK 0.42+, Google Generative AI 0.8+, Railtracks 1.3+
+
+**Run:** `uvicorn app.main:app --port 8000 --reload`
+**Observe:** `railtracks init && railtracks viz`
 
 ---
 
@@ -614,8 +791,6 @@ Every worker starts an HTTP server (file: `packages/workers/shared/src/health.ts
 }
 ```
 
-`healthy` is `true` when the worker is running. (The HTTP client is stateless, so connectivity is confirmed by successful reducer/SQL calls.)
-
 #### GCS Client
 
 File: `packages/workers/shared/src/gcs-client.ts`
@@ -626,16 +801,49 @@ Methods: `upload(path, data, contentType)`, `download(path)`, `exists(path)`, `g
 
 ---
 
-### 6c. Frontend
+### 6c. Main Frontend
 
-**File:** `claudeFrontend/`
+**Path:** `frontend/`
 
-#### Pages and Routing
+The main client is a Next.js 16.1.6 application with Clerk authentication, a full studio editor workspace, screen recording capabilities, and real-time pipeline monitoring via SpacetimeDB WebSocket push.
 
-| Route | Component | Description |
-|-------|-----------|-------------|
-| `/` | `page.tsx` | Dashboard -- lists all projects, "New Project" button |
-| `/project/[id]` | `project/[id]/page.tsx` | Project detail -- upload zone (drag-and-drop), pipeline status, progress bar |
+#### Key Components
+
+| Component | Description |
+|-----------|-------------|
+| `editor-shell.tsx` | Main studio layout with resizable panels |
+| `timeline.tsx` | Video timeline editor |
+| `inspector-panel.tsx` | Property inspector for selected clips |
+| `media-panel.tsx` | Media browser and asset management |
+| `pipeline-progress.tsx` | Pipeline status with task progress |
+| `record-view.tsx` | Screen recording interface |
+| `dashboard-view.tsx` | Project dashboard |
+| `projects-view.tsx` / `projects-dashboard.tsx` | Project list and management |
+| `export-modal.tsx` | Export/render dialog |
+| `cursor-trail.tsx` / `custom-cursor.tsx` | Cursor visualization |
+| `stdb-provider.tsx` | SpacetimeDB connection provider |
+
+#### SpacetimeDB Integration
+
+The frontend connects to SpacetimeDB via the native TypeScript SDK over WebSocket. State is managed with Zustand stores that receive real-time push updates through `onInsert`/`onUpdate`/`onDelete` callbacks. Reducer calls are type-safe through the SDK.
+
+#### Upload Flow
+
+1. User drops a video file (max 5GB, must be `video/*`)
+2. Client calls Cloud Function `POST /generate-upload-url` with `{ projectId, filename, contentType }`
+3. Cloud Function validates input (no path traversal, video content type only) and returns a signed GCS upload URL
+4. Client PUTs the file directly to GCS via the signed URL
+5. Client calls `createAsset` reducer to register the asset in SpacetimeDB
+6. Client calls `createTask` reducer for each of the 4 initial task types (AUDIO_EXTRACT, VIDEO_SAMPLE, CURSOR_PROCESS, TYPING_DETECT), passing the full GCS path as `inputAssetIds`
+7. Client calls `updateProjectState` to set status to "processing"
+
+---
+
+### 6d. claudeFrontend (Monitoring Dashboard)
+
+**Path:** `packages/claudeFrontend/`
+
+A lightweight Next.js 15 dashboard for project monitoring with auto-generated SpacetimeDB type bindings.
 
 #### SpacetimeDB Connection Management
 
@@ -651,36 +859,24 @@ A singleton module managing the SpacetimeDB WebSocket connection via the native 
 
 Module bindings: `claudeFrontend/src/module_bindings/index.ts` — typed table schemas and reducer definitions matching the STDB module.
 
-#### Component Hierarchy
+---
 
-```
-RootLayout (layout.tsx)
-└── DashboardPage (page.tsx)
-    ├── Header (connection status indicator)
-    ├── ProjectCard[] (project list)
-    └── CreateProjectDialog (modal)
+### 6e. Railtracks Gateway
 
-RootLayout (layout.tsx)
-└── ProjectPage (project/[id]/page.tsx)
-    ├── Header
-    ├── Progress bar (computed from completed/total tasks)
-    ├── PipelineStatus (task list with status icons + failure reasons)
-    └── Upload zone (drag-and-drop, 5GB limit, video/* only)
-```
+**Path:** `packages/railtracks-gateway/`
 
-#### Upload Flow
+A Python FastAPI service providing an alternative LLM orchestration path. Instead of the TypeScript intent-graph → narrative-planner → edit-planner worker chain, the gateway runs the same logical pipeline using Railtracks agents with full observability.
 
-1. User drops a video file (max 5GB, must be `video/*`)
-2. Client calls Cloud Function `POST /generate-upload-url` with `{ projectId, filename, contentType }`
-3. Cloud Function validates input (no path traversal, video content type only) and returns a signed GCS upload URL
-4. Client PUTs the file directly to GCS via the signed URL
-5. Client calls `createAsset` reducer to register the asset in SpacetimeDB
-6. Client calls `createTask` reducer for each of the 4 initial task types (AUDIO_EXTRACT, VIDEO_SAMPLE, CURSOR_PROCESS, TYPING_DETECT), passing the full GCS path as `inputAssetIds`
-7. Client calls `updateProjectState` to set status to "processing"
+**Agents:**
+- `IntentAgent` — Builds intent hierarchy from upstream signals
+- `NarrativeAgent` — Creates narrative beats from intent graph
+- `EditAgent` — Generates edit decisions with validation loops
+
+**Observability:** `railtracks viz` provides a web UI showing every LLM call, token usage, latency, and agent chain execution.
 
 ---
 
-### 6d. Video Processing Pipeline
+### 6f. Video Processing Pipeline
 
 #### Full Pipeline Flow
 
@@ -842,6 +1038,28 @@ RootLayout (layout.tsx)
 - `NEXT_PUBLIC_*` env vars must be passed as build args (baked into the Next.js bundle at build time)
 - Production stage runs `next start` on port 3000
 
+**Gateway Dockerfile:** `packages/railtracks-gateway/Dockerfile`
+- Python container with FastAPI
+- Exposes port 8000
+
+### Docker Compose
+
+**File:** `docker-compose.yml`
+
+Provides three profiles for local development:
+
+| Profile | Services | Description |
+|---------|----------|-------------|
+| `core` | stdb, frontend, gateway | SpacetimeDB + frontend + Railtracks gateway |
+| `workers` | All 13 workers | Pipeline workers only |
+| `full` | Everything | All services |
+
+**Port Mappings:**
+- `3002` → SpacetimeDB (mapped from internal 3000 to avoid conflict)
+- `3001` → Frontend
+- `8000` → Railtracks Gateway
+- Workers run on 8080 internally
+
 ### Cloud Function
 
 **File:** `infra/cloud-function/generate-upload-url/index.js`
@@ -873,7 +1091,20 @@ API keys are stored in GCP Secret Manager. The `setup-secrets.sh` script prompts
 
 ## 9. Development Workflow
 
-### Local Development Setup
+### Local Development with Docker Compose
+
+```bash
+# Start core services (fastest way to get running)
+docker compose --profile core up --build
+
+# Start everything including workers
+docker compose --profile full up --build
+
+# Start only SpacetimeDB
+docker compose up stdb
+```
+
+### Manual Local Development
 
 ```bash
 # 1. Clone and install
@@ -890,7 +1121,10 @@ cp .env.example .env
 pnpm --filter @flowstudio/shared run build
 pnpm --filter @flowstudio/worker-shared run build
 
-# 4. Run the client
+# 4. Run the main frontend
+cd frontend && pnpm dev
+
+# 5. Or run the monitoring dashboard
 pnpm --filter @flowstudio/frontend run dev
 ```
 
@@ -910,14 +1144,6 @@ After modifying `packages/shared/` or `packages/workers/shared/`:
 pnpm --filter @flowstudio/shared run build
 pnpm --filter @flowstudio/worker-shared run build
 ```
-
-### Run the Client Locally
-
-```bash
-pnpm --filter @flowstudio/frontend run dev
-```
-
-Requires `NEXT_PUBLIC_STDB_HOST` and `NEXT_PUBLIC_STDB_MODULE` to be set. For local development, point to a local SpacetimeDB instance at `http://localhost:3000`.
 
 ### Build and Deploy a Single Worker
 
@@ -946,6 +1172,28 @@ gcloud auth print-access-token | docker login -u oauth2accesstoken --password-st
 ```
 
 This SCPs the module source to the GCE VM and runs `spacetime publish flowstudio --host http://localhost:3000` on the VM. The `spacetime` CLI must be installed on the VM (not the dev machine).
+
+### Run Railtracks Gateway
+
+```bash
+cd packages/railtracks-gateway
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --port 8000 --reload
+
+# View agent execution traces
+railtracks init && railtracks viz
+```
+
+### Run Tests
+
+```bash
+# TypeScript (vitest, configured at root)
+pnpm test
+
+# Railtracks Gateway (pytest)
+cd packages/railtracks-gateway && pytest tests/ -v
+```
 
 ### Validate Terraform
 
@@ -977,8 +1225,11 @@ Follow the step-by-step guide in [Section 6b: How to Create a New Worker](#how-t
 | `ARTIFACT_REGISTRY` | Scripts | No | (derived from project + region) | Docker registry URL |
 | **API Keys** | | | | |
 | `DEEPGRAM_API_KEY` | speech-transcription | Yes (that worker) | -- | Deepgram API key for Nova-2 transcription |
-| `GOOGLE_AI_API_KEY` | video-understanding | Yes (that worker) | -- | Google AI API key for Gemini |
-| `ANTHROPIC_API_KEY` | intent-graph, narrative-planner, edit-planner | Yes (those workers) | -- | Anthropic API key for Claude |
+| `GOOGLE_AI_API_KEY` | video-understanding, gateway | Yes (those services) | -- | Google AI API key for Gemini |
+| `ANTHROPIC_API_KEY` | intent-graph, narrative-planner, edit-planner, gateway | Yes (those services) | -- | Anthropic API key for Claude |
+| **Auth** | | | | |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Main frontend | Yes | -- | Clerk publishable key (baked at build time) |
+| `CLERK_SECRET_KEY` | Main frontend | Yes | -- | Clerk secret key |
 | **Worker Config** | | | | |
 | `WORKER_NAME` | Workers | Yes | -- | Worker type identifier (e.g., `audio-extract`) |
 | `WORKER_ID` | Workers | No | `{WORKER_NAME}-{timestamp}` | Unique instance ID |
@@ -988,9 +1239,15 @@ Follow the step-by-step guide in [Section 6b: How to Create a New Worker](#how-t
 | `ANTHROPIC_MODEL` | LLM Workers | No | `claude-sonnet-4-20250514` | Claude model ID override |
 | `GOOGLE_AI_MODEL` | video-understanding | No | `gemini-1.5-flash` | Gemini model ID override |
 | **Client** | | | | |
-| `NEXT_PUBLIC_STDB_HOST` | Client | Yes | `https://stdb.flowstudio.ai` | HTTP URL for SpacetimeDB (baked at build time; converted to HTTP base URL internally) |
+| `NEXT_PUBLIC_STDB_HOST` | Client | Yes | `https://stdb.flowstudio.ai` | SpacetimeDB WebSocket URL (baked at build time) |
 | `NEXT_PUBLIC_STDB_MODULE` | Client | No | `flowstudio` | SpacetimeDB module name (baked at build time) |
 | `NEXT_PUBLIC_UPLOAD_FUNCTION_URL` | Client | Yes | -- | Cloud Function URL for upload URL generation (baked at build time) |
+| **Railtracks Gateway** | | | | |
+| `LLM_PROVIDER` | Gateway | No | `gemini` | LLM provider for agentic pipeline (`gemini` or `anthropic`) |
+| `RAILTRACKS_API_KEY` | Gateway | No | -- | Railtracks API key for observability |
+| `GATEWAY_PORT` | Gateway | No | `8000` | Gateway HTTP port |
+| `GATEWAY_RATE_LIMIT` | Gateway | No | -- | Rate limit configuration |
+| `GATEWAY_CORS_ORIGINS` | Gateway | No | `*` | Allowed CORS origins |
 | **Infrastructure** | | | | |
 | `STDB_VM_NAME` | deploy-stdb.sh | No | `flowstudio-stdb` | GCE VM name |
 | `STDB_VM_ZONE` | deploy-stdb.sh | No | `us-east4-c` | GCE VM zone |
@@ -1009,16 +1266,17 @@ Follow the step-by-step guide in [Section 6b: How to Create a New Worker](#how-t
 | Problem | Cause | Solution |
 |---------|-------|---------|
 | Client shows "Disconnected" | SpacetimeDB is not running or unreachable | Check GCE VM status: `gcloud compute instances describe flowstudio-stdb --zone=us-east4-c`. Verify Nginx is running. Check `NEXT_PUBLIC_STDB_HOST` points to correct URL. |
-| Client shows "Connection timeout" | HTTP probe fails to reach SpacetimeDB | Verify DNS for `stdb.flowstudio.ai` resolves to the correct IP. Check TLS cert is valid. Check VPC connector if running locally. |
+| Client shows "Connection timeout" | WebSocket connection fails to reach SpacetimeDB | Verify DNS for `stdb.flowstudio.ai` resolves to the correct IP. Check TLS cert is valid. Check VPC connector if running locally. |
 | Upload fails with "Failed to get upload URL" | Cloud Function unreachable or `NEXT_PUBLIC_UPLOAD_FUNCTION_URL` not set | Verify the Cloud Function is deployed. Check the env var was set at build time (not runtime). |
 | Worker logs "Missing required env var" | Environment not configured | Check Cloud Run service env vars in Terraform. Verify Secret Manager secrets have versions. |
-| Worker logs "HTTP connection failed" | Worker cannot reach SpacetimeDB | Verify VPC connector is created. Check `STDB_INTERNAL_HOST` matches the GCE VM's internal IP (from `terraform output stdb_internal_ip`). |
+| Worker logs "WebSocket connection failed" | Worker cannot reach SpacetimeDB | Verify VPC connector is created. Check `STDB_INTERNAL_HOST` matches the GCE VM's internal IP (from `terraform output stdb_internal_ip`). |
 | Task stuck in "claimed" status | Worker crashed mid-task | Watchdog runs every 30s. Tasks claimed > 5 minutes are automatically reset to pending (up to 3 retries). Wait for watchdog cycle. |
 | Task stuck in "pending" | No worker of that type is running | Check Cloud Run service is deployed and has instances scaled up. Check `gcloud run services describe flowstudio-{worker} --region=us-east4`. |
 | Pipeline stops after initial 4 tasks | Downstream tasks not created | Verify task chaining: all dependencies must complete. Check if cursor-processor or typing-detector failed (they handle missing data gracefully, but check). Inspect `project_state.completedTasks` in SpacetimeDB. |
 | LLM worker produces empty signals | JSON parsing failed on LLM response | Check worker logs for "Failed to parse" warnings. The `extractJsonArray()` function uses bracket-depth counting. If the LLM response format changed, the parser may need updating. |
 | `pnpm -r exec tsc --noEmit` fails | Type errors | Fix errors before deploying. This is the CI gate. Common causes: missing `@types/*` packages, stale `dist/` from shared packages (rebuild shared first). |
 | Docker build fails with NEXT_PUBLIC errors | `NEXT_PUBLIC_*` vars not passed as build args | Use `build-and-push.sh` which passes them automatically. If building manually, add `--build-arg NEXT_PUBLIC_UPLOAD_FUNCTION_URL=...`. |
+| Gateway returns 500 on `/generate-edits` | LLM API key missing or invalid | Check `LLM_PROVIDER`, `GOOGLE_AI_API_KEY`, or `ANTHROPIC_API_KEY` env vars in the gateway. |
 
 ### How to Debug a Stuck Pipeline
 
@@ -1051,7 +1309,7 @@ curl http://{worker-internal-ip}:8080/health
 
 ### How to Inspect SpacetimeDB State
 
-The client application already shows project and task state (via HTTP polling). For direct inspection, use the SpacetimeDB CLI on the GCE VM:
+The client application shows project and task state in real-time via WebSocket push. For direct inspection, use the SpacetimeDB CLI on the GCE VM:
 
 ```bash
 gcloud compute ssh flowstudio-stdb --zone=us-east4-c
@@ -1067,6 +1325,7 @@ spacetime sql flowstudio --host http://localhost:3000 "SELECT * FROM tasks WHERE
 - **SpacetimeDB reducers have no authentication.** Any client can call any reducer. Before public launch, add an auth layer (token validation in reducers, or a gateway proxy).
 - **Cloud Function has no authentication.** The `generate-upload-url` endpoint is open. Add Firebase Auth or API key validation.
 - **CORS wildcard in Cloud Function.** The `Access-Control-Allow-Origin: *` header should be restricted to the production frontend domain.
+- **Railtracks Gateway has no authentication.** Add API key or JWT validation before production use.
 
 ### Cursor and Keyboard Data Capture
 
@@ -1105,3 +1364,27 @@ Two GitHub repo secrets must be configured before the deploy workflows function:
 The CI workflow (`ci.yml`) runs `pnpm -r exec tsc --noEmit` on every push/PR to `main`.
 The deploy workflow (`deploy.yml`) is manual (workflow_dispatch) with inputs for version and services.
 The SpacetimeDB deploy workflow (`deploy-stdb.yml`) is manual.
+
+---
+
+## Code Quality
+
+FlowStudio has undergone **10 comprehensive code sweeps** with 38 confirmed issues fixed:
+
+- **5 CRITICAL** (pipeline-breaking): GCS path mismatches, missing signal files, inputAssetIds bug, missing Docker build arg
+- **11 HIGH** (security + significant): SSH firewall restricted to IAP, reducer validation, batch limits, JSON parsing, error handling
+- **16+ MEDIUM** (code quality): Terraform vars, dead code, error boundaries, configurable models, reconnect races, UI fixes
+
+All 10 verification stop conditions pass:
+1. TypeScript strict mode — zero errors
+2. Zero `any` types
+3. Zero hardcoded brand strings
+4. Zero hardcoded secrets
+5. All reducers validate input
+6. All async has error handling
+7. Dockerfiles structurally correct
+8. `terraform validate` passes
+9. `.env.example` complete
+10. Public exports documented
+
+See `HANDOFF.md` for the full code sweep report.
