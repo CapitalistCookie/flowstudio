@@ -391,7 +391,7 @@ export const runWatchdog = stdb.reducer(
 // ─── Authorization reducer ──────────────────────────────────────────
 
 export const registerIdentity = stdb.reducer(
-  "registerIdentity",
+  "register_identity",
   { firebaseUid: t.string() },
   (ctx: any, args: any) => {
     const senderHex = getSenderHex(ctx);
@@ -412,7 +412,7 @@ export const registerIdentity = stdb.reducer(
 );
 
 export const registerWorkerIdentity = stdb.reducer(
-  "registerWorkerIdentity",
+  "register_worker_identity",
   { workerId: t.string(), secret: t.string() },
   (ctx: any, args: any) => {
     if (!WORKER_SECRET || args.secret !== WORKER_SECRET) throw new Error('Invalid worker secret');
@@ -430,7 +430,7 @@ export const registerWorkerIdentity = stdb.reducer(
 
 // Reducers — Phase 2.6: All reducers include console.log
 export const createProject = stdb.reducer(
-  "createProject",
+  "create_project",
   { name: t.string(), ownerId: t.string(), metadata: t.string() },
   (ctx: any, args: any) => {
     console.log(`[createProject] name=${args.name} ownerId=${args.ownerId}`);
@@ -447,7 +447,7 @@ export const createProject = stdb.reducer(
 );
 
 export const createAsset = stdb.reducer(
-  "createAsset",
+  "create_asset",
   { projectId: t.string(), assetType: t.string(), gcsPath: t.string(), sizeBytes: t.u64(), mimeType: t.string(), durationMs: t.u64(), metadata: t.string() },
   (ctx: any, args: any) => {
     console.log(`[createAsset] projectId=${args.projectId} assetType=${args.assetType}`);
@@ -457,7 +457,7 @@ export const createAsset = stdb.reducer(
 );
 
 export const createTask = stdb.reducer(
-  "createTask",
+  "create_task",
   { projectId: t.string(), taskType: t.string(), inputAssetIds: t.string(), config: t.string(), maxRetries: t.i32() },
   (ctx: any, args: any) => {
     console.log(`[createTask] projectId=${args.projectId} taskType=${args.taskType}`);
@@ -467,7 +467,7 @@ export const createTask = stdb.reducer(
 );
 
 export const claimTask = stdb.reducer(
-  "claimTask",
+  "claim_task",
   { taskId: t.string(), workerId: t.string() },
   (ctx: any, args: any) => {
     console.log(`[claimTask] taskId=${args.taskId} workerId=${args.workerId}`);
@@ -480,7 +480,7 @@ export const claimTask = stdb.reducer(
 
 // Phase 2.2: Use index for findAndClaimTask
 export const findAndClaimTask = stdb.reducer(
-  "findAndClaimTask",
+  "find_and_claim_task",
   { taskType: t.string(), workerId: t.string() },
   (ctx: any, args: any) => {
     console.log(`[findAndClaimTask] taskType=${args.taskType} workerId=${args.workerId}`);
@@ -496,7 +496,7 @@ export const findAndClaimTask = stdb.reducer(
 
 // Phase 2.2: Use byProjectId index in completeTask dependency scans
 export const completeTask = stdb.reducer(
-  "completeTask",
+  "complete_task",
   { taskId: t.string(), outputAssetIds: t.string() },
   (ctx: any, args: any) => {
     console.log(`[completeTask] taskId=${args.taskId}`);
@@ -552,7 +552,7 @@ export const completeTask = stdb.reducer(
 );
 
 export const failTask = stdb.reducer(
-  "failTask",
+  "fail_task",
   { taskId: t.string(), failureReason: t.string() },
   (ctx: any, args: any) => {
     console.log(`[failTask] taskId=${args.taskId} reason=${args.failureReason}`);
@@ -575,7 +575,7 @@ export const failTask = stdb.reducer(
 );
 
 export const writeSignal = stdb.reducer(
-  "writeSignal",
+  "write_signal",
   { projectId: t.string(), taskId: t.string(), signalType: t.string(), timestampMs: t.u64(), durationMs: t.u64(), confidence: t.f64(), payload: t.string() },
   (ctx: any, args: any) => {
     console.log(`[writeSignal] projectId=${args.projectId} taskId=${args.taskId} signalType=${args.signalType}`);
@@ -584,7 +584,7 @@ export const writeSignal = stdb.reducer(
 );
 
 export const ingestInteractionBatch = stdb.reducer(
-  "ingestInteractionBatch",
+  "ingest_interaction_batch",
   { projectId: t.string(), taskId: t.string(), signalType: t.string(), batchJson: t.string() },
   (ctx: any, args: any) => {
     console.log(`[ingestInteractionBatch] projectId=${args.projectId} signalType=${args.signalType}`);
@@ -600,7 +600,7 @@ export const ingestInteractionBatch = stdb.reducer(
 );
 
 export const updateProjectState = stdb.reducer(
-  "updateProjectState",
+  "update_project_state",
   { projectId: t.string(), currentPhase: t.string(), status: t.string() },
   (ctx: any, args: any) => {
     console.log(`[updateProjectState] projectId=${args.projectId} phase=${args.currentPhase} status=${args.status}`);
@@ -614,7 +614,7 @@ export const updateProjectState = stdb.reducer(
 );
 
 export const updateWorkerConfig = stdb.reducer(
-  "updateWorkerConfig",
+  "update_worker_config",
   { workerId: t.string(), workerType: t.string(), isActive: t.bool(), concurrency: t.i32(), metadata: t.string() },
   (ctx: any, args: any) => {
     console.log(`[updateWorkerConfig] workerId=${args.workerId} workerType=${args.workerType} isActive=${args.isActive}`);
@@ -629,7 +629,7 @@ export const updateWorkerConfig = stdb.reducer(
 );
 
 export const toggleProjectStar = stdb.reducer(
-  "toggleProjectStar",
+  "toggle_project_star",
   { projectId: t.string() },
   (ctx: any, args: any) => {
     console.log(`[toggleProjectStar] projectId=${args.projectId}`);
@@ -641,7 +641,7 @@ export const toggleProjectStar = stdb.reducer(
 );
 
 export const createFolder = stdb.reducer(
-  "createFolder",
+  "create_folder",
   { name: t.string(), ownerId: t.string(), color: t.string(), sortOrder: t.i32() },
   (ctx: any, args: any) => {
     console.log(`[createFolder] name=${args.name} ownerId=${args.ownerId}`);
@@ -657,7 +657,7 @@ export const createFolder = stdb.reducer(
 );
 
 export const renameFolder = stdb.reducer(
-  "renameFolder",
+  "rename_folder",
   { folderId: t.string(), name: t.string() },
   (ctx: any, args: any) => {
     console.log(`[renameFolder] folderId=${args.folderId} name=${args.name}`);
@@ -669,7 +669,7 @@ export const renameFolder = stdb.reducer(
 );
 
 export const deleteFolder = stdb.reducer(
-  "deleteFolder",
+  "delete_folder",
   { folderId: t.string() },
   (ctx: any, args: any) => {
     console.log(`[deleteFolder] folderId=${args.folderId}`);
@@ -687,7 +687,7 @@ export const deleteFolder = stdb.reducer(
 );
 
 export const moveProjectToFolder = stdb.reducer(
-  "moveProjectToFolder",
+  "move_project_to_folder",
   { projectId: t.string(), folderId: t.string() },
   (ctx: any, args: any) => {
     console.log(`[moveProjectToFolder] projectId=${args.projectId} folderId=${args.folderId}`);
@@ -699,7 +699,7 @@ export const moveProjectToFolder = stdb.reducer(
 );
 
 export const approveTimeline = stdb.reducer(
-  "approveTimeline",
+  "approve_timeline",
   { projectId: t.string() },
   (ctx: any, args: any) => {
     console.log(`[approveTimeline] projectId=${args.projectId}`);
@@ -741,7 +741,7 @@ export const approveTimeline = stdb.reducer(
 // ─── Timeline Reducers ──────────────────────────────────────────────
 
 export const upsertTimelineClip = stdb.reducer(
-  "upsertTimelineClip",
+  "upsert_timeline_clip",
   { projectId: t.string(), clipId: t.string(), mediaFileId: t.string(), trackId: t.string(), startTime: t.f64(), duration: t.f64(), mediaOffset: t.f64(), label: t.string(), clipType: t.string(), transform: t.string(), effects: t.string(), aiReasoning: t.string(), sortOrder: t.i32() },
   (ctx: any, args: any) => {
     assertProjectOwnership(ctx, args.projectId);
@@ -757,7 +757,7 @@ export const upsertTimelineClip = stdb.reducer(
 );
 
 export const removeTimelineClip = stdb.reducer(
-  "removeTimelineClip",
+  "remove_timeline_clip",
   { clipId: t.string() },
   (ctx: any, args: any) => {
     const clip = ctx.db.timelineClips.id.find(args.clipId);
@@ -768,7 +768,7 @@ export const removeTimelineClip = stdb.reducer(
 );
 
 export const batchUpsertTimelineClips = stdb.reducer(
-  "batchUpsertTimelineClips",
+  "batch_upsert_timeline_clips",
   { projectId: t.string(), clipsJson: t.string() },
   (ctx: any, args: any) => {
     assertProjectOwnership(ctx, args.projectId);
@@ -789,7 +789,7 @@ export const batchUpsertTimelineClips = stdb.reducer(
 );
 
 export const clearProjectTimeline = stdb.reducer(
-  "clearProjectTimeline",
+  "clear_project_timeline",
   { projectId: t.string() },
   (ctx: any, args: any) => {
     assertProjectOwnership(ctx, args.projectId);
@@ -802,7 +802,7 @@ export const clearProjectTimeline = stdb.reducer(
 // ─── Media File Reducers ────────────────────────────────────────────
 
 export const createMediaFile = stdb.reducer(
-  "createMediaFile",
+  "create_media_file",
   { id: t.string(), projectId: t.string(), name: t.string(), durationSeconds: t.f64(), fileType: t.string(), gcsPath: t.string(), gcsUrl: t.string(), sizeBytes: t.u64(), captionsJson: t.string() },
   (ctx: any, args: any) => {
     assertProjectOwnership(ctx, args.projectId);
@@ -811,7 +811,7 @@ export const createMediaFile = stdb.reducer(
 );
 
 export const updateMediaFileCaptions = stdb.reducer(
-  "updateMediaFileCaptions",
+  "update_media_file_captions",
   { mediaFileId: t.string(), captionsJson: t.string() },
   (ctx: any, args: any) => {
     const mf = ctx.db.mediaFiles.id.find(args.mediaFileId);
@@ -822,7 +822,7 @@ export const updateMediaFileCaptions = stdb.reducer(
 );
 
 export const removeMediaFile = stdb.reducer(
-  "removeMediaFile",
+  "remove_media_file",
   { mediaFileId: t.string() },
   (ctx: any, args: any) => {
     const mf = ctx.db.mediaFiles.id.find(args.mediaFileId);
@@ -835,7 +835,7 @@ export const removeMediaFile = stdb.reducer(
 // ─── Effect Block Reducers ──────────────────────────────────────────
 
 export const upsertEffectBlock = stdb.reducer(
-  "upsertEffectBlock",
+  "upsert_effect_block",
   { id: t.string(), projectId: t.string(), effectType: t.string(), startTime: t.f64(), duration: t.f64(), config: t.string() },
   (ctx: any, args: any) => {
     assertProjectOwnership(ctx, args.projectId);
@@ -850,7 +850,7 @@ export const upsertEffectBlock = stdb.reducer(
 );
 
 export const removeEffectBlock = stdb.reducer(
-  "removeEffectBlock",
+  "remove_effect_block",
   { effectBlockId: t.string() },
   (ctx: any, args: any) => {
     const eb = ctx.db.effectBlocks.id.find(args.effectBlockId);
@@ -863,7 +863,7 @@ export const removeEffectBlock = stdb.reducer(
 // ─── Presence Reducers ──────────────────────────────────────────────
 
 export const joinProject = stdb.reducer(
-  "joinProject",
+  "join_project",
   { projectId: t.string(), displayName: t.string() },
   (ctx: any, args: any) => {
     const callerUid = getCallerUid(ctx);
@@ -888,7 +888,7 @@ export const joinProject = stdb.reducer(
 );
 
 export const leaveProject = stdb.reducer(
-  "leaveProject",
+  "leave_project",
   {},
   (ctx: any) => {
     const senderHex = getSenderHex(ctx);
@@ -900,7 +900,7 @@ export const leaveProject = stdb.reducer(
 );
 
 export const heartbeatPresence = stdb.reducer(
-  "heartbeatPresence",
+  "heartbeat_presence",
   { currentTimelinePosition: t.f64() },
   (ctx: any, args: any) => {
     const senderHex = getSenderHex(ctx);
@@ -913,7 +913,7 @@ export const heartbeatPresence = stdb.reducer(
 // ─── Locking Reducers ───────────────────────────────────────────────
 
 export const acquireLock = stdb.reducer(
-  "acquireLock",
+  "acquire_lock",
   { projectId: t.string(), displayName: t.string() },
   (ctx: any, args: any) => {
     const callerUid = getCallerUid(ctx);
@@ -940,7 +940,7 @@ export const acquireLock = stdb.reducer(
 );
 
 export const renewLock = stdb.reducer(
-  "renewLock",
+  "renew_lock",
   { projectId: t.string() },
   (ctx: any, args: any) => {
     const callerUid = getCallerUid(ctx);
@@ -953,7 +953,7 @@ export const renewLock = stdb.reducer(
 );
 
 export const releaseLock = stdb.reducer(
-  "releaseLock",
+  "release_lock",
   { projectId: t.string() },
   (ctx: any, args: any) => {
     const callerUid = getCallerUid(ctx);
@@ -966,7 +966,7 @@ export const releaseLock = stdb.reducer(
 );
 
 export const forceReleaseLock = stdb.reducer(
-  "forceReleaseLock",
+  "force_release_lock",
   { projectId: t.string() },
   (ctx: any, args: any) => {
     // Only the project owner can force-release
