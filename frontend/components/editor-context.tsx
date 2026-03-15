@@ -41,6 +41,7 @@ export interface TimelineClip {
   effects: ClipEffects
   aiReasoning?: string
   aiEditType?: string
+  aiEditParameters?: Record<string, unknown>
 }
 
 export const DEFAULT_CLIP_TRANSFORM: ClipTransform = {

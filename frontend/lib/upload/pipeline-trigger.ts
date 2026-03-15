@@ -20,6 +20,8 @@ interface TriggerOptions {
   fileSize: number;
   contentType: string;
   durationMs?: number;
+  cursorDataFilename?: string;
+  keyboardDataFilename?: string;
 }
 
 /**
@@ -30,7 +32,7 @@ interface TriggerOptions {
  * 3. Update project state to 'processing'
  */
 export async function triggerPipeline(opts: TriggerOptions): Promise<void> {
-  const { projectId, gcsPath, fileSize, contentType, durationMs } = opts;
+  const { projectId, gcsPath, fileSize, contentType, durationMs, cursorDataFilename, keyboardDataFilename } = opts;
 
   await callReducer('createAsset', {
     projectId,
@@ -44,11 +46,22 @@ export async function triggerPipeline(opts: TriggerOptions): Promise<void> {
     }),
   });
 
+  const videoFilename = gcsPath.split('/').pop() ?? gcsPath;
+
   for (const taskType of INITIAL_TASK_TYPES) {
+    let taskInputAssetIds: string[];
+    if (taskType === 'CURSOR_PROCESS') {
+      taskInputAssetIds = cursorDataFilename ? [cursorDataFilename] : [];
+    } else if (taskType === 'TYPING_DETECT') {
+      taskInputAssetIds = keyboardDataFilename ? [keyboardDataFilename] : [];
+    } else {
+      taskInputAssetIds = [videoFilename];
+    }
+
     await callReducer('createTask', {
       projectId,
       taskType,
-      inputAssetIds: JSON.stringify([gcsPath]),
+      inputAssetIds: JSON.stringify(taskInputAssetIds),
       config: '{}',
       maxRetries: 3,
     });

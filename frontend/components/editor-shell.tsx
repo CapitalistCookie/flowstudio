@@ -10,14 +10,23 @@ import { MediaPanel } from "./media-panel"
 import { VideoPreview } from "./video-preview"
 import { Timeline } from "./timeline"
 import { InspectorPanel } from "./inspector-panel"
+import { PipelineProgressBar } from "./pipeline-progress"
 import { EditorProvider, useEditor } from "./editor-context"
 import { getProject, updateProject, type ProjectData } from "@/lib/projects"
-import { type TimelineClipData, type MediaFileData, type ClipTransform, type ClipEffects, type Caption } from "@/lib/types"
+import { queryTable } from "@/lib/stdb/connection"
+import { usePipelineStatus } from "@/lib/services/pipeline-status"
 import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable"
+
+function formatDuration(ms: number): string {
+  const totalSec = Math.floor(ms / 1000)
+  const min = Math.floor(totalSec / 60)
+  const sec = totalSec % 60
+  return `${min.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`
+}
 
 interface EditorShellProps {
   projectId: string
@@ -35,7 +44,9 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
   const [showAiNotice, setShowAiNotice] = useState(initialEditMode !== "none")
   const nameInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
-  const { setProjectId, setProjectResolution, loadTimelineData, saveProject, isSaving, hasUnsavedChanges, isPlaying, setIsPlaying, sortedVideoClips, currentTime, setCurrentTime, timelineEndTime, activeClip, splitClip, selectedClipId, removeClip, undo, redo, canUndo, canRedo, copyClip, pasteClip, canPaste } = useEditor()
+  const { setProjectId, setProjectResolution, loadTimelineData, saveProject, isSaving, hasUnsavedChanges, isPlaying, setIsPlaying, sortedVideoClips, currentTime, setCurrentTime, timelineEndTime, activeClip, splitClip, selectedClipId, removeClip, undo, redo, canUndo, canRedo, copyClip, pasteClip, canPaste, addMediaFiles, mediaFiles } = useEditor()
+  const [autoEditTriggered, setAutoEditTriggered] = useState(false)
+  const { status: pipelineStatus } = usePipelineStatus(projectId !== "local-project" ? projectId : null)
   const searchParams = useSearchParams()
 
   // Handle direct export action from recording
@@ -72,11 +83,56 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
       setProjectId(data.id)
       setProjectResolution(data.resolution)
       loadTimelineData(data.timeline_data)
-      setIsLoading(false)
+
+      // Load source video from STDB (only for non-local projects)
+      if (projectId !== "local-project") {
+        try {
+          const assets = await queryTable("assets")
+          const sourceAsset = (assets as Record<string, unknown>[]).find(
+            (a) => a.projectId === projectId && a.assetType === "source_video"
+          )
+          const gcsPath = sourceAsset?.gcsPath as string | undefined
+          if (gcsPath) {
+            const bucketUrl = process.env.NEXT_PUBLIC_GCS_BUCKET_URL ?? "https://storage.googleapis.com/flowstudio-uploads"
+            const videoUrl = `${bucketUrl}/${gcsPath}`
+            const durationMs = (sourceAsset?.durationMs as number) ?? 0
+            const alreadyInMedia = data.timeline_data?.media?.some((m: { id: string }) => m.id === `source-${projectId}`)
+            if (!alreadyInMedia) {
+              addMediaFiles([{
+                id: `source-${projectId}`,
+                name: "Source Recording",
+                duration: formatDuration(durationMs),
+                durationSeconds: durationMs / 1000,
+                type: "video/webm",
+                thumbnail: null,
+                objectUrl: videoUrl,
+                storageUrl: videoUrl,
+                storagePath: gcsPath,
+              }])
+            }
+          }
+        } catch (e) {
+          console.warn("[Editor] Could not load source video from STDB:", e)
+        }
       }
-    
+
+      setIsLoading(false)
+    }
     loadProject()
-  }, [projectId, setProjectId, loadTimelineData])
+  }, [projectId, setProjectId, setProjectResolution, loadTimelineData, addMediaFiles])
+
+  // When pipeline signals are ready and auto mode, show AI notice
+  useEffect(() => {
+    if (
+      pipelineStatus?.hasSignals &&
+      !autoEditTriggered &&
+      initialEditMode === "auto" &&
+      mediaFiles.length > 0
+    ) {
+      setAutoEditTriggered(true)
+      setShowAiNotice(true)
+    }
+  }, [pipelineStatus?.hasSignals, autoEditTriggered, initialEditMode, mediaFiles.length])
 
   // Keyboard shortcuts
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -209,6 +265,19 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
     }
   }, [isEditingName])
 
+  // When pipeline signals are ready and we haven't auto-triggered yet, show AI notice
+  useEffect(() => {
+    if (
+      pipelineStatus?.hasSignals &&
+      !autoEditTriggered &&
+      initialEditMode === "auto" &&
+      mediaFiles.length > 0
+    ) {
+      setAutoEditTriggered(true)
+      setShowAiNotice(true)
+    }
+  }, [pipelineStatus?.hasSignals, autoEditTriggered, initialEditMode, mediaFiles.length])
+
   if (isLoading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
@@ -329,6 +398,10 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
 
       {/* Export Modal */}
       <ExportModal open={showExportModal} onOpenChange={setShowExportModal} />
+
+      {projectId && projectId !== "local-project" && (
+        <PipelineProgressBar projectId={projectId} />
+      )}
 
       {/* Main Content Area - Resizable Panels */}
       <ResizablePanelGroup orientation="vertical" className="flex-1">

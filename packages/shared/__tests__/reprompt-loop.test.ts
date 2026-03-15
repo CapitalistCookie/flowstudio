@@ -255,7 +255,7 @@ describe('Source Video Immutability', () => {
 
   test('render worker only reads source video, never writes it', () => {
     const src = readWorkerSource('render');
-    expect(src).toContain('source_video');
+    expect(src).toContain('getSourceVideoPath');
     expect(src).toContain('this.gcs.download');
     const uploadToSource = src.split('\n').filter(l =>
       l.includes('upload') && l.includes('source_video'),

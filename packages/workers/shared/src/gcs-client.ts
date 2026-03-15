@@ -67,6 +67,13 @@ export class GcsClient {
     return exists;
   }
 
+  /** List files under a prefix. Returns bucket-relative paths. Excludes directory placeholders. */
+  async listFiles(prefix: string): Promise<string[]> {
+    const cleanPrefix = prefix.replace(`gs://${this.bucket}/`, '');
+    const [files] = await this.storage.bucket(this.bucket).getFiles({ prefix: cleanPrefix });
+    return files.map((f) => f.name).filter((name) => !name.endsWith('/'));
+  }
+
   private async withRetry<T>(operation: string, fn: () => Promise<T>): Promise<T> {
     let lastError: Error | undefined;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {

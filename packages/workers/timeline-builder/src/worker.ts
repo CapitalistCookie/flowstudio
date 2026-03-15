@@ -35,6 +35,10 @@ export class TimelineBuilderWorker extends BaseWorker {
     const editData = await this.gcs.download(editPath);
     const editDecisions: EditDecision[] = JSON.parse(editData.toString('utf-8'));
 
+    // Get source video path from STDB (fallback to GCS list)
+    const sourceVideoPath = await this.getSourceVideoPath(task.projectId);
+    const sourceAssetId = sourceVideoPath.split('/').pop() ?? 'source';
+
     // Sort edits by output start time
     editDecisions.sort((a, b) => a.payload.outputStartMs - b.payload.outputStartMs);
 
@@ -83,7 +87,7 @@ export class TimelineBuilderWorker extends BaseWorker {
         clipId,
         startMs: p.outputStartMs,
         endMs: p.outputEndMs,
-        sourceAssetId: task.inputAssetIds[0] ?? 'source',
+        sourceAssetId,
         sourceStartMs: p.sourceStartMs,
         sourceEndMs: p.sourceEndMs,
         effects,

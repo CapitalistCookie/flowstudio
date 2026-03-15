@@ -33,7 +33,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid filename' }, { status: 400 });
   }
 
-  const ALLOWED_CONTENT_TYPES = ['video/webm', 'video/mp4', 'video/quicktime', 'audio/webm', 'audio/mp4', 'audio/mpeg'];
+  const ALLOWED_CONTENT_TYPES = [
+    'video/webm', 'video/mp4', 'video/quicktime',
+    'audio/webm', 'audio/mp4', 'audio/mpeg',
+    'application/json',
+  ];
   if (!ALLOWED_CONTENT_TYPES.includes(contentType)) {
     return NextResponse.json({ error: 'Unsupported content type' }, { status: 400 });
   }

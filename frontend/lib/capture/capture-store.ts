@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { CaptureState, CaptureStatus, CaptureSourceType } from './types';
+import type { CaptureState, CaptureStatus, CaptureSourceType, CursorEventRecord, KeyboardEventRecord } from './types';
 
 interface CaptureActions {
   setStatus: (status: CaptureStatus) => void;
@@ -9,6 +9,8 @@ interface CaptureActions {
   setError: (error: string | null) => void;
   setSourceType: (type: CaptureSourceType) => void;
   toggleAudio: () => void;
+  setCursorEvents: (events: CursorEventRecord[]) => void;
+  setKeyboardEvents: (events: KeyboardEventRecord[]) => void;
   reset: () => void;
 }
 
@@ -22,6 +24,8 @@ const initialState: CaptureState = {
   error: null,
   sourceType: 'screen',
   audioEnabled: true,
+  cursorEvents: [],
+  keyboardEvents: [],
 };
 
 export const useCaptureStore = create<CaptureStore>((set) => ({
@@ -33,5 +37,7 @@ export const useCaptureStore = create<CaptureStore>((set) => ({
   setError: (error) => set({ error, status: 'idle' }),
   setSourceType: (sourceType) => set({ sourceType }),
   toggleAudio: () => set((s) => ({ audioEnabled: !s.audioEnabled })),
+  setCursorEvents: (cursorEvents) => set({ cursorEvents }),
+  setKeyboardEvents: (keyboardEvents) => set({ keyboardEvents }),
   reset: () => set(initialState),
 }));

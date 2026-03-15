@@ -10,6 +10,8 @@ import {
   resumeCapture,
   stopCapture,
 } from "@/lib/capture/capture-service"
+import { createProject } from "@/lib/projects"
+import { callReducer } from "@/lib/stdb/connection"
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000)
@@ -34,10 +36,34 @@ export default function RecordPage() {
   const error = useCaptureStore((s) => s.error)
 
   useEffect(() => {
-    if (status === "idle") {
+    if (!projectId && status === "idle") {
+      ;(async () => {
+        const { data: project } = await createProject({
+          name: "Untitled Recording",
+          resolution: "1920x1080",
+          frame_rate: 30,
+        })
+        if (project) {
+          try {
+            await callReducer("createProject", {
+              name: project.name,
+              ownerId: "local",
+              metadata: JSON.stringify({ localId: project.id }),
+            })
+          } catch {
+            /* ignore */
+          }
+          router.replace(`/record?projectId=${project.id}`)
+        }
+      })()
+    }
+  }, [projectId, status, router])
+
+  useEffect(() => {
+    if (projectId && status === "idle") {
       startCapture()
     }
-  }, [status])
+  }, [projectId, status])
 
   useEffect(() => {
     if (status === "done") {

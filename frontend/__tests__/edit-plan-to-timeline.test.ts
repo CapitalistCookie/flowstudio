@@ -84,12 +84,88 @@ describe('editPlanToTimelineClips', () => {
     expect(clips[0].trackId).toBe('Track 4');
   });
 
-  it('places overlay edits on Track 4', () => {
+  it('places overlay edits on Track 4 with 70% opacity', () => {
     const plan: EditDecision[] = [
       makeEdit({ editType: 'overlay' }),
     ];
     const clips = editPlanToTimelineClips(plan, MEDIA_ID);
     expect(clips[0].trackId).toBe('Track 4');
+    expect(clips[0].transform.opacity).toBe(70);
+  });
+
+  it('each edit type maps to correct track (layered per ARCHITECTURE)', () => {
+    const trackAssertions: Array<{ editType: string; expectedTrack: string }> = [
+      { editType: 'zoom', expectedTrack: 'Track 4' },
+      { editType: 'pan', expectedTrack: 'Track 4' },
+      { editType: 'overlay', expectedTrack: 'Track 4' },
+      { editType: 'trim', expectedTrack: 'Track 3' },
+      { editType: 'cut', expectedTrack: 'Track 3' },
+      { editType: 'speedup', expectedTrack: 'Track 2' },
+      { editType: 'slowdown', expectedTrack: 'Track 2' },
+      { editType: 'transition', expectedTrack: 'Track 1' },
+    ];
+    for (const { editType, expectedTrack } of trackAssertions) {
+      const plan = [makeEdit({ editType: editType as EditDecision['editType'], parameters: editType === 'speedup' ? { speed: 2 } : editType === 'slowdown' ? { speed: 0.5 } : editType === 'transition' ? { transitionType: 'crossfade' } : {} })];
+      const clips = editPlanToTimelineClips(plan, MEDIA_ID);
+      expect(clips[0].trackId).toBe(expectedTrack);
+    }
+  });
+
+  it('speedup edits have timeline duration = source duration / speedFactor', () => {
+    const plan: EditDecision[] = [
+      makeEdit({
+        editType: 'speedup',
+        sourceStartMs: 0,
+        sourceEndMs: 20000,
+        outputStartMs: 0,
+        outputEndMs: 10000,
+        parameters: { speed: 2.0 },
+      }),
+    ];
+    const clips = editPlanToTimelineClips(plan, MEDIA_ID);
+    expect(clips[0].duration).toBe(10 * PIXELS_PER_SECOND);
+    expect(clips[0].aiEditParameters?.speed).toBe(2.0);
+    expect(clips[0].label).toMatch(/speedup 2x/);
+  });
+
+  it('slowdown edits have timeline duration = source duration / slowFactor', () => {
+    const plan: EditDecision[] = [
+      makeEdit({
+        editType: 'slowdown',
+        sourceStartMs: 0,
+        sourceEndMs: 4000,
+        outputStartMs: 0,
+        outputEndMs: 8000,
+        parameters: { speed: 0.5 },
+      }),
+    ];
+    const clips = editPlanToTimelineClips(plan, MEDIA_ID);
+    expect(clips[0].duration).toBe(8 * PIXELS_PER_SECOND);
+    expect(clips[0].aiEditParameters?.speed).toBe(0.5);
+    expect(clips[0].label).toMatch(/slowdown 0\.5x/);
+  });
+
+  it('transition edits have label showing transition type', () => {
+    const plan: EditDecision[] = [
+      makeEdit({ editType: 'transition', parameters: { transitionType: 'dissolve' }, reasoning: 'Smooth cut' }),
+    ];
+    const clips = editPlanToTimelineClips(plan, MEDIA_ID);
+    expect(clips[0].label).toMatch(/transition \(dissolve\)/);
+    expect(clips[0].aiEditParameters?.transitionType).toBe('dissolve');
+  });
+
+  it('trim edits use output range for duration', () => {
+    const plan: EditDecision[] = [
+      makeEdit({
+        editType: 'trim',
+        sourceStartMs: 2000,
+        sourceEndMs: 8000,
+        outputStartMs: 0,
+        outputEndMs: 4000,
+      }),
+    ];
+    const clips = editPlanToTimelineClips(plan, MEDIA_ID);
+    expect(clips[0].duration).toBe(4 * PIXELS_PER_SECOND);
   });
 
   it('enforces minimum clip duration', () => {
@@ -134,5 +210,133 @@ describe('editPlanToTimelineClips', () => {
     expect(clips[2].startTime).toBe(15 * PIXELS_PER_SECOND);
     expect(clips[2].transform.scale).toBe(150);
     expect(clips[3].startTime).toBe(20 * PIXELS_PER_SECOND);
+  });
+
+  describe('track assignment by edit type', () => {
+    it('maps each edit type to the correct track per ARCHITECTURE', () => {
+      const trackExpectations: Array<{ editType: string; expectedTrack: string }> = [
+        { editType: 'cut', expectedTrack: 'Track 3' },
+        { editType: 'trim', expectedTrack: 'Track 3' },
+        { editType: 'speedup', expectedTrack: 'Track 2' },
+        { editType: 'slowdown', expectedTrack: 'Track 2' },
+        { editType: 'zoom', expectedTrack: 'Track 4' },
+        { editType: 'pan', expectedTrack: 'Track 4' },
+        { editType: 'transition', expectedTrack: 'Track 1' },
+        { editType: 'overlay', expectedTrack: 'Track 4' },
+      ];
+      for (const { editType, expectedTrack } of trackExpectations) {
+        const plan = [makeEdit({ editType, parameters: editType === 'speedup' ? { speed: 2 } : editType === 'slowdown' ? { speed: 0.5 } : {} })];
+        const clips = editPlanToTimelineClips(plan, MEDIA_ID);
+        expect(clips).toHaveLength(1);
+        expect(clips[0].trackId).toBe(expectedTrack);
+        expect(clips[0].aiEditType).toBe(editType);
+      }
+    });
+  });
+
+  describe('transform and effects per edit type', () => {
+    it('zoom edits have correct scale (zoomLevel * 100)', () => {
+      const plan = [makeEdit({ editType: 'zoom', parameters: { zoomLevel: 2.5 } })];
+      const clips = editPlanToTimelineClips(plan, MEDIA_ID);
+      expect(clips[0].transform.scale).toBe(250);
+    });
+
+    it('pan edits have correct position from panX/panY', () => {
+      const plan = [makeEdit({ editType: 'pan', parameters: { panX: 100, panY: -50 } })];
+      const clips = editPlanToTimelineClips(plan, MEDIA_ID);
+      expect(clips[0].transform.positionX).toBe(100);
+      expect(clips[0].transform.positionY).toBe(-50);
+    });
+
+    it('overlay edits have 70% opacity', () => {
+      const plan = [makeEdit({ editType: 'overlay' })];
+      const clips = editPlanToTimelineClips(plan, MEDIA_ID);
+      expect(clips[0].transform.opacity).toBe(70);
+    });
+
+    it('speedup edits store speed in aiEditParameters', () => {
+      const plan = [makeEdit({ editType: 'speedup', parameters: { speed: 2.5 } })];
+      const clips = editPlanToTimelineClips(plan, MEDIA_ID);
+      expect(clips[0].aiEditParameters?.speed).toBe(2.5);
+      expect(clips[0].label).toContain('2.5x');
+    });
+
+    it('slowdown edits store speed in aiEditParameters', () => {
+      const plan = [makeEdit({ editType: 'slowdown', parameters: { speed: 0.5 } })];
+      const clips = editPlanToTimelineClips(plan, MEDIA_ID);
+      expect(clips[0].aiEditParameters?.speed).toBe(0.5);
+      expect(clips[0].label).toContain('0.5x');
+    });
+
+    it('transition edits have label with transitionType', () => {
+      const plan = [makeEdit({ editType: 'transition', parameters: { transitionType: 'dissolve' }, reasoning: 'Smooth' })];
+      const clips = editPlanToTimelineClips(plan, MEDIA_ID);
+      expect(clips[0].label).toContain('dissolve');
+      expect(clips[0].aiEditParameters?.transitionType).toBe('dissolve');
+    });
+  });
+
+  describe('duration handling', () => {
+    it('speedup: timeline duration = source duration / speedFactor', () => {
+      const plan = [
+        makeEdit({
+          editType: 'speedup',
+          sourceStartMs: 0,
+          sourceEndMs: 20000,
+          outputStartMs: 0,
+          outputEndMs: 10000,
+          parameters: { speed: 2.0 },
+        }),
+      ];
+      const clips = editPlanToTimelineClips(plan, MEDIA_ID);
+      const expectedDurationPx = (20000 / 1000 / 2) * PIXELS_PER_SECOND;
+      expect(clips[0].duration).toBe(expectedDurationPx);
+    });
+
+    it('slowdown: timeline duration = source duration / slowFactor', () => {
+      const plan = [
+        makeEdit({
+          editType: 'slowdown',
+          sourceStartMs: 0,
+          sourceEndMs: 4000,
+          outputStartMs: 0,
+          outputEndMs: 8000,
+          parameters: { speed: 0.5 },
+        }),
+      ];
+      const clips = editPlanToTimelineClips(plan, MEDIA_ID);
+      const expectedDurationPx = (4000 / 1000 / 0.5) * PIXELS_PER_SECOND;
+      expect(clips[0].duration).toBe(expectedDurationPx);
+    });
+
+    it('trim: timeline duration matches output range', () => {
+      const plan = [
+        makeEdit({
+          editType: 'trim',
+          sourceStartMs: 5000,
+          sourceEndMs: 15000,
+          outputStartMs: 0,
+          outputEndMs: 8000,
+        }),
+      ];
+      const clips = editPlanToTimelineClips(plan, MEDIA_ID);
+      expect(clips[0].duration).toBe((8000 / 1000) * PIXELS_PER_SECOND);
+    });
+  });
+
+  describe('rich labels', () => {
+    it('label includes edit type and truncated reasoning', () => {
+      const plan = [makeEdit({ editType: 'cut', reasoning: 'Keep intro' })];
+      const clips = editPlanToTimelineClips(plan, MEDIA_ID);
+      expect(clips[0].label).toMatch(/cut.*Keep intro/);
+    });
+
+    it('long reasoning is truncated with ellipsis', () => {
+      const long = 'A'.repeat(100);
+      const plan = [makeEdit({ reasoning: long })];
+      const clips = editPlanToTimelineClips(plan, MEDIA_ID);
+      expect(clips[0].label).toContain('...');
+      expect(clips[0].aiReasoning).toBe(long);
+    });
   });
 });

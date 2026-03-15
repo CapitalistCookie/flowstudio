@@ -55,6 +55,40 @@ export default function RecordingPreviewPage() {
         "video/webm",
       )
 
+      setUploadProgress(50)
+
+      // Upload cursor events
+      const cursorEvents = useCaptureStore.getState().cursorEvents
+      let cursorDataFilename: string | undefined
+      if (cursorEvents?.length) {
+        const cursorBlob = new Blob([JSON.stringify(cursorEvents)], {
+          type: "application/json",
+        })
+        const { gcsPath: cursorPath } = await uploadToGcs(
+          projectId,
+          "cursor_events.json",
+          cursorBlob,
+          "application/json",
+        )
+        cursorDataFilename = cursorPath.split("/").pop()
+      }
+
+      // Upload keyboard events
+      const keyboardEvents = useCaptureStore.getState().keyboardEvents
+      let keyboardDataFilename: string | undefined
+      if (keyboardEvents?.length) {
+        const kbBlob = new Blob([JSON.stringify(keyboardEvents)], {
+          type: "application/json",
+        })
+        const { gcsPath: kbPath } = await uploadToGcs(
+          projectId,
+          "keyboard_events.json",
+          kbBlob,
+          "application/json",
+        )
+        keyboardDataFilename = kbPath.split("/").pop()
+      }
+
       setUploadProgress(60)
       setUploadState("processing")
 
@@ -64,6 +98,8 @@ export default function RecordingPreviewPage() {
         fileSize: size,
         contentType: "video/webm",
         durationMs: elapsedMs,
+        cursorDataFilename,
+        keyboardDataFilename,
       })
 
       setUploadProgress(100)

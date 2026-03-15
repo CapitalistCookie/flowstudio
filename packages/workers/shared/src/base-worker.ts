@@ -83,6 +83,33 @@ export abstract class BaseWorker {
    */
   abstract processTask(task: TaskData): Promise<TaskResult>;
 
+  /**
+   * Get the source video GCS path for a project.
+   * Queries STDB assets table first; falls back to listing GCS if STDB fails.
+   */
+  protected async getSourceVideoPath(projectId: string): Promise<string> {
+    try {
+      const assets = await this.stdb.queryTable('assets');
+      const sourceAsset = assets.find(
+        (a: Record<string, unknown>) =>
+          a.projectId === projectId && a.assetType === 'source_video'
+      );
+      const gcsPath = sourceAsset?.gcsPath as string | undefined;
+      if (gcsPath) return gcsPath;
+    } catch (err) {
+      this.logger.warn('STDB assets query failed, falling back to GCS list', {
+        projectId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    const prefix = `projects/${projectId}/source_video/`;
+    const files = await this.gcs.listFiles(prefix);
+    if (files.length === 0) {
+      throw new Error(`No source video found for project ${projectId} (STDB empty, GCS list empty)`);
+    }
+    return files[0]!;
+  }
+
   /** Start the worker: register with SpacetimeDB, start health server, begin polling */
   async start(): Promise<void> {
     this.logger.info(`Starting worker: ${this.config.workerName}`, {

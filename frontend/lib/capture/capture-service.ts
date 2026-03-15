@@ -3,9 +3,12 @@
 /**
  * CaptureEngine — handles real screen recording with MediaRecorder.
  * Uses the Zustand capture store for state management.
+ * Also captures cursor and keyboard events during recording.
  */
 
 import { useCaptureStore, type CaptureStore } from './capture-store';
+import { startCursorCapture, stopCursorCapture } from './cursor-capture';
+import { startKeyboardCapture, stopKeyboardCapture } from './keyboard-capture';
 
 let mediaRecorder: MediaRecorder | null = null;
 let recordedChunks: Blob[] = [];
@@ -87,6 +90,8 @@ export async function startCapture(): Promise<void> {
     mediaRecorder.start(1000);
     startTime = Date.now();
     store.setStatus('recording');
+    startCursorCapture();
+    startKeyboardCapture();
 
     timerInterval = setInterval(() => {
       getStore().setElapsedMs(Date.now() - startTime);
@@ -121,6 +126,10 @@ export function resumeCapture(): void {
 export function stopCapture(): void {
   getStore().setStatus('stopping');
   cleanupTimer();
+  const cursorEvents = stopCursorCapture();
+  const keyboardEvents = stopKeyboardCapture();
+  getStore().setCursorEvents(cursorEvents);
+  getStore().setKeyboardEvents(keyboardEvents);
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop();
   }

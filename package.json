@@ -25,6 +25,7 @@
     "pnpm": ">=9.0.0"
   },
   "devDependencies": {
+    "happy-dom": "^20.8.4",
     "vitest": "^4.1.0"
   }
 }

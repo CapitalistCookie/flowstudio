@@ -36,10 +36,9 @@ export class RenderWorker extends BaseWorker {
       const timelineData = await this.gcs.download(timelinePath);
       const timeline: Timeline = JSON.parse(timelineData.toString('utf-8'));
 
-      // Download source video
-      const sourceAssetId = task.inputAssetIds[0] ?? 'source';
-      const sourcePath = `projects/${task.projectId}/source_video/${sourceAssetId}`;
-      const videoData = await this.gcs.download(sourcePath);
+      // Download source video (from STDB assets, fallback to GCS list)
+      const sourceVideoPath = await this.getSourceVideoPath(task.projectId);
+      const videoData = await this.gcs.download(sourceVideoPath);
       const inputPath = join(tmpDir, 'source.mp4');
       const writeStream = createWriteStream(inputPath);
       writeStream.write(videoData);

@@ -103,10 +103,10 @@ describe('Reprompt Loop: Edit Type Variety', () => {
     expect(clips[0].aiEditType).toBe('speedup');
   });
 
-  it('transition edits are placed on Track 3', () => {
+  it('transition edits are placed on Track 1', () => {
     const plan = [makeEdit({ editType: 'transition' })];
     const clips = editPlanToTimelineClips(plan, MEDIA_ID);
-    expect(clips[0].trackId).toBe('Track 3');
+    expect(clips[0].trackId).toBe('Track 1');
   });
 
   it('overlay edits are placed on Track 4 (higher track)', () => {

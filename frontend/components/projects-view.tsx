@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import {
@@ -56,8 +56,12 @@ function sortProjects(list: Project[], mode: SortMode): Project[] {
 
 export function ProjectsView() {
   const router = useRouter()
-  const { projects, starredProjectIds, toggleProjectStar, removeProject, duplicateProject } = useProjectStore()
+  const { projects, fetchProjects, starredProjectIds, toggleProjectStar, removeProject, duplicateProject } = useProjectStore()
   const [sortMode, setSortMode] = useState<SortMode>("newest")
+
+  useEffect(() => {
+    fetchProjects()
+  }, [fetchProjects])
   const [visibilityMode, setVisibilityMode] = useState<VisibilityMode>("all")
 
   const visibleProjects = useMemo(() => {

@@ -8,9 +8,12 @@ importers:
 
   .:
     devDependencies:
+      happy-dom:
+        specifier: ^20.8.4
+        version: 20.8.4
       vitest:
         specifier: ^4.1.0
-        version: 4.1.0(@types/node@22.15.3)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
+        version: 4.1.0(@types/node@22.15.3)(happy-dom@20.8.4)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
 
   finalFrontend:
     dependencies:
@@ -114,7 +117,7 @@ importers:
         version: 5.7.3
       vitest:
         specifier: ^4.1.0
-        version: 4.1.0(@types/node@22.15.3)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
+        version: 4.1.0(@types/node@22.15.3)(happy-dom@20.8.4)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
 
   packages/stdb-module:
     devDependencies:
@@ -145,7 +148,7 @@ importers:
         version: 5.7.3
       vitest:
         specifier: ^4.1.0
-        version: 4.1.0(@types/node@22.15.3)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
+        version: 4.1.0(@types/node@22.15.3)(happy-dom@20.8.4)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
 
   packages/workers/cursor-processor:
     dependencies:
@@ -164,7 +167,7 @@ importers:
         version: 5.7.3
       vitest:
         specifier: ^4.1.0
-        version: 4.1.0(@types/node@22.15.3)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
+        version: 4.1.0(@types/node@22.15.3)(happy-dom@20.8.4)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
 
   packages/workers/edit-planner:
     dependencies:
@@ -186,7 +189,7 @@ importers:
         version: 5.7.3
       vitest:
         specifier: ^3.2.4
-        version: 3.2.4(@types/node@22.15.3)(jiti@2.6.1)(lightningcss@1.32.0)
+        version: 3.2.4(@types/node@22.15.3)(happy-dom@20.8.4)(jiti@2.6.1)(lightningcss@1.32.0)
 
   packages/workers/intent-graph:
     dependencies:
@@ -208,7 +211,7 @@ importers:
         version: 5.7.3
       vitest:
         specifier: ^4.1.0
-        version: 4.1.0(@types/node@22.15.3)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
+        version: 4.1.0(@types/node@22.15.3)(happy-dom@20.8.4)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
 
   packages/workers/interaction-pattern:
     dependencies:
@@ -227,7 +230,7 @@ importers:
         version: 5.7.3
       vitest:
         specifier: ^4.1.0
-        version: 4.1.0(@types/node@22.15.3)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
+        version: 4.1.0(@types/node@22.15.3)(happy-dom@20.8.4)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
 
   packages/workers/narrative-planner:
     dependencies:
@@ -249,7 +252,7 @@ importers:
         version: 5.7.3
       vitest:
         specifier: ^3.2.4
-        version: 3.2.4(@types/node@22.15.3)(jiti@2.6.1)(lightningcss@1.32.0)
+        version: 3.2.4(@types/node@22.15.3)(happy-dom@20.8.4)(jiti@2.6.1)(lightningcss@1.32.0)
 
   packages/workers/render:
     dependencies:
@@ -277,7 +280,7 @@ importers:
         version: 5.7.3
       vitest:
         specifier: ^3.2.4
-        version: 3.2.4(@types/node@22.15.3)(jiti@2.6.1)(lightningcss@1.32.0)
+        version: 3.2.4(@types/node@22.15.3)(happy-dom@20.8.4)(jiti@2.6.1)(lightningcss@1.32.0)
 
   packages/workers/shared:
     dependencies:
@@ -296,7 +299,7 @@ importers:
         version: 5.7.3
       vitest:
         specifier: ^4.1.0
-        version: 4.1.0(@types/node@22.15.3)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
+        version: 4.1.0(@types/node@22.15.3)(happy-dom@20.8.4)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
 
   packages/workers/speech-transcription:
     dependencies:
@@ -318,7 +321,7 @@ importers:
         version: 5.7.3
       vitest:
         specifier: ^4.1.0
-        version: 4.1.0(@types/node@22.15.3)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
+        version: 4.1.0(@types/node@22.15.3)(happy-dom@20.8.4)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
 
   packages/workers/timeline-builder:
     dependencies:
@@ -337,7 +340,7 @@ importers:
         version: 5.7.3
       vitest:
         specifier: ^3.2.4
-        version: 3.2.4(@types/node@22.15.3)(jiti@2.6.1)(lightningcss@1.32.0)
+        version: 3.2.4(@types/node@22.15.3)(happy-dom@20.8.4)(jiti@2.6.1)(lightningcss@1.32.0)
 
   packages/workers/typing-detector:
     dependencies:
@@ -356,7 +359,7 @@ importers:
         version: 5.7.3
       vitest:
         specifier: ^4.1.0
-        version: 4.1.0(@types/node@22.15.3)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
+        version: 4.1.0(@types/node@22.15.3)(happy-dom@20.8.4)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
 
   packages/workers/ui-change-detector:
     dependencies:
@@ -378,7 +381,7 @@ importers:
         version: 5.7.3
       vitest:
         specifier: ^4.1.0
-        version: 4.1.0(@types/node@22.15.3)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
+        version: 4.1.0(@types/node@22.15.3)(happy-dom@20.8.4)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
 
   packages/workers/video-sample:
     dependencies:
@@ -406,7 +409,7 @@ importers:
         version: 5.7.3
       vitest:
         specifier: ^4.1.0
-        version: 4.1.0(@types/node@22.15.3)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
+        version: 4.1.0(@types/node@22.15.3)(happy-dom@20.8.4)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
 
   packages/workers/video-understanding:
     dependencies:
@@ -428,7 +431,7 @@ importers:
         version: 5.7.3
       vitest:
         specifier: ^4.1.0
-        version: 4.1.0(@types/node@22.15.3)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
+        version: 4.1.0(@types/node@22.15.3)(happy-dom@20.8.4)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
 
 packages:
 
@@ -1672,6 +1675,12 @@ packages:
   '@types/tough-cookie@4.0.5':
     resolution: {integrity: sha512-/Ad8+nIOV7Rl++6f1BdKxFSMgmoqEoYbHRpPcx3JEfv8VRsQe9Z4mCXeJBzxs7mbHY/XOZZuXlRNfhpVPbs6ZA==}
 
+  '@types/whatwg-mimetype@3.0.2':
+    resolution: {integrity: sha512-c2AKvDT8ToxLIOUlN51gTiHXflsfIFisS4pO7pDPoKouJCESkhZnEy623gwP9laCy5lnLDAw1vAzu2vM2YLOrA==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
+
   '@vitest/expect@3.2.4':
     resolution: {integrity: sha512-Io0yyORnB6sikFlt8QW5K7slY4OjqNX9jmJQ02QDda8lyM6B5oNgVWoSoKPac8/kgnCUzuHQKrSLtu/uOqqrig==}
 
@@ -1888,6 +1897,10 @@ packages:
     resolution: {integrity: sha512-/ce7+jQ1PQ6rVXwe+jKEg5hW5ciicHwIQUagZkp6IufBoY3YDgdTTY1azVs0qoRgVmvsNB+rbjLJxDAeHHtwsQ==}
     engines: {node: '>=10.13.0'}
 
+  entities@7.0.1:
+    resolution: {integrity: sha512-TWrgLOFUQTH994YUyl1yT4uyavY5nNB5muff+RtWaqNVCAK408b5ZnnbNAUEWLTCpum9w6arT70i1XdQ4UeOPA==}
+    engines: {node: '>=0.12'}
+
   es-define-property@1.0.1:
     resolution: {integrity: sha512-e3nRfgfUZ4rNGL232gUgX06QNyyez04KdjFrF+LTRoOXmrOgFKDg4BCdsjW8EnT69eqdYGmRpJwiPVYNrCaW3g==}
     engines: {node: '>= 0.4'}
@@ -2026,6 +2039,10 @@ packages:
   gtoken@7.1.0:
     resolution: {integrity: sha512-pCcEwRi+TKpMlxAQObHDQ56KawURgyAf6jtIY046fJ5tIv3zDe/LEIubckAO8fj6JnAxLdmWkUfNyulQ2iKdEw==}
     engines: {node: '>=14.0.0'}
+
+  happy-dom@20.8.4:
+    resolution: {integrity: sha512-GKhjq4OQCYB4VLFBzv8mmccUadwlAusOZOI7hC1D9xDIT5HhzkJK17c4el2f6R6C715P9xB4uiMxeKUa2nHMwQ==}
+    engines: {node: '>=20.0.0'}
 
   has-symbols@1.1.0:
     resolution: {integrity: sha512-1cDNdwJ2Jaohmb3sg4OmKaMBwuC48sYni5HUw2DvsC8LjGTLK9h+eb1X6RyuOHe4hT0ULCW68iomhjUoKUqlPQ==}
@@ -2733,6 +2750,10 @@ packages:
 
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
+
+  whatwg-mimetype@3.0.0:
+    resolution: {integrity: sha512-nt+N2dzIutVRxARx1nghPKGv1xHikU7HKdfafKkLNLindmPU/ch3U31NOCGGA/dmPcmb1VlofO0vnKAcsm0o/Q==}
+    engines: {node: '>=12'}
 
   whatwg-url@5.0.0:
     resolution: {integrity: sha512-saE57nupxk6v3HY35+jzBwYa0rKSy0XR8JSxZPwgLr7ys0IBzhGviA1/TUGJLmSVqs8pb9AnvICXEuOHLprYTw==}
@@ -3769,6 +3790,12 @@ snapshots:
 
   '@types/tough-cookie@4.0.5': {}
 
+  '@types/whatwg-mimetype@3.0.2': {}
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 22.15.3
+
   '@vitest/expect@3.2.4':
     dependencies:
       '@types/chai': 5.2.3
@@ -3995,6 +4022,8 @@ snapshots:
       graceful-fs: 4.2.11
       tapable: 2.3.0
 
+  entities@7.0.1: {}
+
   es-define-property@1.0.1: {}
 
   es-errors@1.3.0: {}
@@ -4171,6 +4200,18 @@ snapshots:
     transitivePeerDependencies:
       - encoding
       - supports-color
+
+  happy-dom@20.8.4:
+    dependencies:
+      '@types/node': 22.15.3
+      '@types/whatwg-mimetype': 3.0.2
+      '@types/ws': 8.18.1
+      entities: 7.0.1
+      whatwg-mimetype: 3.0.0
+      ws: 8.19.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   has-symbols@1.1.0: {}
 
@@ -4760,7 +4801,7 @@ snapshots:
       fsevents: 2.3.3
       jiti: 2.6.1
 
-  vitest@3.2.4(@types/node@22.15.3)(jiti@2.6.1)(lightningcss@1.32.0):
+  vitest@3.2.4(@types/node@22.15.3)(happy-dom@20.8.4)(jiti@2.6.1)(lightningcss@1.32.0):
     dependencies:
       '@types/chai': 5.2.3
       '@vitest/expect': 3.2.4
@@ -4787,6 +4828,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 22.15.3
+      happy-dom: 20.8.4
     transitivePeerDependencies:
       - jiti
       - less
@@ -4801,7 +4843,7 @@ snapshots:
       - tsx
       - yaml
 
-  vitest@4.1.0(@types/node@22.15.3)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1)):
+  vitest@4.1.0(@types/node@22.15.3)(happy-dom@20.8.4)(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1)):
     dependencies:
       '@vitest/expect': 4.1.0
       '@vitest/mocker': 4.1.0(vite@8.0.0(@types/node@22.15.3)(esbuild@0.27.4)(jiti@2.6.1))
@@ -4825,12 +4867,15 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 22.15.3
+      happy-dom: 20.8.4
     transitivePeerDependencies:
       - msw
 
   web-streams-polyfill@4.0.0-beta.3: {}
 
   webidl-conversions@3.0.1: {}
+
+  whatwg-mimetype@3.0.0: {}
 
   whatwg-url@5.0.0:
     dependencies:

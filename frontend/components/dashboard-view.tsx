@@ -1,8 +1,11 @@
 "use client"
 
+import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@clerk/nextjs"
 import { motion } from "framer-motion"
+import { createProject } from "@/lib/projects"
+import { callReducer } from "@/lib/stdb/connection"
 import { 
   Plus, 
   ArrowRight, 
@@ -36,7 +39,11 @@ function parseDurationToSeconds(duration: string): number {
 export function DashboardView() {
   const router = useRouter()
   const { user } = useUser()
-  const { projects } = useProjectStore()
+  const { projects, fetchProjects, isLoading } = useProjectStore()
+
+  useEffect(() => {
+    fetchProjects()
+  }, [fetchProjects])
 
   // Get current hour for greeting
   const hour = new Date().getHours()
@@ -114,7 +121,25 @@ export function DashboardView() {
              <motion.button
               whileHover={{ scale: 1.01, borderColor: "rgba(245,166,35,0.3)" }}
               whileTap={{ scale: 0.99 }}
-              onClick={() => router.push("/record")}
+              onClick={async () => {
+                const { data: project } = await createProject({
+                  name: "Untitled Recording",
+                  resolution: "1920x1080",
+                  frame_rate: 30,
+                })
+                if (project) {
+                  try {
+                    await callReducer("createProject", {
+                      name: project.name,
+                      ownerId: user?.id ?? "anon",
+                      metadata: JSON.stringify({ localId: project.id }),
+                    })
+                  } catch (e) {
+                    console.warn("[STDB] Failed to create project in SpacetimeDB:", e)
+                  }
+                  router.push(`/record?projectId=${project.id}`)
+                }
+              }}
               className="group relative flex w-full max-w-2xl cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[40px] border-2 border-border/40 bg-card/30 px-12 py-20 transition-all hover:bg-card/50 shadow-2xl shadow-black/5"
              >
                 <div className="mb-8 flex h-24 w-24 items-center justify-center rounded-[32px] bg-flux-amber/10 ring-1 ring-flux-amber/20 group-hover:bg-flux-amber/20 transition-colors">
@@ -147,7 +172,11 @@ export function DashboardView() {
               </Button>
             </div>
 
-            {recentProjects.length === 0 ? (
+            {isLoading ? (
+              <div className="flex h-48 flex-col items-center justify-center rounded-[32px] bg-secondary/10 border border-border/20">
+                <p className="text-muted-foreground italic text-sm">Loading projects…</p>
+              </div>
+            ) : recentProjects.length === 0 ? (
               <div className="flex h-48 flex-col items-center justify-center rounded-[32px] bg-secondary/10 border border-border/20 border-dashed">
                 <p className="text-muted-foreground italic text-sm">No recorded projects yet.</p>
               </div>
@@ -159,7 +188,7 @@ export function DashboardView() {
                     initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.08 }}
-                    onClick={() => router.push("/studio")}
+                    onClick={() => router.push(`/studio?projectId=${project.id}`)}
                     className="group cursor-pointer"
                   >
                     <div className="relative aspect-video overflow-hidden rounded-[28px] border border-border/60 bg-card shadow-sm transition-all hover:border-flux-amber/30 hover:shadow-xl hover:-translate-y-1">

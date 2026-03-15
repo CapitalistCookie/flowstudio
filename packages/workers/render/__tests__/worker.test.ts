@@ -111,12 +111,22 @@ function createMockDeps(): WorkerDeps & {
       upload: mockGcsUpload,
       download: mockGcsDownload,
       exists: mockGcsExists,
+      listFiles: vi.fn().mockResolvedValue([`projects/proj-abc/source_video/recording.webm`]),
       getSignedUploadUrl: vi.fn(),
       getSignedDownloadUrl: vi.fn(),
     } as any,
     stdb: {
       callReducer: vi.fn().mockResolvedValue(undefined),
-      queryTable: vi.fn().mockResolvedValue([]),
+      queryTable: vi.fn().mockImplementation(async (table: string) => {
+        if (table === 'assets') {
+          return [
+            { projectId: 'proj-abc', assetType: 'source_video', gcsPath: 'projects/proj-abc/source_video/recording.webm' },
+            { projectId: 'proj-xyz', assetType: 'source_video', gcsPath: 'projects/proj-xyz/source_video/video.mp4' },
+            { projectId: 'proj-render', assetType: 'source_video', gcsPath: 'projects/proj-render/source_video/recording.webm' },
+          ];
+        }
+        return [];
+      }),
       isConnected: true,
       disconnect: vi.fn(),
     } as any,
