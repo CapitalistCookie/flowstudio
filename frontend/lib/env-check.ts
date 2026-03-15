@@ -46,7 +46,7 @@ export function checkEnvironment(): { ok: boolean; warnings: string[] } {
       name: 'NEXT_PUBLIC_GCS_BUCKET_URL',
       value: process.env.NEXT_PUBLIC_GCS_BUCKET_URL,
       required: false,
-      hint: 'Defaults to https://storage.googleapis.com/flowstudio-uploads.',
+      hint: 'Defaults to https://storage.googleapis.com/flowstudio-assets.',
     },
   ];
 

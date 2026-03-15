@@ -7,7 +7,7 @@ import { table, t, schema } from "spacetimedb/server";
 import { ScheduleAt } from "spacetimedb";
 
 // Constants
-const WORKER_SECRET = 'CHANGE_ME_BEFORE_DEPLOY'; // Must match STDB_WORKER_SECRET env var in workers
+const WORKER_SECRET = 'UGgMWej2dv3KJfQWiKFLWXyCC0JSY33ihxTRj0cG82E='; // Managed via Secret Manager: flowstudio-stdb-worker-secret
 const MAX_TASK_RETRIES = 3;
 const STALE_TASK_THRESHOLD_MS = BigInt(5 * 60 * 1000);
 const WATCHDOG_INTERVAL_SECS = 30;

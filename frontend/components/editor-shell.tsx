@@ -156,7 +156,7 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
             (a) => a.assetType === AssetType.SOURCE_VIDEO
           )
           if (sourceAsset) {
-            const bucketUrl = process.env.NEXT_PUBLIC_GCS_BUCKET_URL ?? "https://storage.googleapis.com/flowstudio-uploads"
+            const bucketUrl = process.env.NEXT_PUBLIC_GCS_BUCKET_URL ?? "https://storage.googleapis.com/flowstudio-assets"
             const videoUrl = `${bucketUrl}/${sourceAsset.gcsPath}`
             addMediaFiles([{
               id: `source-${projectId}`,
