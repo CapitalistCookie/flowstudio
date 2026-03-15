@@ -25,6 +25,9 @@ if [ "$SERVICE" = "client" ]; then
     --build-arg NEXT_PUBLIC_STDB_HOST="${NEXT_PUBLIC_STDB_HOST:-https://stdb.flowstudio.ai}" \
     --build-arg NEXT_PUBLIC_STDB_MODULE="${NEXT_PUBLIC_STDB_MODULE:-flowstudio}" \
     --build-arg NEXT_PUBLIC_UPLOAD_FUNCTION_URL="${NEXT_PUBLIC_UPLOAD_FUNCTION_URL:-}" \
+    --build-arg NEXT_PUBLIC_FIREBASE_API_KEY="${NEXT_PUBLIC_FIREBASE_API_KEY:-AIzaSyCngRh7y4immJAVIWP0btzlv7f8HupWB98}" \
+    --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:-lyrical-epigram-484715-v6.firebaseapp.com}" \
+    --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID="${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-lyrical-epigram-484715-v6}" \
     .
 else
   echo "Building worker ${SERVICE} ${VERSION}..."
