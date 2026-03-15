@@ -7,6 +7,7 @@ import { table, t, schema } from "spacetimedb/server";
 import { ScheduleAt } from "spacetimedb";
 
 // Constants
+const WORKER_SECRET = 'CHANGE_ME_BEFORE_DEPLOY'; // Must match STDB_WORKER_SECRET env var in workers
 const MAX_TASK_RETRIES = 3;
 const STALE_TASK_THRESHOLD_MS = BigInt(5 * 60 * 1000);
 const WATCHDOG_INTERVAL_SECS = 30;
@@ -51,6 +52,35 @@ function generateId(ctx: any): string {
 // Phase 1.2: Replace Date.now() with ctx.timestamp
 function nowMs(ctx: any): bigint {
   return ctx.timestamp.microsSinceUnixEpoch / 1000n;
+}
+
+// ─── Authorization helpers ──────────────────────────────────────────
+
+function getSenderHex(ctx: any): string {
+  return ctx.sender.toHexString ? ctx.sender.toHexString() : String(ctx.sender);
+}
+
+function getCallerUid(ctx: any): string | null {
+  const mapping = ctx.db.userIdentities.identity.find(getSenderHex(ctx));
+  return mapping ? mapping.firebaseUid : null;
+}
+
+function assertProjectOwnership(ctx: any, projectId: string): void {
+  const callerUid = getCallerUid(ctx);
+  if (!callerUid) throw new Error('Identity not registered');
+  if (callerUid.startsWith('worker:')) return;
+  const project = ctx.db.projects.id.find(projectId);
+  if (!project) throw new Error('Project not found');
+  if (callerUid !== project.ownerId) throw new Error('Permission denied');
+}
+
+function assertFolderOwnership(ctx: any, folderId: string): void {
+  const callerUid = getCallerUid(ctx);
+  if (!callerUid) throw new Error('Identity not registered');
+  if (callerUid.startsWith('worker:')) return;
+  const folder = ctx.db.folders.id.find(folderId);
+  if (!folder) throw new Error('Folder not found');
+  if (callerUid !== folder.ownerId) throw new Error('Permission denied');
 }
 
 // Tables — Phase 2.1: Add BTree indexes
@@ -157,9 +187,15 @@ const workerConfigs = table({ name: "worker_configs", public: false }, {
   metadata: t.string(),
 });
 
+// Authorization: identity → Firebase UID mapping (private)
+const userIdentities = table({ name: "user_identities", public: false }, {
+  identity: t.string().primaryKey(),
+  firebaseUid: t.string(),
+});
+
 // Phase 2.4: Watchdog schedule table
 const watchdogSchedule = table(
-  { name: 'watchdog_schedule', scheduled: (): any => runWatchdog },
+  { name: "watchdog_schedule", scheduled: (): any => runWatchdog },
   {
     scheduled_id: t.u64().primaryKey().autoInc(),
     scheduled_at: t.scheduleAt(),
@@ -176,6 +212,7 @@ const stdb = (schema as any)({
   projectState,
   workerConfigs,
   watchdogSchedule,
+  userIdentities,
 });
 
 // Phase 2.3: Lifecycle reducers
@@ -230,12 +267,57 @@ export const runWatchdog = stdb.reducer(
   }
 );
 
+// ─── Authorization reducer ──────────────────────────────────────────
+
+export const registerIdentity = stdb.reducer(
+  "registerIdentity",
+  { firebaseUid: t.string() },
+  (ctx: any, args: any) => {
+    const senderHex = getSenderHex(ctx);
+    console.log(`[registerIdentity] sender=${senderHex} firebaseUid=${args.firebaseUid.slice(0, 4)}...`);
+    if (args.firebaseUid.startsWith('worker:')) {
+      throw new Error('Cannot register worker identity from client');
+    }
+    const existing = ctx.db.userIdentities.identity.find(senderHex);
+    if (existing) {
+      if (existing.firebaseUid !== args.firebaseUid) {
+        throw new Error('Identity already bound to a different UID');
+      }
+      return; // Already registered with same UID — no-op
+    } else {
+      ctx.db.userIdentities.insert({ identity: senderHex, firebaseUid: args.firebaseUid });
+    }
+  },
+);
+
+export const registerWorkerIdentity = stdb.reducer(
+  "registerWorkerIdentity",
+  { workerId: t.string(), secret: t.string() },
+  (ctx: any, args: any) => {
+    if (!WORKER_SECRET || args.secret !== WORKER_SECRET) throw new Error('Invalid worker secret');
+    const senderHex = getSenderHex(ctx);
+    const uid = `worker:${args.workerId}`;
+    console.log(`[registerWorkerIdentity] sender=${senderHex} workerId=${args.workerId}`);
+    const existing = ctx.db.userIdentities.identity.find(senderHex);
+    if (existing) {
+      ctx.db.userIdentities.identity.update({ ...existing, firebaseUid: uid });
+    } else {
+      ctx.db.userIdentities.insert({ identity: senderHex, firebaseUid: uid });
+    }
+  },
+);
+
 // Reducers — Phase 2.6: All reducers include console.log
 export const createProject = stdb.reducer(
   "createProject",
   { name: t.string(), ownerId: t.string(), metadata: t.string() },
   (ctx: any, args: any) => {
     console.log(`[createProject] name=${args.name} ownerId=${args.ownerId}`);
+    const callerUid = getCallerUid(ctx);
+    if (!callerUid) throw new Error('Identity not registered');
+    if (!callerUid.startsWith('worker:') && callerUid !== args.ownerId) {
+      throw new Error('Cannot create project with a different ownerId');
+    }
     const now = nowMs(ctx);
     const id = generateId(ctx);
     ctx.db.projects.insert({ id, name: args.name, status: "created", createdAt: now, updatedAt: now, ownerId: args.ownerId, metadata: args.metadata, starred: false, folderId: "" });
@@ -430,6 +512,7 @@ export const toggleProjectStar = stdb.reducer(
   { projectId: t.string() },
   (ctx: any, args: any) => {
     console.log(`[toggleProjectStar] projectId=${args.projectId}`);
+    assertProjectOwnership(ctx, args.projectId);
     const project = ctx.db.projects.id.find(args.projectId);
     if (!project) throw new Error("toggleProjectStar: project not found");
     ctx.db.projects.id.update({ ...project, starred: !project.starred, updatedAt: nowMs(ctx) });
@@ -441,6 +524,11 @@ export const createFolder = stdb.reducer(
   { name: t.string(), ownerId: t.string(), color: t.string(), sortOrder: t.i32() },
   (ctx: any, args: any) => {
     console.log(`[createFolder] name=${args.name} ownerId=${args.ownerId}`);
+    const callerUid = getCallerUid(ctx);
+    if (!callerUid) throw new Error('Identity not registered');
+    if (!callerUid.startsWith('worker:') && callerUid !== args.ownerId) {
+      throw new Error('Cannot create folder with a different ownerId');
+    }
     const now = nowMs(ctx);
     const id = generateId(ctx);
     ctx.db.folders.insert({ id, name: args.name, ownerId: args.ownerId, color: args.color, sortOrder: args.sortOrder, createdAt: now, updatedAt: now });
@@ -452,6 +540,7 @@ export const renameFolder = stdb.reducer(
   { folderId: t.string(), name: t.string() },
   (ctx: any, args: any) => {
     console.log(`[renameFolder] folderId=${args.folderId} name=${args.name}`);
+    assertFolderOwnership(ctx, args.folderId);
     const folder = ctx.db.folders.id.find(args.folderId);
     if (!folder) throw new Error("renameFolder: folder not found");
     ctx.db.folders.id.update({ ...folder, name: args.name, updatedAt: nowMs(ctx) });
@@ -463,6 +552,7 @@ export const deleteFolder = stdb.reducer(
   { folderId: t.string() },
   (ctx: any, args: any) => {
     console.log(`[deleteFolder] folderId=${args.folderId}`);
+    assertFolderOwnership(ctx, args.folderId);
     const folder = ctx.db.folders.id.find(args.folderId);
     if (!folder) throw new Error("deleteFolder: folder not found");
     const now = nowMs(ctx);
@@ -480,6 +570,7 @@ export const moveProjectToFolder = stdb.reducer(
   { projectId: t.string(), folderId: t.string() },
   (ctx: any, args: any) => {
     console.log(`[moveProjectToFolder] projectId=${args.projectId} folderId=${args.folderId}`);
+    assertProjectOwnership(ctx, args.projectId);
     const project = ctx.db.projects.id.find(args.projectId);
     if (!project) throw new Error("moveProjectToFolder: project not found");
     ctx.db.projects.id.update({ ...project, folderId: args.folderId, updatedAt: nowMs(ctx) });
@@ -491,6 +582,7 @@ export const approveTimeline = stdb.reducer(
   { projectId: t.string() },
   (ctx: any, args: any) => {
     console.log(`[approveTimeline] projectId=${args.projectId}`);
+    assertProjectOwnership(ctx, args.projectId);
     const projectId = args.projectId;
     const now = nowMs(ctx);
 

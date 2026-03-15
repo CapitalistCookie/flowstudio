@@ -49,6 +49,12 @@ export class MockDbConnection {
     updateWorkerConfig: async (args: Record<string, unknown>) => {
       this.reducerCalls.push({ name: 'updateWorkerConfig', args });
     },
+    registerIdentity: async (args: Record<string, unknown>) => {
+      this.reducerCalls.push({ name: 'registerIdentity', args });
+    },
+    registerWorkerIdentity: async (args: Record<string, unknown>) => {
+      this.reducerCalls.push({ name: 'registerWorkerIdentity', args });
+    },
   };
 
   readonly db = {

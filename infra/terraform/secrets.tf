@@ -27,6 +27,19 @@ resource "google_secret_manager_secret_iam_member" "worker_google_ai" {
 }
 
 
+resource "google_secret_manager_secret" "firebase_service_account_key" {
+  secret_id = "${var.project_prefix}-firebase-service-account-key"
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_iam_member" "worker_firebase" {
+  secret_id = google_secret_manager_secret.firebase_service_account_key.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.worker.email}"
+}
+
 # Grant worker SA access to Vertex AI
 resource "google_project_iam_member" "worker_vertex_ai" {
   project = var.project_id

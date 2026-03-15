@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useAuth } from "@clerk/nextjs"
+import { useAuth } from "@/lib/auth/use-auth"
 import { Pause, Play, Square } from "lucide-react"
 import { useCaptureStore } from "@/lib/capture/capture-store"
 import {
@@ -29,7 +29,7 @@ function formatTime(ms: number): string {
 export default function RecordPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { userId } = useAuth()
+  const { user } = useAuth()
   const projectId = searchParams.get("projectId")
 
   const status = useCaptureStore((s) => s.status)
@@ -39,12 +39,12 @@ export default function RecordPage() {
   useEffect(() => {
     if (!projectId && status === "idle") {
       const newId = crypto.randomUUID()
-      if (isConnected()) {
+      if (isConnected() && user?.uid) {
         try {
           const conn = getConnection()
           conn.reducers.createProject({
             name: "Untitled Recording",
-            ownerId: userId ?? "anon",
+            ownerId: user.uid,
             metadata: JSON.stringify({ id: newId }),
           })
         } catch {
@@ -53,7 +53,7 @@ export default function RecordPage() {
       }
       router.replace(`/record?projectId=${newId}`)
     }
-  }, [projectId, status, router, userId])
+  }, [projectId, status, router, user])
 
   useEffect(() => {
     if (projectId && status === "idle") {

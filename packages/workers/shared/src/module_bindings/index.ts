@@ -157,6 +157,15 @@ const r = reducers(
   reducerSchema('move_project_to_folder', {
     projectId: t.string(), folderId: t.string(),
   }),
+  reducerSchema('register_identity', {
+    firebaseUid: t.string(),
+  }),
+  reducerSchema('register_worker_identity', {
+    workerId: t.string(), secret: t.string(),
+  }),
+  reducerSchema('approve_timeline', {
+    projectId: t.string(),
+  }),
 );
 
 // ─── Remote Module ───────────────────────────────────────────────────

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { verifyAuthToken } from '@/lib/auth/firebase-admin';
 
 export async function POST(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
+  const authResult = await verifyAuthToken(req);
+  if (!authResult) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     const transcript =
       result.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? '';
 
-    return NextResponse.json({ transcript });
+    return NextResponse.json({ text: transcript });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Unknown error' },

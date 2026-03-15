@@ -35,6 +35,18 @@ resource "google_cloud_run_v2_service" "client" {
         name  = "NEXT_PUBLIC_UPLOAD_FUNCTION_URL"
         value = var.upload_function_url
       }
+      env {
+        name  = "NEXT_PUBLIC_FIREBASE_API_KEY"
+        value = var.firebase_api_key
+      }
+      env {
+        name  = "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN"
+        value = var.firebase_auth_domain
+      }
+      env {
+        name  = "NEXT_PUBLIC_FIREBASE_PROJECT_ID"
+        value = var.firebase_project_id
+      }
       resources {
         limits = {
           cpu    = "1"

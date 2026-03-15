@@ -101,7 +101,8 @@ function AgentTab() {
           const formData = new FormData()
           formData.append('audio', audioBlob, 'recording.webm')
 
-          const response = await fetch('/api/speech-to-text', {
+          const { fetchWithAuth } = await import('@/lib/auth/fetch-with-auth')
+          const response = await fetchWithAuth('/api/speech-to-text', {
             method: 'POST',
             body: formData,
           })
@@ -115,7 +116,8 @@ function AgentTab() {
           if (text && text.trim()) {
             // Refine the transcription before sending
             try {
-              const refineResponse = await fetch('/api/refine-transcription', {
+              const { fetchWithAuth: fetchWithAuth2 } = await import('@/lib/auth/fetch-with-auth')
+              const refineResponse = await fetchWithAuth2('/api/refine-transcription', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',

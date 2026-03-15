@@ -8,6 +8,7 @@ import {
   setOnFoldersChanged,
 } from '@/lib/stdb/spacetimedb';
 import { useProjectStore } from '@/lib/stores/project-store';
+import { useAuth } from '@/lib/auth/use-auth';
 
 type StdbStatus = 'connecting' | 'connected' | 'error' | 'disabled';
 
@@ -20,8 +21,12 @@ export function useStdbStatus() {
 export function StdbProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<StdbStatus>('connecting');
   const [retryCount, setRetryCount] = useState(0);
+  const { user, isLoaded } = useAuth();
 
   useEffect(() => {
+    // Wait until Firebase auth state is resolved
+    if (!isLoaded) return;
+
     let mounted = true;
     let retryTimer: ReturnType<typeof setTimeout>;
 
@@ -40,6 +45,16 @@ export function StdbProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
       setStatus('connecting');
 
+      // Get Firebase ID token if user is signed in
+      let firebaseToken: string | undefined;
+      if (user) {
+        try {
+          firebaseToken = await user.getIdToken();
+        } catch {
+          // Token fetch failed — connect without auth
+        }
+      }
+
       try {
         await initSpacetimeDb(
           () => {
@@ -57,6 +72,8 @@ export function StdbProvider({ children }: { children: ReactNode }) {
               }, 5000);
             }
           },
+          firebaseToken,
+          user?.uid,
         );
       } catch {
         if (mounted) {
@@ -77,7 +94,7 @@ export function StdbProvider({ children }: { children: ReactNode }) {
       setOnFoldersChanged(null);
       disconnectSpacetimeDb();
     };
-  }, [retryCount]);
+  }, [retryCount, user, isLoaded]);
 
   return (
     <StdbContext.Provider value={{ status }}>

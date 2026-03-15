@@ -132,6 +132,7 @@ export interface Project {
   updated_at: string;
   category: string;
   folderId?: string;
+  editStats?: { outputSeconds: number; secondsRemoved: number; editCount: number };
 }
 
 export type TimelineEventType =

@@ -81,7 +81,8 @@ export function useVideoAgent() {
             },
           ]);
 
-          const res = await fetch(`${GATEWAY_URL}/api/v1/reprompt`, {
+          const { fetchWithAuth } = await import('@/lib/auth/fetch-with-auth');
+          const res = await fetchWithAuth(`${GATEWAY_URL}/api/v1/reprompt`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -140,7 +141,8 @@ export function useVideoAgent() {
             }
           }
 
-          const res = await fetch(`${GATEWAY_URL}/api/v1/generate-edits`, {
+          const { fetchWithAuth: fetchWithAuth2 } = await import('@/lib/auth/fetch-with-auth');
+          const res = await fetchWithAuth2(`${GATEWAY_URL}/api/v1/generate-edits`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

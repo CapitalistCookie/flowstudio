@@ -161,6 +161,9 @@ const r = reducers(
   reducerSchema('approve_timeline', {
     projectId: t.string(),
   }),
+  reducerSchema('register_identity', {
+    firebaseUid: t.string(),
+  }),
 );
 
 // ─── Remote Module ───────────────────────────────────────────────────

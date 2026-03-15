@@ -6,7 +6,8 @@
  * Replaces the HTTP bridge (connection.ts) with WebSocket push via the SDK.
  * Provides getConnection(), typed reducer calls, and store sync helpers.
  *
- * Reference: claudeFrontend/src/lib/spacetimedb.ts
+ * Firebase ID token is passed to STDB for authenticated connections.
+ * Token refresh is handled via onIdTokenChanged listener.
  */
 
 import { DbConnection, type SubscriptionEventContext, type ErrorContext } from './module_bindings';
@@ -16,10 +17,10 @@ import type { ProjectStatus } from '@flowstudio/shared';
 
 const HOST = process.env.NEXT_PUBLIC_STDB_HOST ?? 'ws://localhost:3000';
 const MODULE = process.env.NEXT_PUBLIC_STDB_MODULE ?? 'flowstudio';
-const TOKEN_KEY = 'stdb_auth_token';
 
 let connection: DbConnection | null = null;
 let subscriptionActive = false;
+let currentUid: string | null = null;
 
 export function getConnection(): DbConnection {
   if (!connection) throw new Error('SpacetimeDB not connected. Call initSpacetimeDb() first.');
@@ -152,45 +153,104 @@ function assetRowToStore(row: any): StdbAsset {
   };
 }
 
+// ─── Token refresh ───────────────────────────────────────────────────
+
+let tokenRefreshCleanup: (() => void) | null = null;
+
+/**
+ * Set up a Firebase token refresh listener.
+ * When the token changes (e.g., near expiry), reconnect to STDB with the new token.
+ */
+function setupTokenRefresh() {
+  if (tokenRefreshCleanup) return;
+
+  try {
+    // Dynamic import to keep this module importable in non-Firebase contexts
+    const { getFirebaseAuth } = require('@/lib/auth/firebase-config');
+    const { onIdTokenChanged } = require('firebase/auth');
+    const auth = getFirebaseAuth();
+
+    let initialFire = true;
+    const unsubscribe = onIdTokenChanged(auth, async (user: any) => {
+      // Skip the initial fire — we already connected with the token
+      if (initialFire) {
+        initialFire = false;
+        return;
+      }
+
+      if (user && connection) {
+        console.log('[STDB] Firebase token refreshed, reconnecting...');
+        const newToken = await user.getIdToken();
+        // Reconnect with new token
+        disconnectSpacetimeDb();
+        await initSpacetimeDb(onConnectCb ?? undefined, onDisconnectCb ?? undefined, newToken, currentUid ?? undefined);
+      }
+    });
+
+    tokenRefreshCleanup = unsubscribe;
+  } catch {
+    // Firebase not available — skip token refresh (e.g., during SSR or tests)
+  }
+}
+
 // ─── Init ────────────────────────────────────────────────────────────
 
 /**
  * Initialize the SpacetimeDB WebSocket connection.
  * Subscribes to all public tables and wires reactive callbacks.
+ *
+ * @param onConnect - called when subscription is applied
+ * @param onDisconnect - called on disconnect
+ * @param firebaseToken - optional Firebase ID token for authenticated connection
+ * @param firebaseUid - optional Firebase UID for subscription filtering and identity registration
  */
 export function initSpacetimeDb(
   onConnect?: OnConnectCallback,
   onDisconnect?: OnDisconnectCallback,
+  firebaseToken?: string,
+  firebaseUid?: string,
 ): Promise<void> {
   if (connection && subscriptionActive) {
     onConnect?.();
     return Promise.resolve();
   }
 
+  // Validate and store UID for subscription filtering
+  if (firebaseUid && !/^[a-zA-Z0-9._-]+$/.test(firebaseUid)) {
+    throw new Error('Invalid firebaseUid format');
+  }
+  currentUid = firebaseUid ?? null;
+
   onConnectCb = onConnect ?? null;
   onDisconnectCb = onDisconnect ?? null;
 
   return new Promise<void>((resolve, reject) => {
-    const savedToken = typeof localStorage !== 'undefined'
-      ? localStorage.getItem(TOKEN_KEY) ?? undefined
-      : undefined;
-
-    connection = DbConnection.builder()
+    const builder = DbConnection.builder()
       .withUri(HOST)
-      .withDatabaseName(MODULE)
-      .withToken(savedToken)
+      .withDatabaseName(MODULE);
+
+    // Use Firebase token if provided, otherwise no token (anonymous)
+    if (firebaseToken) {
+      builder.withToken(firebaseToken);
+    }
+
+    connection = builder
       .onConnect((conn: DbConnection, identity: any, token: string) => {
         console.log('[STDB] Connected, identity:', identity.toHexString());
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem(TOKEN_KEY, token);
-        }
 
         // Subscribe to all 5 public tables
         conn.subscriptionBuilder()
-          .onApplied((_ctx: SubscriptionEventContext) => {
+          .onApplied(async (_ctx: SubscriptionEventContext) => {
             console.log('[STDB] Subscription applied — initial data loaded');
             subscriptionActive = true;
             wireTableCallbacks(conn);
+            if (currentUid) {
+              try {
+                await conn.reducers.registerIdentity({ firebaseUid: currentUid });
+              } catch (err) {
+                console.error('[STDB] Failed to register identity:', err);
+              }
+            }
             onConnectCb?.();
             resolve();
           })
@@ -198,8 +258,12 @@ export function initSpacetimeDb(
             console.error('[STDB] Subscription error:', ctx);
           })
           .subscribe([
-            'SELECT * FROM projects',
-            'SELECT * FROM folders',
+            currentUid
+              ? `SELECT * FROM projects WHERE ownerId = '${currentUid}'`
+              : 'SELECT * FROM projects WHERE 1=0',
+            currentUid
+              ? `SELECT * FROM folders WHERE ownerId = '${currentUid}'`
+              : 'SELECT * FROM folders WHERE 1=0',
             'SELECT * FROM assets',
             'SELECT * FROM tasks',
             'SELECT * FROM signals',
@@ -215,6 +279,9 @@ export function initSpacetimeDb(
         onDisconnectCb?.();
       })
       .build();
+
+    // Set up token refresh after successful build
+    setupTokenRefresh();
   });
 }
 
@@ -234,12 +301,18 @@ function wireTableCallbacks(conn: DbConnection) {
 
 /** Disconnect and clean up. */
 export function disconnectSpacetimeDb() {
+  if (tokenRefreshCleanup) {
+    tokenRefreshCleanup();
+    tokenRefreshCleanup = null;
+  }
   if (connection) {
     connection.disconnect();
     connection = null;
     subscriptionActive = false;
+    currentUid = null;
     onConnectCb = null;
     onDisconnectCb = null;
+    onProjectsChangedCb = null;
     onFoldersChangedCb = null;
   }
 }

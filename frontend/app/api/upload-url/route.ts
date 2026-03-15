@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { verifyAuthToken } from '@/lib/auth/firebase-admin';
+import { verifyProjectOwnership } from '@/lib/stdb/stdb-server';
 
 const UPLOAD_FUNCTION_URL =
   process.env.UPLOAD_FUNCTION_URL ??
@@ -7,11 +8,11 @@ const UPLOAD_FUNCTION_URL =
   'http://localhost:8081';
 
 /**
- * Proxy to the GCS signed-URL Cloud Function with Clerk auth.
+ * Proxy to the GCS signed-URL Cloud Function with Firebase auth.
  */
 export async function POST(request: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
+  const authResult = await verifyAuthToken(request);
+  if (!authResult) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -27,6 +28,12 @@ export async function POST(request: NextRequest) {
 
   if (typeof projectId !== 'string' || projectId.length > 200 || /[.]{2}|[/\\]/.test(projectId)) {
     return NextResponse.json({ error: 'Invalid projectId' }, { status: 400 });
+  }
+
+  // Verify the caller owns this project
+  const isOwner = await verifyProjectOwnership(projectId, authResult.uid);
+  if (!isOwner) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   if (typeof filename !== 'string' || filename.length > 200 || /[.]{2}|[/\\]/.test(filename)) {

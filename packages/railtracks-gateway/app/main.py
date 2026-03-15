@@ -5,9 +5,12 @@ Uses Railtracks for agent orchestration and observability.
 from __future__ import annotations
 import json
 import logging
+import os
 import time
 from collections import defaultdict
 
+import firebase_admin
+from firebase_admin import auth as firebase_auth, credentials
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -21,6 +24,16 @@ from .schemas import (
     FlowRunStatus,
 )
 from .flow import edit_flow, reprompt_flow
+
+# Initialize Firebase Admin SDK
+if not firebase_admin._apps:
+    sa_key = os.environ.get("FIREBASE_SERVICE_ACCOUNT_KEY")
+    if sa_key:
+        cred = credentials.Certificate(json.loads(sa_key))
+        firebase_admin.initialize_app(credential=cred)
+    else:
+        # On GCP, use default credentials
+        firebase_admin.initialize_app()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -76,6 +89,32 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class FirebaseAuthMiddleware(BaseHTTPMiddleware):
+    """Verify Firebase ID token from Authorization: Bearer header."""
+
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path == "/health":
+            return await call_next(request)
+
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return JSONResponse(
+                {"error": "Missing or invalid Authorization header"},
+                status_code=401,
+            )
+
+        token = auth_header[7:]
+        try:
+            decoded = firebase_auth.verify_id_token(token)
+            request.state.firebase_uid = decoded["uid"]
+        except Exception:
+            return JSONResponse(
+                {"error": "Invalid Firebase token"}, status_code=401
+            )
+
+        return await call_next(request)
+
+
 app = FastAPI(
     title="FlowStudio Agentic Gateway",
     description="Railtracks-powered agentic AI loop for video edit planning",
@@ -90,6 +129,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(RateLimitMiddleware, rpm=settings.rate_limit_rpm)
+# Firebase auth is the primary auth layer
+app.add_middleware(FirebaseAuthMiddleware)
+# API key middleware kept as optional secondary layer
 if settings.api_key:
     app.add_middleware(ApiKeyMiddleware, api_key=settings.api_key)
 

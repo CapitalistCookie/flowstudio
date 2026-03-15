@@ -78,7 +78,8 @@ export async function createMorphTransition(
   console.log("   End frame URL:", endFrameResult.data.url)
 
   // Call Kling API
-  const klingResponse = await fetch("/api/kling", {
+  const { fetchWithAuth } = await import('@/lib/auth/fetch-with-auth')
+  const klingResponse = await fetchWithAuth("/api/kling", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

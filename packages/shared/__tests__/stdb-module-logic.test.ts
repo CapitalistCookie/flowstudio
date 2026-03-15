@@ -252,6 +252,9 @@ describe('Reducer Existence', () => {
     'renameFolder',
     'deleteFolder',
     'moveProjectToFolder',
+    'registerIdentity',
+    'registerWorkerIdentity',
+    'approveTimeline',
   ];
 
   for (const reducer of expectedReducers) {
@@ -277,6 +280,8 @@ describe('Table Existence', () => {
     'signals',
     'project_state',
     'worker_configs',
+    'user_identities',
+    'watchdog_schedule',
   ];
 
   for (const tableName of expectedTables) {

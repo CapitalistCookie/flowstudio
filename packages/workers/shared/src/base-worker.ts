@@ -5,6 +5,8 @@ import { Semaphore } from './semaphore.js';
 import { GcsClient } from './gcs-client.js';
 import { startHealthServer, type HealthStatus } from './health.js';
 import { DbConnection } from './module_bindings/index.js';
+import { initializeApp, getApps, cert, type App } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 
 /** Task data received from SpacetimeDB */
 export interface TaskData {
@@ -133,18 +135,96 @@ export abstract class BaseWorker {
     process.on('SIGINT', () => this.stop());
   }
 
+  /**
+   * Get a Firebase custom token for worker authentication.
+   * Uses the Firebase Admin SDK to create a custom token, then exchanges it
+   * for an ID token via the Firebase REST API.
+   */
+  private async getFirebaseToken(): Promise<string | undefined> {
+    try {
+      let adminApp: App;
+      const existing = getApps();
+      if (existing.length > 0) {
+        adminApp = existing[0]!;
+      } else {
+        const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+        if (serviceAccountKey) {
+          adminApp = initializeApp({ credential: cert(JSON.parse(serviceAccountKey)) });
+        } else {
+          // On GCP, use default credentials
+          adminApp = initializeApp();
+        }
+      }
+
+      const workerUid = `worker:${this.config.workerId}`;
+      const customToken = await getAuth(adminApp).createCustomToken(workerUid);
+
+      // Exchange custom token for ID token via Firebase REST API
+      const apiKey = process.env.FIREBASE_API_KEY ?? process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+      if (!apiKey) {
+        this.logger.warn('No FIREBASE_API_KEY set — connecting to STDB without auth');
+        return undefined;
+      }
+
+      const res = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: customToken, returnSecureToken: true }),
+        },
+      );
+
+      if (!res.ok) {
+        this.logger.warn('Failed to exchange custom token for ID token', { status: res.status });
+        return undefined;
+      }
+
+      const data = await res.json() as { idToken: string };
+      return data.idToken;
+    } catch (err) {
+      this.logger.warn('Firebase auth setup failed — connecting without auth', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return undefined;
+    }
+  }
+
   /** Connect to SpacetimeDB via WebSocket and subscribe to tasks table */
   private connectToStdb(): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>(async (resolve, reject) => {
       const uri = `ws://${this.config.stdbHost}`;
 
-      this.connection = DbConnection.builder()
+      // Get Firebase token for authenticated STDB connection
+      const firebaseToken = await this.getFirebaseToken();
+
+      const builder = DbConnection.builder()
         .withUri(uri)
-        .withDatabaseName(this.config.stdbModule)
+        .withDatabaseName(this.config.stdbModule);
+
+      if (firebaseToken) {
+        builder.withToken(firebaseToken);
+        this.logger.info('Connecting to STDB with Firebase auth');
+      }
+
+      this.connection = builder
         .onConnect(async (conn: any, _identity: any, _token: string) => {
           this.logger.info('Connected to SpacetimeDB via WebSocket');
 
-          // Register worker
+          // Register worker identity for authorization
+          try {
+            const workerSecret = process.env.STDB_WORKER_SECRET ?? '';
+            await conn.reducers.registerWorkerIdentity({
+              workerId: this.config.workerId,
+              secret: workerSecret,
+            });
+          } catch (err) {
+            this.logger.warn('Failed to register worker identity', {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+
+          // Register worker config
           try {
             await conn.reducers.updateWorkerConfig({
               workerId: this.config.workerId,

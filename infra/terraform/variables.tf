@@ -45,3 +45,21 @@ variable "upload_function_url" {
   type        = string
   default     = "https://flowstudio-generate-upload-url-s2vq7emwcq-uk.a.run.app"
 }
+
+variable "firebase_api_key" {
+  description = "Firebase API key for client-side auth"
+  type        = string
+  sensitive   = true
+}
+
+variable "firebase_auth_domain" {
+  description = "Firebase auth domain (PROJECT_ID.firebaseapp.com)"
+  type        = string
+  default     = "lyrical-epigram-484715-v6.firebaseapp.com"
+}
+
+variable "firebase_project_id" {
+  description = "Firebase project ID"
+  type        = string
+  default     = "lyrical-epigram-484715-v6"
+}

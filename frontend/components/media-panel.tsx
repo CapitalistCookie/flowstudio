@@ -221,7 +221,8 @@ function MediaTab({
       setIsSearching(true);
 
       try {
-        const response = await fetch("/api/twelvelabs/search", {
+        const { fetchWithAuth } = await import('@/lib/auth/fetch-with-auth')
+        const response = await fetchWithAuth("/api/twelvelabs/search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

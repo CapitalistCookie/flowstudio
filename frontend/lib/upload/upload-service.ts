@@ -1,5 +1,7 @@
 'use client';
 
+import { fetchWithAuth } from '@/lib/auth/fetch-with-auth';
+
 interface UploadResult {
   gcsPath: string;
   size: number;
@@ -7,7 +9,7 @@ interface UploadResult {
 
 /**
  * Upload a file to GCS via signed URL.
- * Uses /api/upload-url proxy (with Clerk auth) instead of calling
+ * Uses /api/upload-url proxy (with Firebase auth) instead of calling
  * the Cloud Function directly. See X-05.
  */
 export async function uploadToGcs(
@@ -16,7 +18,7 @@ export async function uploadToGcs(
   file: Blob,
   contentType: string,
 ): Promise<UploadResult> {
-  const res = await fetch('/api/upload-url', {
+  const res = await fetchWithAuth('/api/upload-url', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ projectId, filename, contentType }),

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { verifyAuthToken } from '@/lib/auth/firebase-admin';
 
 const STDB_BACKEND =
   process.env.STDB_BACKEND_URL ??
@@ -14,8 +14,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> },
 ) {
-  const { userId } = await auth();
-  if (!userId) {
+  const authResult = await verifyAuthToken(request);
+  if (!authResult) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -29,6 +29,11 @@ export async function POST(
   const ALLOWED_PREFIXES = ['database/', 'v1/'];
   if (!ALLOWED_PREFIXES.some((p) => stdbPath.startsWith(p))) {
     return NextResponse.json({ error: 'Forbidden path' }, { status: 403 });
+  }
+
+  // Block SQL and reducer call endpoints — only allow schema introspection
+  if (stdbPath.includes('/sql') || stdbPath.includes('/call/')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const url = `${STDB_BACKEND}/${stdbPath}`;

@@ -27,6 +27,8 @@ export const REDUCER_PARAMS: Record<string, readonly string[]> = {
   deleteFolder: ['folderId'],
   moveProjectToFolder: ['projectId', 'folderId'],
   approveTimeline: ['projectId'],
+  registerIdentity: ['firebaseUid'],
+  registerWorkerIdentity: ['workerId', 'secret'],
 } as const;
 
 /**

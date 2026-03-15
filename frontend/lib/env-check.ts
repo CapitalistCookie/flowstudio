@@ -13,10 +13,22 @@ interface EnvCheck {
 export function checkEnvironment(): { ok: boolean; warnings: string[] } {
   const checks: EnvCheck[] = [
     {
-      name: 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY',
-      value: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+      name: 'NEXT_PUBLIC_FIREBASE_API_KEY',
+      value: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
       required: true,
-      hint: 'Clerk auth will not work. Get from clerk.com dashboard.',
+      hint: 'Firebase auth will not work. Get from Firebase console → Project settings.',
+    },
+    {
+      name: 'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
+      value: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      required: true,
+      hint: 'Firebase auth will not work. Format: PROJECT_ID.firebaseapp.com.',
+    },
+    {
+      name: 'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+      value: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      required: true,
+      hint: 'Firebase project ID required for auth initialization.',
     },
     {
       name: 'NEXT_PUBLIC_STDB_HOST',

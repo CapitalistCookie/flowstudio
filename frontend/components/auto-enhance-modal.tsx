@@ -38,7 +38,8 @@ export function AutoEnhanceModal({ open, onOpenChange, onEnhance }: AutoEnhanceM
     try {
       // Search all indexed videos
       const searchPromises = indexedVideos.map(async (media) => {
-        const response = await fetch("/api/twelvelabs/search", {
+        const { fetchWithAuth } = await import('@/lib/auth/fetch-with-auth')
+        const response = await fetchWithAuth("/api/twelvelabs/search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

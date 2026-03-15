@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { verifyAuthToken } from '@/lib/auth/firebase-admin';
+import { verifyProjectOwnership } from '@/lib/stdb/stdb-server';
 
 const STDB_BACKEND =
   process.env.STDB_BACKEND_URL ??
@@ -8,8 +9,8 @@ const STDB_BACKEND =
 const DB_NAME = process.env.STDB_MODULE ?? process.env.NEXT_PUBLIC_STDB_MODULE ?? 'flowstudio';
 
 export async function GET(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
+  const authResult = await verifyAuthToken(req);
+  if (!authResult) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -18,12 +19,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Missing projectId' }, { status: 400 });
   }
 
+  // Verify the caller owns this project
+  const isOwner = await verifyProjectOwnership(projectId, authResult.uid);
+  if (!isOwner) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
     const url = `${STDB_BACKEND}/v1/database/${DB_NAME}/sql`;
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: `SELECT * FROM signals`,
+      body: `SELECT * FROM signals WHERE project_id = '${projectId}'`,
     });
 
     if (!res.ok) {
@@ -46,7 +53,7 @@ export async function GET(req: NextRequest) {
       },
     );
 
-    const allSignals = (rows as unknown[][]).map((row) => {
+    const signals = (rows as unknown[][]).map((row) => {
       const obj: Record<string, unknown> = {};
       columns.forEach((col, i) => {
         const val = row[i];
@@ -55,9 +62,7 @@ export async function GET(req: NextRequest) {
       return obj;
     });
 
-    const projectSignals = allSignals.filter((s) => s.projectId === projectId);
-
-    return NextResponse.json({ signals: projectSignals });
+    return NextResponse.json({ signals });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Unknown error' },
