@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { CheckCircle2, Loader2, Sparkles, Wand2, Upload } from "lucide-react"
+import { CheckCircle2, Loader2, Sparkles, Upload } from "lucide-react"
 import { useCaptureStore } from "@/lib/capture/capture-store"
 import { getRecordedBlob, discardCapture } from "@/lib/capture/capture-service"
 import { uploadToGcs } from "@/lib/upload/upload-service"
@@ -77,11 +77,15 @@ export default function RecordingPreviewPage() {
 
   const goToStudioRefine = () => {
     setPendingAction("refine")
-    router.push("/studio?edits=refine")
+    const params = new URLSearchParams({ edits: "refine" })
+    if (projectId) params.set("projectId", projectId)
+    router.push(`/studio?${params}`)
   }
 
   const goToStudioAuto = () => {
-    router.push("/studio?edits=auto")
+    const params = new URLSearchParams({ edits: "auto" })
+    if (projectId) params.set("projectId", projectId)
+    router.push(`/studio?${params}`)
   }
 
   const goToDashboard = () => {

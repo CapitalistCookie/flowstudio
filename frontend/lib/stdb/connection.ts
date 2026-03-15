@@ -3,19 +3,42 @@
 /**
  * SpacetimeDB connection manager — HTTP bridge.
  *
+ * CRITICAL: The STDB HTTP API expects reducer args as a JSON ARRAY of
+ * positional values, NOT a JSON object. See ARCHITECTURE.md §0g.
+ *
  * SDK migration path: when `spacetime generate` produces typed bindings,
  * replace the HTTP calls with DbConnection.builder().build() and wire
  * table callbacks (onInsert/onUpdate/onDelete) to Zustand stores.
  */
 
+const REDUCER_PARAMS: Record<string, readonly string[]> = {
+  createProject: ['name', 'ownerId', 'metadata'],
+  createAsset: ['projectId', 'assetType', 'gcsPath', 'sizeBytes', 'mimeType', 'durationMs', 'metadata'],
+  createTask: ['projectId', 'taskType', 'inputAssetIds', 'config', 'maxRetries'],
+  claimTask: ['taskId', 'workerId'],
+  findAndClaimTask: ['taskType', 'workerId'],
+  completeTask: ['taskId', 'outputAssetIds'],
+  failTask: ['taskId', 'failureReason'],
+  writeSignal: ['projectId', 'taskId', 'signalType', 'timestampMs', 'durationMs', 'confidence', 'payload'],
+  ingestInteractionBatch: ['projectId', 'taskId', 'signalType', 'batchJson'],
+  updateProjectState: ['projectId', 'currentPhase', 'status'],
+  updateWorkerConfig: ['workerId', 'workerType', 'isActive', 'concurrency', 'metadata'],
+  toggleProjectStar: ['projectId'],
+  createFolder: ['name', 'ownerId', 'color', 'sortOrder'],
+  renameFolder: ['folderId', 'name'],
+  deleteFolder: ['folderId'],
+  moveProjectToFolder: ['projectId', 'folderId'],
+  approveTimeline: ['projectId'],
+};
+
 const HOST = process.env.NEXT_PUBLIC_STDB_HOST ?? 'ws://localhost:3000';
 const DB_NAME = process.env.NEXT_PUBLIC_STDB_MODULE ?? 'flowstudio';
 
 function getHttpHost(): string {
-  const base = HOST.replace('wss://', 'https://').replace('ws://', 'http://');
-  if (typeof window !== 'undefined' && base.startsWith('http://localhost:3000')) {
+  if (typeof window !== 'undefined') {
     return `${window.location.origin}/api/stdb`;
   }
+  const base = HOST.replace('wss://', 'https://').replace('ws://', 'http://');
   return base;
 }
 
@@ -101,10 +124,19 @@ export async function callReducer(
     .replace(/^_/, '');
   const url = `${HTTP_HOST}/v1/database/${DB_NAME}/call/${snakeName}`;
 
+  const params = REDUCER_PARAMS[name];
+  let body: string;
+  if (params) {
+    body = JSON.stringify(params.map((p) => args[p]));
+  } else {
+    console.warn(`[STDB] Unknown reducer "${name}" — sending as object (may fail)`);
+    body = JSON.stringify(args);
+  }
+
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(args),
+    body,
   });
 
   if (!response.ok) {

@@ -36,10 +36,10 @@ export async function triggerPipeline(opts: TriggerOptions): Promise<void> {
     projectId,
     assetType: 'source_video',
     gcsPath,
-    mimeType: contentType,
     sizeBytes: fileSize,
+    mimeType: contentType,
+    durationMs: durationMs ?? 0,
     metadata: JSON.stringify({
-      durationMs: durationMs ?? 0,
       uploadedAt: new Date().toISOString(),
     }),
   });

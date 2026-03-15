@@ -60,13 +60,13 @@ class TestValidateJsonOutput:
 class TestValidateIntentGraph:
     def test_valid_intent(self):
         items = [{
-            "intent_id": "i1",
-            "parent_intent_id": None,
+            "intentId": "i1",
+            "parentIntentId": None,
             "action": "Writing code",
             "reasoning": "User is typing in an IDE",
             "confidence": 0.95,
-            "start_ms": 0,
-            "end_ms": 30000,
+            "startMs": 0,
+            "endMs": 30000,
             "related_signal_indices": [0, 1, 2],
         }]
         errors = validate_intent_graph(items)
@@ -79,15 +79,15 @@ class TestValidateIntentGraph:
     def test_missing_intent_id(self):
         items = [{"action": "test", "confidence": 0.5}]
         errors = validate_intent_graph(items)
-        assert any("missing intent_id" in e for e in errors)
+        assert any("missing intentId" in e for e in errors)
 
     def test_invalid_confidence(self):
-        items = [{"intent_id": "i1", "action": "test", "confidence": 1.5}]
+        items = [{"intentId": "i1", "action": "test", "confidence": 1.5}]
         errors = validate_intent_graph(items)
         assert any("confidence" in e for e in errors)
 
     def test_broken_parent_reference(self):
-        items = [{"intent_id": "i1", "parent_intent_id": "nonexistent", "action": "test", "confidence": 0.5}]
+        items = [{"intentId": "i1", "parentIntentId": "nonexistent", "action": "test", "confidence": 0.5}]
         errors = validate_intent_graph(items)
         assert any("not found" in e for e in errors)
 
@@ -98,26 +98,26 @@ class TestValidateNarrativePlan:
     def test_valid_beat(self):
         items = [{
             "beat_index": 0,
-            "beat_type": "setup",
+            "beatType": "setup",
             "title": "Introduction",
             "description": "Setting the scene",
-            "suggested_duration_ms": 5000,
-            "start_ms": 0,
-            "end_ms": 5000,
+            "suggestedDurationMs": 5000,
+            "startMs": 0,
+            "endMs": 5000,
         }]
         errors = validate_narrative_plan(items)
         assert errors == []
 
     def test_invalid_beat_type(self):
-        items = [{"beat_type": "explosion", "title": "x", "suggested_duration_ms": 1000}]
+        items = [{"beatType": "explosion", "title": "x", "suggestedDurationMs": 1000}]
         errors = validate_narrative_plan(items)
-        assert any("invalid beat_type" in e for e in errors)
+        assert any("invalid beatType" in e for e in errors)
 
     def test_all_valid_beat_types(self):
         for bt in ["setup", "action", "result", "transition", "highlight"]:
-            items = [{"beat_type": bt, "title": "x", "suggested_duration_ms": 1000}]
+            items = [{"beatType": bt, "title": "x", "suggestedDurationMs": 1000}]
             errors = validate_narrative_plan(items)
-            assert not any("invalid beat_type" in e for e in errors)
+            assert not any("invalid beatType" in e for e in errors)
 
     def test_empty_plan(self):
         errors = validate_narrative_plan([])
@@ -129,11 +129,11 @@ class TestValidateNarrativePlan:
 class TestValidateEditPlan:
     def test_valid_edit(self):
         items = [{
-            "edit_type": "cut",
-            "source_start_ms": 0,
-            "source_end_ms": 5000,
-            "output_start_ms": 0,
-            "output_end_ms": 5000,
+            "editType": "cut",
+            "sourceStartMs": 0,
+            "sourceEndMs": 5000,
+            "outputStartMs": 0,
+            "outputEndMs": 5000,
             "parameters": {},
             "reasoning": "Remove dead time",
         }]
@@ -141,20 +141,20 @@ class TestValidateEditPlan:
         assert errors == []
 
     def test_invalid_edit_type(self):
-        items = [{"edit_type": "delete", "source_start_ms": 0, "source_end_ms": 100, "reasoning": "x"}]
+        items = [{"editType": "delete", "sourceStartMs": 0, "sourceEndMs": 100, "reasoning": "x"}]
         errors = validate_edit_plan(items)
-        assert any("invalid edit_type" in e for e in errors)
+        assert any("invalid editType" in e for e in errors)
 
     def test_all_valid_edit_types(self):
         for et in ["cut", "trim", "speedup", "slowdown", "zoom", "pan", "transition", "overlay"]:
-            items = [{"edit_type": et, "source_start_ms": 0, "source_end_ms": 100, "reasoning": "x"}]
+            items = [{"editType": et, "sourceStartMs": 0, "sourceEndMs": 100, "reasoning": "x"}]
             errors = validate_edit_plan(items)
-            assert not any("invalid edit_type" in e for e in errors)
+            assert not any("invalid editType" in e for e in errors)
 
     def test_reversed_time_range(self):
-        items = [{"edit_type": "cut", "source_start_ms": 5000, "source_end_ms": 1000, "reasoning": "x"}]
+        items = [{"editType": "cut", "sourceStartMs": 5000, "sourceEndMs": 1000, "reasoning": "x"}]
         errors = validate_edit_plan(items)
-        assert any("source_start_ms > source_end_ms" in e for e in errors)
+        assert any("sourceStartMs > sourceEndMs" in e for e in errors)
 
     def test_empty_plan(self):
         errors = validate_edit_plan([])

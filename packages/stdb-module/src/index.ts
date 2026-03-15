@@ -486,4 +486,43 @@ export const moveProjectToFolder = stdb.reducer(
   },
 );
 
+export const approveTimeline = stdb.reducer(
+  "approveTimeline",
+  { projectId: t.string() },
+  (ctx: any, args: any) => {
+    console.log(`[approveTimeline] projectId=${args.projectId}`);
+    const projectId = args.projectId;
+    const now = nowMs(ctx);
+
+    let timelineBuildTask: any = null;
+    for (const task of ctx.db.tasks.byProjectId.filter(projectId)) {
+      if (task.taskType === 'TIMELINE_BUILD' && task.status === 'completed') {
+        timelineBuildTask = task;
+        break;
+      }
+    }
+    if (!timelineBuildTask) throw new Error("approveTimeline: no completed TIMELINE_BUILD task");
+
+    for (const task of ctx.db.tasks.byProjectId.filter(projectId)) {
+      if (task.taskType === 'RENDER' && (task.status === 'pending' || task.status === 'claimed')) {
+        throw new Error("approveTimeline: RENDER task already in progress");
+      }
+    }
+
+    const timelineOutputs: string[] = JSON.parse(timelineBuildTask.outputAssetIds || '[]');
+    ctx.db.tasks.insert({
+      id: generateId(ctx), projectId, taskType: 'RENDER', status: 'pending',
+      workerId: '', inputAssetIds: JSON.stringify(timelineOutputs),
+      outputAssetIds: '[]', config: '{}',
+      createdAt: now, claimedAt: 0n, completedAt: 0n,
+      failureReason: '', retryCount: 0, maxRetries: MAX_TASK_RETRIES,
+    });
+
+    const state = ctx.db.projectState.projectId.find(projectId);
+    if (state) ctx.db.projectState.projectId.update({ ...state, currentPhase: 'rendering', lastUpdated: now });
+    const project = ctx.db.projects.id.find(projectId);
+    if (project) ctx.db.projects.id.update({ ...project, status: 'rendering', updatedAt: now });
+  },
+);
+
 export default stdb;

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
+import { fetchProjectSignals, hasMinimumSignals, type GatewaySignals } from '../services/signal-fetcher';
 
 const GATEWAY_URL =
   process.env.NEXT_PUBLIC_RAILTRACKS_URL ?? 'http://localhost:8000';
@@ -120,17 +121,31 @@ export function useVideoAgent() {
             },
           ]);
 
+          let signals: GatewaySignals = {
+            speech_segments: [{ text: userMessage, timestampMs: 0 }],
+            scene_descriptions: [],
+            ui_transitions: [],
+            interaction_clusters: [],
+          };
+
+          if (projectIdRef.current) {
+            try {
+              const realSignals = await fetchProjectSignals(projectIdRef.current);
+              if (hasMinimumSignals(realSignals)) {
+                signals = realSignals;
+                signals.speech_segments.unshift({ text: userMessage, timestampMs: 0, isUserPrompt: true });
+              }
+            } catch {
+              // STDB not available — fall back to text-only signals
+            }
+          }
+
           const res = await fetch(`${GATEWAY_URL}/api/v1/generate-edits`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               project_id: projectIdRef.current || 'default',
-              signals: {
-                speech_segments: [{ text: userMessage, timestampMs: 0 }],
-                scene_descriptions: [],
-                ui_transitions: [],
-                interaction_clusters: [],
-              },
+              signals,
             }),
           });
 

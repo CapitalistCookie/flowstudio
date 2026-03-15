@@ -42,7 +42,7 @@ class TestJsonExtraction:
 
 class TestValidationTools:
     def test_validate_intent_output_ok(self):
-        intents = [{"intent_id": "i1", "action": "coding", "confidence": 0.9, "start_ms": 0, "end_ms": 1000}]
+        intents = [{"intentId": "i1", "action": "coding", "confidence": 0.9, "startMs": 0, "endMs": 1000}]
         result = validate_intent_output(json.dumps(intents))
         assert "VALIDATION_OK" in result
 
@@ -56,16 +56,16 @@ class TestValidationTools:
         assert "VALIDATION_FAILED" in result
 
     def test_validate_narrative_output_ok(self):
-        beats = [{"beat_type": "action", "title": "Coding", "suggested_duration_ms": 5000}]
+        beats = [{"beatType": "action", "title": "Coding", "suggestedDurationMs": 5000}]
         result = validate_narrative_output(json.dumps(beats))
         assert "VALIDATION_OK" in result
 
     def test_validate_edit_output_ok(self):
-        edits = [{"edit_type": "cut", "source_start_ms": 0, "source_end_ms": 1000, "reasoning": "trim dead time"}]
+        edits = [{"editType": "cut", "sourceStartMs": 0, "sourceEndMs": 1000, "reasoning": "trim dead time"}]
         result = validate_edit_output(json.dumps(edits))
         assert "VALIDATION_OK" in result
 
     def test_validate_edit_output_invalid_type(self):
-        edits = [{"edit_type": "invalid", "source_start_ms": 0, "source_end_ms": 1000, "reasoning": "test"}]
+        edits = [{"editType": "invalid", "sourceStartMs": 0, "sourceEndMs": 1000, "reasoning": "test"}]
         result = validate_edit_output(json.dumps(edits))
         assert "VALIDATION_WARNINGS" in result

@@ -1,8 +1,5 @@
 'use client';
 
-const UPLOAD_FUNCTION_URL =
-  process.env.NEXT_PUBLIC_UPLOAD_FUNCTION_URL ?? 'http://localhost:8081';
-
 interface UploadResult {
   gcsPath: string;
   size: number;
@@ -10,8 +7,8 @@ interface UploadResult {
 
 /**
  * Upload a file to GCS via signed URL.
- * 1. Requests a signed upload URL from the Cloud Function
- * 2. PUTs the file directly to GCS
+ * Uses /api/upload-url proxy (with Clerk auth) instead of calling
+ * the Cloud Function directly. See X-05.
  */
 export async function uploadToGcs(
   projectId: string,
@@ -19,7 +16,7 @@ export async function uploadToGcs(
   file: Blob,
   contentType: string,
 ): Promise<UploadResult> {
-  const res = await fetch(`${UPLOAD_FUNCTION_URL}/generate-upload-url`, {
+  const res = await fetch('/api/upload-url', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ projectId, filename, contentType }),
