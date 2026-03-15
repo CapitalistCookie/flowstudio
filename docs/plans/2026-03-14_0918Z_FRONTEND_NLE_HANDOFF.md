@@ -24,7 +24,7 @@ Build a full NLE video editor frontend with:
 ## Architecture Summary
 
 ```
-finalFrontend/src/
+claudeFrontend/src/
 ├── app/                    ← Next.js pages (swappable)
 │   ├── page.tsx            ← Dashboard (/)
 │   ├── record/page.tsx     ← Recording (/record)
@@ -137,7 +137,7 @@ pnpm --filter @flowstudio/frontend add @radix-ui/react-dialog @radix-ui/react-dr
 
 - **Working directory:** `/home/user/FlowStudio`
 - **Package manager:** pnpm (monorepo)
-- **Client package:** `@flowstudio/frontend` at `finalFrontend/`
+- **Client package:** `@flowstudio/frontend` at `claudeFrontend/`
 - **Shared package:** `@flowstudio/shared` at `packages/shared/`
 - **TypeScript:** strict mode
 - **Next.js:** 15.3.2, App Router, standalone output

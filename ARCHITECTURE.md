@@ -176,21 +176,23 @@ NOT `{"name": "My Project", "ownerId": "user-123", "metadata": "{}"}`.
 
 ### 1c. Communication Patterns
 
-- **HTTP polling** -- Client and all 13 workers use HTTP polling against SpacetimeDB's
-  REST API instead of WebSocket subscriptions. The client polls every **3 seconds** via
-  `stdbSdkSync.ts`; workers poll every **1 second** via `base-worker.ts` `pollLoop`.
-  Table reads use `POST /v1/database/{module}/sql` with `SELECT * FROM {tableName}`.
-  After any reducer call, `forceSync()` triggers an immediate re-poll for UI
-  responsiveness, providing near-real-time UX despite not using WebSocket push.
+- **WebSocket push** -- Client and all 13 workers use the native SpacetimeDB TypeScript
+  SDK (v2.0.4) over WebSocket. The client subscribes to all 5 public tables and receives
+  real-time `onInsert`/`onUpdate`/`onDelete` callbacks that update Zustand stores instantly.
+  Workers subscribe to the `tasks` table and react to new pending tasks via callbacks,
+  eliminating the previous 1s poll delay.
 
-  **Why HTTP polling instead of WebSocket subscriptions:** SpacetimeDB's SDK WebSocket
-  protocol requires BSATN binary serialization format, which is not available in the
-  current JavaScript SDK. HTTP polling serves as a bridge until the SDK matures and
-  `spacetime generate` produces typed bindings with push subscription support.
+  **Connection module (frontend):** `claudeFrontend/src/lib/spacetimedb.ts` -- singleton
+  `DbConnection`, subscribes on connect, wires table callbacks to stores.
 
-- **HTTP POST** -- Reducer calls (e.g., `createProject`, `completeTask`) are made via
-  HTTP POST to `{stdbHost}/v1/database/{module}/call/{reducerName}`. Both the client and
-  workers use this mechanism.
+  **Connection module (workers):** `packages/workers/shared/src/base-worker.ts` --
+  `DbConnection` per worker, subscribes to tasks table, falls back to poll loop if
+  WebSocket is unavailable.
+
+- **Typed reducer calls** -- Reducer calls (e.g., `createProject`, `completeTask`) use
+  typed bindings from `module_bindings/index.ts`, e.g.
+  `conn.reducers.createProject({ name, ownerId, metadata })`. Both client and workers
+  use this mechanism over WebSocket.
 
 - **GCS** -- All binary data (video, audio, frames, rendered output) and inter-worker
   signal JSON files are stored in GCS. Workers download inputs from GCS, process them,
@@ -690,37 +692,29 @@ death (no error to record on the original), while `failTask` records a specific 
     |
     +---> startHealthServer(port 8080)   [HTTP /health endpoint]
     |
-    +---> stdb.connect()                 [HTTP connectivity check to SpacetimeDB]
-    |
-    +---> registerWorker()               [calls updateWorkerConfig reducer via HTTP]
-    |
-    +---> pollLoop()  <------ runs while this.running === true
+    +---> connectToStdb()                [WebSocket via native SDK]
     |       |
-    |       +---> pollForTasks()
-    |       |       |
-    |       |       +---> if semaphore.activeCount >= concurrency: return
-    |       |       |
-    |       |       +---> stdb.callReducer('findAndClaimTask', ...)
-    |       |       |       |
-    |       |       |       +-- success: query tasks table via SQL to find
-    |       |       |       |   claimed task, then dispatch for processing
-    |       |       |       +-- failure: no pending task, wait for next poll
-    |       |       |
-    |       |       +---> sleep(pollIntervalMs)  [default 1000ms]
-    |       |
-    |       +---> [repeat]
+    |       +---> DbConnection.builder().withUri().withDatabaseName().build()
+    |       +---> registerWorker()       [typed reducer: updateWorkerConfig]
+    |       +---> subscribe(['SELECT * FROM tasks'])
+    |       +---> wireTaskCallbacks()
+    |               |
+    |               +---> tasks.onInsert: if pending + matching type → tryClaimTask()
+    |               +---> tasks.onUpdate: if claimed by this worker → dispatchTask()
+    |
+    +---> [fallback] pollLoop()          [if WebSocket unavailable]
     |
     +---> SIGTERM/SIGINT --> stop()
                               |
                               +---> this.running = false
                               +---> wait for activeTasks === 0 (30s timeout)
-                              +---> stdb.disconnect()
+                              +---> connection.disconnect()
                               +---> process.exit(0)
 
 
   handleClaimedTask(taskData)
     |
-    +---> inFlightTaskIds.add(taskId)
+    +---> processingTaskIds.add(taskId)
     |
     +---> semaphore.run(async () => {
     |       |
@@ -730,45 +724,41 @@ death (no error to record on the original), while `failTask` records a specific 
     |       |       |
     |       |       +-- returns TaskResult { outputAssetIds, signals }
     |       |
-    |       +---> for each signal: stdb.callReducer('writeSignal', ...)
+    |       +---> for each signal: conn.reducers.writeSignal(...)
     |       |
-    |       +---> stdb.callReducer('completeTask', { taskId, outputAssetIds })
+    |       +---> conn.reducers.completeTask({ taskId, outputAssetIds })
     |       |
     |       +---> activeTasks--
     |     })
     |
     +---> on error:
-    |       +---> stdb.callReducer('failTask', { taskId, failureReason })
+    |       +---> conn.reducers.failTask({ taskId, failureReason })
     |       +---> activeTasks--
     |
     +---> finally:
-            +---> inFlightTaskIds.delete(taskId)
+            +---> processingTaskIds.delete(taskId)
 ```
 
 ### 3b. Task Claiming Protocol
 
-The task claiming flow uses HTTP polling exclusively:
+The task claiming flow uses WebSocket subscription callbacks:
 
-**Step 1: Claim attempt (HTTP POST)**
-- The worker polls every `pollIntervalMs` (default 1000ms) by calling the
-  `findAndClaimTask` reducer via HTTP POST.
-- If no pending task exists for this worker's `taskType`, the reducer throws and the
-  worker silently catches the error and waits for the next poll cycle.
-- If a pending task exists, the reducer atomically transitions it to `'claimed'` with
-  this worker's ID.
+**Reactive claiming via `onInsert` callback:**
+- When a new task row is inserted with `status === 'pending'` and matching `taskType`,
+  the `onInsert` callback fires and calls `tryClaimTask()`.
+- `tryClaimTask()` calls the `findAndClaimTask` reducer via the typed SDK.
+- If no pending task exists, the reducer throws and the error is silently caught.
+- If a pending task exists, the reducer atomically transitions it to `'claimed'`.
 
-**Step 2: Discover claimed task (HTTP SQL query)**
-- After a successful `findAndClaimTask` call, the worker queries the `tasks` table
-  via `SELECT * FROM tasks` (HTTP POST to the SQL endpoint) to find tasks matching:
-  `status === 'claimed' AND workerId === this.config.workerId AND taskType === this.taskType`.
-- Matching tasks that are NOT in `inFlightTaskIds` are dispatched for processing.
+**Dispatch via `onUpdate` callback:**
+- When a task transitions to `status === 'claimed'` with this worker's `workerId`,
+  the `onUpdate` callback fires and calls `dispatchTask()`.
+- The task is parsed and dispatched if not already in `processingTaskIds`.
 
-**`inFlightTaskIds` deduplication:**
+**`processingTaskIds` deduplication:**
 - A `Set<string>` that tracks task IDs currently being processed.
-- Before dispatching, the worker checks `!this.inFlightTaskIds.has(taskId)`.
+- Before dispatching, the worker checks `!this.processingTaskIds.has(taskId)`.
 - After dispatch completes (success or failure), the ID is removed.
-- This prevents duplicate processing if the same task is seen across multiple poll
-  cycles before processing completes.
 
 **Race condition safety:**
 - SpacetimeDB reducers execute **serially** within a module. Two workers calling
@@ -1320,52 +1310,43 @@ grep -rn 'signals/' packages/workers/ --include='*.ts'
 
 ### 6a. SpacetimeDB Connection
 
-**Source:** `/home/user/FlowStudio/finalFrontend/src/lib/stdbConnection.ts`
+**Source:** `/home/user/FlowStudio/claudeFrontend/src/lib/spacetimedb.ts`
 
-**HTTP bridge pattern:** A functional module (no class) exports `initConnection`,
-`callReducer`, `queryTable`, `disconnect`, and `isConnected`. All communication uses HTTP
--- no WebSocket. Once `spacetime generate` produces typed SDK bindings, this module will
-be swapped for a real `DbConnection.builder().build()` with push subscriptions.
+**Native SDK pattern:** A singleton module using the SpacetimeDB TypeScript SDK (v2.0.4)
+over WebSocket. On connect, subscribes to all 5 public tables and wires `onInsert`/
+`onUpdate`/`onDelete` callbacks to Zustand stores for real-time push updates.
 
 ```typescript
-export async function initConnection(
-  onConnect?: () => void,
-  onDisconnect?: () => void,
-): Promise<void> { /* probe via SQL endpoint */ }
-
-export async function queryTable(tableName: string): Promise<Record<string, unknown>[]> { ... }
-export async function callReducer(name: string, args: Record<string, unknown>): Promise<void> { ... }
-export function disconnect(): void { ... }
-export function isConnected(): boolean { ... }
+export function initSpacetimeDb(config: SyncConfig): Promise<void> { /* connect + subscribe */ }
+export function getConnection(): DbConnection { /* singleton accessor */ }
+export function syncStoresForProject(projectStore, signalStore): void { /* re-sync on project switch */ }
+export function setActiveProjectForSync(id: string | null): void { /* scope filter */ }
+export function disconnectSpacetimeDb(): void { /* tear down */ }
+export function isConnected(): boolean { /* connection.isActive */ }
 ```
 
-**Table reads:** `queryTable()` issues `SELECT * FROM {table}` via HTTP POST to
-`/v1/database/{module}/sql`. Column names are converted from snake_case to camelCase.
-BigInt values are converted to Number.
+**Table subscriptions:** On connect, subscribes to `SELECT * FROM {table}` for all 5
+public tables. The SDK's in-memory cache stores all rows; callbacks fire on every
+insert, update, or delete. BigInt fields are converted to Number at the store boundary.
 
-**Reducer calls:** `callReducer()` posts to `/v1/database/{module}/call/{reducerName}`
-with a JSON body. Reducer names are converted from camelCase to snake_case.
+**Reducer calls:** Components use typed reducer calls via `getConnection().reducers.*`,
+e.g. `getConnection().reducers.createProject({ name, ownerId, metadata })`.
 
-**Connection probe:** `initConnection()` sends `SELECT 1` to the SQL endpoint. Any
-non-5xx response (including 400) counts as reachable, since SpacetimeDB may reject
-the query if no table exists.
+**Module bindings:** `/home/user/FlowStudio/claudeFrontend/src/module_bindings/index.ts`
+defines table schemas and reducer signatures using the SDK's `table()`, `schema()`,
+`reducerSchema()`, and `reducers()` functions.
 
 ### 6b. State Management
 
-**No external state library.** All state comes from SpacetimeDB via HTTP polling.
+**No external state library.** All state comes from SpacetimeDB via WebSocket push.
 
-**Hook:** `useStdbReducer()` (`/home/user/FlowStudio/finalFrontend/src/lib/stdbHooks.ts`)
-- Returns a `callReducer` function that proxies to `stdbConnection.callReducer()`.
-- After each reducer call, triggers `forceSync()` from `stdbSdkSync.ts` for immediate UI refresh.
-- Memoized with `useCallback` (empty deps -- stable reference).
+**Reducer calls:** Components call `getConnection().reducers.*` directly — no hook wrapper
+needed. The SDK sends the reducer over WebSocket and the server's response triggers
+table callbacks automatically, updating stores in real-time.
 
-**Hook:** `useConnectionStatus()` (`stdbHooks.ts`)
-- Polls `isConnected()` every 1 second via `setInterval`.
-- Returns a boolean for the Header connection indicator.
-
-**Sync service:** `stdbSdkSync.ts` (`/home/user/FlowStudio/finalFrontend/src/core/services/stdbSdkSync.ts`)
-- Polls all tables (projects, folders, assets, tasks, signals) via `queryTable()` on a 3s interval.
-- Maps rows to typed objects and pushes into Zustand stores.
+**Store sync:** `spacetimedb.ts` wires `onInsert`/`onUpdate`/`onDelete` callbacks on all
+5 public tables. Assets, tasks, and signals are scoped to the active project via
+`setActiveProjectForSync()`. Projects and folders sync globally.
 - `forceSync()` triggers an immediate poll cycle (called after reducer mutations).
 
 **Data flow:** `stdbSdkSync` poll timer --> `queryTable()` HTTP SQL --> parse rows -->
@@ -1373,7 +1354,7 @@ Zustand store setter --> React re-render via `useStore()` selectors.
 
 ### 6c. Upload Flow
 
-**Source:** `/home/user/FlowStudio/finalFrontend/src/app/project/[id]/page.tsx`
+**Source:** `/home/user/FlowStudio/claudeFrontend/src/app/project/[id]/page.tsx`
 
 Step-by-step sequence:
 
@@ -1760,14 +1741,12 @@ This eliminates three separate infrastructure components and their coordination 
 The tradeoff is that SpacetimeDB is beta software (v2.0.1) with limited production track
 record and in-memory-only storage.
 
-**Current state:** The WebSocket subscription capability (point 3) is not currently used.
-The SpacetimeDB SDK's WebSocket protocol requires BSATN binary serialization, which is
-not available in the current JavaScript SDK. Instead, the system uses HTTP polling as a
-bridge: the client polls tables every 3 seconds via `stdbSdkSync.ts`, and workers poll
-every 1 second via `base-worker.ts`. Calls to `forceSync()` after reducer invocations
-trigger immediate re-polls, providing near-real-time UX. Once `spacetime generate`
-produces typed SDK bindings with BSATN support, the HTTP polling layer (`stdbSdkSync.ts`,
-`stdb-client.ts`) will be replaced with native push subscriptions.
+**Current state:** All three capabilities are fully utilized. The SpacetimeDB TypeScript
+SDK (v2.0.4) connects over WebSocket with real-time push subscriptions. The frontend
+subscribes to all 5 public tables and receives instant `onInsert`/`onUpdate`/`onDelete`
+callbacks that update Zustand stores. Workers subscribe to the `tasks` table and react
+to new pending tasks via callbacks. Reducer calls use typed bindings from
+`module_bindings/index.ts`. The previous HTTP polling layer has been removed.
 
 ### Why task chaining in the reducer instead of a separate orchestrator
 

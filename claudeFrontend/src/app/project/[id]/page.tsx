@@ -19,7 +19,8 @@ import {
   Scissors,
   Film,
 } from "lucide-react";
-import { useStdbReducer } from "@/lib/stdbHooks";
+import { getConnection, setActiveProjectForSync, syncStoresForProject } from '@/lib/spacetimedb';
+import { projectStore, signalStore } from '@/hooks/useStores';
 
 interface ProjectPageProps {
   params: Promise<{ id: string }>;
@@ -28,8 +29,6 @@ interface ProjectPageProps {
 export default function ProjectPage({ params }: ProjectPageProps) {
   const { id } = use(params);
   const router = useRouter();
-  const { callReducer } = useStdbReducer();
-
   const projects = useProjectStore((s) => s.projects);
   const tasks = useProjectStore((s) => s.tasks);
   const assets = useProjectStore((s) => s.assets);
@@ -44,7 +43,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
   useEffect(() => {
     setActiveProject(id);
-    return () => setActiveProject(null);
+    setActiveProjectForSync(id);
+    syncStoresForProject(projectStore, signalStore);
+    return () => {
+      setActiveProject(null);
+      setActiveProjectForSync(null);
+    };
   }, [id, setActiveProject]);
 
   useEffect(() => {
@@ -169,18 +173,19 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       if (!uploadRes.ok) throw new Error("Upload failed");
 
       setUploadProgress("Registering asset...");
-      await callReducer("createAsset", {
+      const conn = getConnection();
+      await conn.reducers.createAsset({
         projectId: id,
         assetType: "source_video",
         gcsPath,
-        sizeBytes: file.size,
+        sizeBytes: BigInt(file.size),
         mimeType: file.type,
-        durationMs: 0,
+        durationMs: 0n,
         metadata: JSON.stringify({ originalName: file.name }),
       });
 
       for (const taskType of INITIAL_TASK_TYPES) {
-        await callReducer("createTask", {
+        await conn.reducers.createTask({
           projectId: id,
           taskType,
           inputAssetIds: JSON.stringify([gcsPath]),
@@ -189,7 +194,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         });
       }
 
-      await callReducer("updateProjectState", {
+      await conn.reducers.updateProjectState({
         projectId: id,
         currentPhase: "processing",
         status: "processing",

@@ -13,7 +13,7 @@
 | `packages/shared` | ✅ 325 tests pass | Types, DAG, schemas, prompt security, utils |
 | `packages/stdb-module` | ✅ Compiles | Tables, reducers, DAG chain, watchdog |
 | 14 workers | ✅ Code exists | All extend BaseWorker, all have `processTask()` |
-| `finalFrontend` | ✅ Partial | Real recording, GCS upload, STDB HTTP bridge |
+| `claudeFrontend` | ✅ Partial | Real recording, GCS upload, STDB HTTP bridge |
 | `frontend` | ✅ Partial | Clerk auth, beautiful UI, timeline editor |
 | Railtracks gateway | ✅ Partial | FastAPI, 3 agents, but **zero Railtracks SDK** |
 | Infrastructure | ✅ Exists | Terraform, Docker, CI/CD, Cloud Function |
@@ -29,10 +29,10 @@
 | Frontends not connected to pipeline | No end-to-end flow | **P0** |
 | No reprompt loop | Core value prop doesn't work | **P0** |
 | No export | Users can't get output | **P1** |
-| No auth on finalFrontend | Anyone can access | **P2** |
+| No auth on claudeFrontend | Anyone can access | **P2** |
 
 ### Two Frontends Problem
-| Aspect | `frontend/` (REAL) | `finalFrontend/` (SCAFFOLD) |
+| Aspect | `frontend/` (REAL) | `claudeFrontend/` (SCAFFOLD) |
 |--------|---------------------|------------------------------|
 | Auth | Clerk ✅ | None |
 | SpacetimeDB | None | HTTP bridge ✅ |
@@ -43,7 +43,7 @@
 | Next.js | 16.1 | 15.3 |
 | Workspace | Standalone | In pnpm workspace |
 
-**Decision**: `frontend/` is the canonical app. Port SpacetimeDB integration, real recording, and GCS upload from `finalFrontend/` into it. `finalFrontend/` served as a proving ground for backend integration patterns.
+**Decision**: `frontend/` is the canonical app. Port SpacetimeDB integration, real recording, and GCS upload from `claudeFrontend/` into it. `claudeFrontend/` served as a proving ground for backend integration patterns.
 
 ---
 
@@ -71,7 +71,7 @@ One app, all features.
 
 | Plan | Title | Depends On | Deliverable |
 |------|-------|------------|-------------|
-| W-06 | Frontend Merge & Auth | W-02 | finalFrontend + Clerk auth + polished UI |
+| W-06 | Frontend Merge & Auth | W-02 | claudeFrontend + Clerk auth + polished UI |
 | W-07 | SpacetimeDB SDK Upgrade | W-06 | WebSocket real-time sync replaces HTTP polling |
 
 ### Phase 3 — End-to-End Pipeline (W-08 to W-11)
@@ -119,7 +119,7 @@ W-03     W-12 (parallel with anything)
 ## Key Architectural Decisions
 
 ### 1. Single Frontend (`frontend/`)
-Rationale: It has Clerk auth, polished UI, rich timeline (trim, split, undo/redo, snap-to-grid), and the better component library. We port SpacetimeDB connection, real MediaRecorder recording, and GCS upload from `finalFrontend/` into it. Adding backend integration to a good frontend is better than polishing a backend-connected skeleton.
+Rationale: It has Clerk auth, polished UI, rich timeline (trim, split, undo/redo, snap-to-grid), and the better component library. We port SpacetimeDB connection, real MediaRecorder recording, and GCS upload from `claudeFrontend/` into it. Adding backend integration to a good frontend is better than polishing a backend-connected skeleton.
 
 ### 2. Railtracks wraps the agentic loop only
 The 14 TypeScript workers continue doing signal extraction. Railtracks handles intent → narrative → edit planning (the LLM part). This keeps the TS worker infrastructure while satisfying the prize track.

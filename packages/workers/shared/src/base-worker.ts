@@ -3,8 +3,8 @@ import { type WorkerConfig, loadConfig } from './config.js';
 import { Logger } from './logger.js';
 import { Semaphore } from './semaphore.js';
 import { GcsClient } from './gcs-client.js';
-import { StdbClient } from './stdb-client.js';
 import { startHealthServer, type HealthStatus } from './health.js';
+import { DbConnection } from './module_bindings/index.js';
 
 /** Task data received from SpacetimeDB */
 export interface TaskData {
@@ -32,13 +32,13 @@ export interface WorkerDeps {
   config: WorkerConfig;
   logger: Logger;
   gcs: GcsClient;
-  stdb: StdbClient;
 }
 
 /**
  * Abstract base class for all FlowStudio workers.
- * Handles SpacetimeDB communication, task claiming, GCS access, health checks,
- * and concurrency control. Subclasses implement processTask().
+ * Handles SpacetimeDB communication via native WebSocket SDK, task claiming,
+ * GCS access, health checks, and concurrency control.
+ * Subclasses implement processTask().
  *
  * Accepts optional dependency injection for testability. In production,
  * call with no arguments to load config from env vars.
@@ -48,7 +48,7 @@ export abstract class BaseWorker {
   protected readonly logger: Logger;
   protected readonly semaphore: Semaphore;
   protected readonly gcs: GcsClient;
-  protected readonly stdb: StdbClient;
+  protected connection: DbConnection | null = null;
   private running = false;
   private activeTasks = 0;
   private readonly startTime = Date.now();
@@ -62,16 +62,10 @@ export abstract class BaseWorker {
       this.config = deps.config;
       this.logger = deps.logger;
       this.gcs = deps.gcs;
-      this.stdb = deps.stdb;
     } else {
       this.config = loadConfig();
       this.logger = new Logger(this.config.workerName, this.config.workerId);
       this.gcs = new GcsClient(this.config.gcsBucket, this.config.gcsProjectId, this.logger);
-      this.stdb = new StdbClient({
-        host: this.config.stdbHost,
-        module: this.config.stdbModule,
-        logger: this.logger,
-      });
     }
     this.semaphore = new Semaphore(this.config.concurrency);
   }
@@ -85,19 +79,20 @@ export abstract class BaseWorker {
 
   /**
    * Get the source video GCS path for a project.
-   * Queries STDB assets table first; falls back to listing GCS if STDB fails.
+   * Checks SDK subscription cache first; falls back to listing GCS.
    */
   protected async getSourceVideoPath(projectId: string): Promise<string> {
     try {
-      const assets = await this.stdb.queryTable('assets');
-      const sourceAsset = assets.find(
-        (a: Record<string, unknown>) =>
-          a.projectId === projectId && a.assetType === 'source_video'
-      );
-      const gcsPath = sourceAsset?.gcsPath as string | undefined;
-      if (gcsPath) return gcsPath;
+      if (this.connection) {
+        for (const asset of this.connection.db.assets.iter()) {
+          const a = asset as any;
+          if (a.projectId === projectId && a.assetType === 'source_video' && a.gcsPath) {
+            return a.gcsPath as string;
+          }
+        }
+      }
     } catch (err) {
-      this.logger.warn('STDB assets query failed, falling back to GCS list', {
+      this.logger.warn('STDB assets cache lookup failed, falling back to GCS list', {
         projectId,
         error: err instanceof Error ? err.message : String(err),
       });
@@ -110,134 +105,161 @@ export abstract class BaseWorker {
     return files[0]!;
   }
 
-  /** Start the worker: register with SpacetimeDB, start health server, begin polling */
+  /** Start the worker: connect to SpacetimeDB, subscribe, start health server */
   async start(): Promise<void> {
     this.logger.info(`Starting worker: ${this.config.workerName}`, {
       taskType: this.taskType,
       concurrency: this.config.concurrency,
-      pollInterval: this.config.pollIntervalMs,
     });
 
     // Start health server first
     startHealthServer(this.config.healthPort, () => this.getHealthStatus(), this.logger);
 
-    // Register worker with SpacetimeDB (non-fatal if unavailable)
+    this.running = true;
+
+    // Connect to SpacetimeDB via WebSocket
     try {
-      await this.registerWorker();
+      await this.connectToStdb();
     } catch (err) {
-      this.logger.warn('SpacetimeDB not available, will retry on next poll', {
+      this.logger.warn('SpacetimeDB connection failed, starting poll fallback', {
         error: err instanceof Error ? err.message : String(err),
       });
+      // Fall back to polling if initial connection fails
+      this.pollLoop();
     }
-
-    // Start polling for tasks
-    this.running = true;
-    this.pollLoop();
 
     // Graceful shutdown
     process.on('SIGTERM', () => this.stop());
     process.on('SIGINT', () => this.stop());
   }
 
-  /** Stop the worker gracefully */
-  async stop(): Promise<void> {
-    this.logger.info('Stopping worker...');
-    this.running = false;
+  /** Connect to SpacetimeDB via WebSocket and subscribe to tasks table */
+  private connectToStdb(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const uri = `ws://${this.config.stdbHost}`;
 
-    // Wait for active tasks to complete (with timeout)
-    const timeout = 30_000;
-    const start = Date.now();
-    while (this.activeTasks > 0 && Date.now() - start < timeout) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
+      this.connection = DbConnection.builder()
+        .withUri(uri)
+        .withDatabaseName(this.config.stdbModule)
+        .onConnect(async (conn: any, _identity: any, _token: string) => {
+          this.logger.info('Connected to SpacetimeDB via WebSocket');
 
-    this.stdb.disconnect();
-    this.logger.info('Worker stopped');
-    process.exit(0);
+          // Register worker
+          try {
+            await conn.reducers.updateWorkerConfig({
+              workerId: this.config.workerId,
+              workerType: this.taskType,
+              isActive: true,
+              concurrency: this.config.concurrency,
+              metadata: '{}',
+            });
+          } catch (err) {
+            this.logger.warn('Failed to register worker config', {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+
+          // Subscribe to tasks table
+          conn.subscriptionBuilder()
+            .onApplied(() => {
+              this.logger.info('Subscription applied — watching for tasks');
+              resolve();
+            })
+            .subscribe(['SELECT * FROM tasks']);
+
+          // Wire task callbacks
+          this.wireTaskCallbacks(conn);
+        })
+        .onConnectError((_ctx: any, err: Error) => {
+          this.logger.error('SpacetimeDB connection error', { error: err.message });
+          reject(err);
+        })
+        .onDisconnect((_ctx: any, err?: Error) => {
+          this.logger.warn('SpacetimeDB disconnected', { error: err?.message ?? 'unknown' });
+          // SDK auto-reconnects; if not, fall back to polling
+          if (this.running && !this.connection?.isActive) {
+            this.logger.info('Starting poll fallback after disconnect');
+            this.pollLoop();
+          }
+        })
+        .build();
+    });
   }
 
-  private async pollLoop(): Promise<void> {
-    while (this.running) {
-      try {
-        await this.pollForTasks();
-      } catch (err) {
-        this.logger.error('Poll loop error', {
-          error: err instanceof Error ? err.message : String(err),
-        });
+  /** Wire onInsert/onUpdate callbacks on tasks table for reactive task claiming */
+  private wireTaskCallbacks(conn: DbConnection) {
+    // When a new pending task appears, try to claim it
+    conn.db.tasks.onInsert((_ctx: any, row: any) => {
+      if (row.status === 'pending' && row.taskType === this.taskType) {
+        this.tryClaimTask(conn);
       }
-      await new Promise((resolve) => setTimeout(resolve, this.config.pollIntervalMs));
-    }
+    });
+
+    // When a task transitions to claimed by this worker, process it
+    conn.db.tasks.onUpdate((_ctx: any, oldRow: any, newRow: any) => {
+      if (
+        newRow.status === 'claimed' &&
+        newRow.workerId === this.config.workerId &&
+        newRow.taskType === this.taskType &&
+        oldRow.status !== 'claimed' &&
+        !this.processingTaskIds.has(newRow.id)
+      ) {
+        this.dispatchTask(newRow);
+      }
+    });
   }
 
-  private async pollForTasks(): Promise<void> {
-    // Only poll if we have capacity
+  /** Attempt to claim a pending task via the findAndClaimTask reducer */
+  private async tryClaimTask(conn: DbConnection) {
     if (this.semaphore.activeCount >= this.config.concurrency) return;
 
     try {
-      // Ask SpacetimeDB to find and claim a pending task for this worker
-      await this.stdb.callReducer('findAndClaimTask', {
+      await conn.reducers.findAndClaimTask({
         taskType: this.taskType,
         workerId: this.config.workerId,
       });
-    } catch (err) {
+    } catch {
       // No pending task or reducer error — normal during idle periods
+    }
+  }
+
+  /** Parse and dispatch a claimed task row for processing */
+  private dispatchTask(row: any) {
+    const taskId = row.id as string;
+    this.processingTaskIds.add(taskId);
+
+    let taskData: TaskData;
+    try {
+      taskData = {
+        id: taskId,
+        projectId: row.projectId as string,
+        taskType: row.taskType as string,
+        inputAssetIds: JSON.parse((row.inputAssetIds as string) || '[]'),
+        config: JSON.parse((row.config as string) || '{}'),
+      };
+    } catch (parseErr) {
+      this.logger.error('Failed to parse task data, failing task', {
+        taskId,
+        error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+      });
+      this.processingTaskIds.delete(taskId);
+      this.connection?.reducers.failTask({
+        taskId,
+        failureReason: `Invalid task data: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`,
+      }).catch(() => {});
       return;
     }
 
-    try {
-      // Query the tasks table to find all tasks claimed by this worker
-      const tasks = await this.stdb.queryTable('tasks');
-      const claimedTasks = tasks.filter(
-        (t) =>
-          t.status === 'claimed' &&
-          t.workerId === this.config.workerId &&
-          t.taskType === this.taskType
-      );
-
-      for (const claimed of claimedTasks) {
-        if (!this.processingTaskIds.has(claimed.id as string)) {
-          const taskId = claimed.id as string;
-          this.processingTaskIds.add(taskId);
-
-          let taskData: TaskData;
-          try {
-            taskData = {
-              id: taskId,
-              projectId: claimed.projectId as string,
-              taskType: claimed.taskType as string,
-              inputAssetIds: JSON.parse((claimed.inputAssetIds as string) || '[]'),
-              config: JSON.parse((claimed.config as string) || '{}'),
-            };
-          } catch (parseErr) {
-            this.logger.error('Failed to parse task data, failing task', {
-              taskId,
-              error: parseErr instanceof Error ? parseErr.message : String(parseErr),
-            });
-            this.processingTaskIds.delete(taskId);
-            await this.stdb.callReducer('failTask', {
-              taskId,
-              failureReason: `Invalid task data: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`,
-            }).catch(() => {});
-            continue;
-          }
-
-          this.handleClaimedTask(taskData)
-            .catch((err) => {
-              this.logger.error('Error handling claimed task', {
-                taskId,
-                error: err instanceof Error ? err.message : String(err),
-              });
-            })
-            .finally(() => {
-              this.processingTaskIds.delete(taskId);
-            });
-        }
-      }
-    } catch (err) {
-      this.logger.error('Failed to query/process task after claim', {
-        error: err instanceof Error ? err.message : String(err),
+    this.handleClaimedTask(taskData)
+      .catch((err) => {
+        this.logger.error('Error handling claimed task', {
+          taskId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      })
+      .finally(() => {
+        this.processingTaskIds.delete(taskId);
       });
-    }
   }
 
   /** Called when a task is claimed successfully */
@@ -248,22 +270,24 @@ export abstract class BaseWorker {
 
       try {
         const result = await this.processTask(task);
+        const conn = this.connection;
+        if (!conn) throw new Error('Not connected to SpacetimeDB');
 
         // Write signals
         for (const signal of result.signals) {
-          await this.stdb.callReducer('writeSignal', {
+          await conn.reducers.writeSignal({
             projectId: task.projectId,
             taskId: task.id,
             signalType: signal.signalType,
-            timestampMs: signal.timestampMs,
-            durationMs: signal.durationMs,
+            timestampMs: BigInt(signal.timestampMs),
+            durationMs: BigInt(signal.durationMs),
             confidence: signal.confidence,
             payload: JSON.stringify(signal.payload),
           });
         }
 
         // Complete the task
-        await this.stdb.callReducer('completeTask', {
+        await conn.reducers.completeTask({
           taskId: task.id,
           outputAssetIds: JSON.stringify(result.outputAssetIds),
         });
@@ -276,7 +300,7 @@ export abstract class BaseWorker {
         const reason = err instanceof Error ? err.message : String(err);
         this.logger.error(`Task ${task.id} failed`, { error: reason });
 
-        await this.stdb.callReducer('failTask', {
+        this.connection?.reducers.failTask({
           taskId: task.id,
           failureReason: reason,
         }).catch((failErr) => {
@@ -291,14 +315,42 @@ export abstract class BaseWorker {
     });
   }
 
-  private async registerWorker(): Promise<void> {
-    await this.stdb.callReducer('updateWorkerConfig', {
-      workerId: this.config.workerId,
-      workerType: this.taskType,
-      isActive: true,
-      concurrency: this.config.concurrency,
-      metadata: '{}',
-    });
+  /** Stop the worker gracefully */
+  async stop(): Promise<void> {
+    this.logger.info('Stopping worker...');
+    this.running = false;
+
+    // Wait for active tasks to complete (with timeout)
+    const timeout = 30_000;
+    const start = Date.now();
+    while (this.activeTasks > 0 && Date.now() - start < timeout) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    this.connection?.disconnect();
+    this.logger.info('Worker stopped');
+    process.exit(0);
+  }
+
+  /** Fallback poll loop (used when WebSocket is unavailable) */
+  private async pollLoop(): Promise<void> {
+    while (this.running) {
+      if (this.connection?.isActive) {
+        // WebSocket reconnected, stop polling
+        this.logger.info('WebSocket reconnected, stopping poll loop');
+        return;
+      }
+      try {
+        if (this.connection) {
+          await this.tryClaimTask(this.connection);
+        }
+      } catch (err) {
+        this.logger.error('Poll loop error', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+      await new Promise((resolve) => setTimeout(resolve, this.config.pollIntervalMs));
+    }
   }
 
   private getHealthStatus(): HealthStatus {

@@ -17,7 +17,7 @@
 ### Task 1.1: Install Dependencies
 
 **Files:**
-- Modify: `finalFrontend/package.json`
+- Modify: `claudeFrontend/package.json`
 
 **Step 1: Install zustand, zundo, and sonner**
 
@@ -40,7 +40,7 @@ cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend run typecheck
 **Step 4: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/package.json pnpm-lock.yaml && git commit -m "chore: add zustand, shadcn primitives, and NLE dependencies"
+cd /home/user/FlowStudio && git add claudeFrontend/package.json pnpm-lock.yaml && git commit -m "chore: add zustand, shadcn primitives, and NLE dependencies"
 ```
 
 ---
@@ -48,31 +48,31 @@ cd /home/user/FlowStudio && git add finalFrontend/package.json pnpm-lock.yaml &&
 ### Task 1.2: Create Core Directory Structure
 
 **Files:**
-- Create: `finalFrontend/src/core/stores/projectStore.ts`
-- Create: `finalFrontend/src/core/stores/timelineStore.ts`
-- Create: `finalFrontend/src/core/stores/captureStore.ts`
-- Create: `finalFrontend/src/core/stores/signalStore.ts`
-- Create: `finalFrontend/src/core/stores/uiStore.ts`
-- Create: `finalFrontend/src/core/services/notifications.ts`
-- Create: `finalFrontend/src/core/services/shortcuts.ts`
-- Create: `finalFrontend/src/core/services/signedUrls.ts`
-- Create: `finalFrontend/src/core/services/capture.ts`
-- Create: `finalFrontend/src/core/services/playbackSync.ts`
-- Create: `finalFrontend/src/core/timeline/renderer.ts`
-- Create: `finalFrontend/src/core/timeline/types.ts`
-- Create: `finalFrontend/src/core/workers/waveformWorker.ts`
-- Create: `finalFrontend/src/core/workers/thumbnailWorker.ts`
-- Create: `finalFrontend/src/core/types.ts`
+- Create: `claudeFrontend/src/core/stores/projectStore.ts`
+- Create: `claudeFrontend/src/core/stores/timelineStore.ts`
+- Create: `claudeFrontend/src/core/stores/captureStore.ts`
+- Create: `claudeFrontend/src/core/stores/signalStore.ts`
+- Create: `claudeFrontend/src/core/stores/uiStore.ts`
+- Create: `claudeFrontend/src/core/services/notifications.ts`
+- Create: `claudeFrontend/src/core/services/shortcuts.ts`
+- Create: `claudeFrontend/src/core/services/signedUrls.ts`
+- Create: `claudeFrontend/src/core/services/capture.ts`
+- Create: `claudeFrontend/src/core/services/playbackSync.ts`
+- Create: `claudeFrontend/src/core/timeline/renderer.ts`
+- Create: `claudeFrontend/src/core/timeline/types.ts`
+- Create: `claudeFrontend/src/core/workers/waveformWorker.ts`
+- Create: `claudeFrontend/src/core/workers/thumbnailWorker.ts`
+- Create: `claudeFrontend/src/core/types.ts`
 
 **Step 1: Create directories**
 
 ```bash
-mkdir -p /home/user/FlowStudio/finalFrontend/src/core/{stores,services,timeline,workers}
+mkdir -p /home/user/FlowStudio/claudeFrontend/src/core/{stores,services,timeline,workers}
 ```
 
 **Step 2: Create core types file**
 
-Create `finalFrontend/src/core/types.ts`:
+Create `claudeFrontend/src/core/types.ts`:
 
 ```typescript
 import type { SignalType } from '@flowstudio/shared';
@@ -206,7 +206,7 @@ export interface PreviewModalState {
 **Step 3: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/core/ && git commit -m "feat: create core directory structure and types"
+cd /home/user/FlowStudio && git add claudeFrontend/src/core/ && git commit -m "feat: create core directory structure and types"
 ```
 
 ---
@@ -214,12 +214,12 @@ cd /home/user/FlowStudio && git add finalFrontend/src/core/ && git commit -m "fe
 ### Task 1.3: Implement Project Store (vanilla Zustand)
 
 **Files:**
-- Create: `finalFrontend/src/core/stores/projectStore.ts`
-- Modify: `finalFrontend/src/lib/stdbConnection.ts` (already framework-agnostic, keep as-is)
+- Create: `claudeFrontend/src/core/stores/projectStore.ts`
+- Modify: `claudeFrontend/src/lib/stdbConnection.ts` (already framework-agnostic, keep as-is)
 
 **Step 1: Write the store**
 
-Create `finalFrontend/src/core/stores/projectStore.ts`:
+Create `claudeFrontend/src/core/stores/projectStore.ts`:
 
 ```typescript
 import { createStore } from 'zustand/vanilla';
@@ -317,7 +317,7 @@ cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend run typecheck
 **Step 3: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/core/stores/projectStore.ts && git commit -m "feat: add framework-agnostic project store"
+cd /home/user/FlowStudio && git add claudeFrontend/src/core/stores/projectStore.ts && git commit -m "feat: add framework-agnostic project store"
 ```
 
 ---
@@ -325,11 +325,11 @@ cd /home/user/FlowStudio && git add finalFrontend/src/core/stores/projectStore.t
 ### Task 1.4: Implement Timeline Store (with undo/redo)
 
 **Files:**
-- Create: `finalFrontend/src/core/stores/timelineStore.ts`
+- Create: `claudeFrontend/src/core/stores/timelineStore.ts`
 
 **Step 1: Write the store**
 
-Create `finalFrontend/src/core/stores/timelineStore.ts`:
+Create `claudeFrontend/src/core/stores/timelineStore.ts`:
 
 ```typescript
 import { createStore } from 'zustand/vanilla';
@@ -779,7 +779,7 @@ cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend run typecheck
 **Step 3: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/core/stores/timelineStore.ts && git commit -m "feat: add timeline store with undo/redo via zundo"
+cd /home/user/FlowStudio && git add claudeFrontend/src/core/stores/timelineStore.ts && git commit -m "feat: add timeline store with undo/redo via zundo"
 ```
 
 ---
@@ -787,13 +787,13 @@ cd /home/user/FlowStudio && git add finalFrontend/src/core/stores/timelineStore.
 ### Task 1.5: Implement UI Store, Capture Store, Signal Store
 
 **Files:**
-- Create: `finalFrontend/src/core/stores/uiStore.ts`
-- Create: `finalFrontend/src/core/stores/captureStore.ts`
-- Create: `finalFrontend/src/core/stores/signalStore.ts`
+- Create: `claudeFrontend/src/core/stores/uiStore.ts`
+- Create: `claudeFrontend/src/core/stores/captureStore.ts`
+- Create: `claudeFrontend/src/core/stores/signalStore.ts`
 
 **Step 1: Write UI store**
 
-Create `finalFrontend/src/core/stores/uiStore.ts`:
+Create `claudeFrontend/src/core/stores/uiStore.ts`:
 
 ```typescript
 import { createStore } from 'zustand/vanilla';
@@ -841,7 +841,7 @@ export const uiStore = createStore<UIStoreState>((set) => ({
 
 **Step 2: Write capture store**
 
-Create `finalFrontend/src/core/stores/captureStore.ts`:
+Create `claudeFrontend/src/core/stores/captureStore.ts`:
 
 ```typescript
 import { createStore } from 'zustand/vanilla';
@@ -903,7 +903,7 @@ export const captureStore = createStore<CaptureStoreState>((set) => ({
 
 **Step 3: Write signal store**
 
-Create `finalFrontend/src/core/stores/signalStore.ts`:
+Create `claudeFrontend/src/core/stores/signalStore.ts`:
 
 ```typescript
 import { createStore } from 'zustand/vanilla';
@@ -978,7 +978,7 @@ cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend run typecheck
 **Step 5: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/core/stores/ && git commit -m "feat: add ui, capture, and signal stores"
+cd /home/user/FlowStudio && git add claudeFrontend/src/core/stores/ && git commit -m "feat: add ui, capture, and signal stores"
 ```
 
 ---
@@ -986,13 +986,13 @@ cd /home/user/FlowStudio && git add finalFrontend/src/core/stores/ && git commit
 ### Task 1.6: Implement Core Services (Notifications, Shortcuts, SignedUrls)
 
 **Files:**
-- Create: `finalFrontend/src/core/services/notifications.ts`
-- Create: `finalFrontend/src/core/services/shortcuts.ts`
-- Create: `finalFrontend/src/core/services/signedUrls.ts`
+- Create: `claudeFrontend/src/core/services/notifications.ts`
+- Create: `claudeFrontend/src/core/services/shortcuts.ts`
+- Create: `claudeFrontend/src/core/services/signedUrls.ts`
 
 **Step 1: Write notification service**
 
-Create `finalFrontend/src/core/services/notifications.ts`:
+Create `claudeFrontend/src/core/services/notifications.ts`:
 
 ```typescript
 import { generateId } from '@flowstudio/shared';
@@ -1058,7 +1058,7 @@ export const notifications = new NotificationService();
 
 **Step 2: Write keyboard shortcut service**
 
-Create `finalFrontend/src/core/services/shortcuts.ts`:
+Create `claudeFrontend/src/core/services/shortcuts.ts`:
 
 ```typescript
 type ShortcutHandler = () => void;
@@ -1132,7 +1132,7 @@ export const shortcuts = new ShortcutService();
 
 **Step 3: Write signed URL manager**
 
-Create `finalFrontend/src/core/services/signedUrls.ts`:
+Create `claudeFrontend/src/core/services/signedUrls.ts`:
 
 ```typescript
 interface CachedUrl {
@@ -1202,7 +1202,7 @@ cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend run typecheck
 **Step 5: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/core/services/ && git commit -m "feat: add notification, shortcut, and signed URL services"
+cd /home/user/FlowStudio && git add claudeFrontend/src/core/services/ && git commit -m "feat: add notification, shortcut, and signed URL services"
 ```
 
 ---
@@ -1210,20 +1210,20 @@ cd /home/user/FlowStudio && git add finalFrontend/src/core/services/ && git comm
 ### Task 1.7: Create React Hook Adapters
 
 **Files:**
-- Create: `finalFrontend/src/hooks/useProjectStore.ts`
-- Create: `finalFrontend/src/hooks/useTimelineStore.ts`
-- Create: `finalFrontend/src/hooks/useCaptureStore.ts`
-- Create: `finalFrontend/src/hooks/useUIStore.ts`
-- Create: `finalFrontend/src/hooks/useSignalStore.ts`
-- Create: `finalFrontend/src/hooks/index.ts`
+- Create: `claudeFrontend/src/hooks/useProjectStore.ts`
+- Create: `claudeFrontend/src/hooks/useTimelineStore.ts`
+- Create: `claudeFrontend/src/hooks/useCaptureStore.ts`
+- Create: `claudeFrontend/src/hooks/useUIStore.ts`
+- Create: `claudeFrontend/src/hooks/useSignalStore.ts`
+- Create: `claudeFrontend/src/hooks/index.ts`
 
 **Step 1: Create hooks directory and adapter files**
 
 ```bash
-mkdir -p /home/user/FlowStudio/finalFrontend/src/hooks
+mkdir -p /home/user/FlowStudio/claudeFrontend/src/hooks
 ```
 
-Create `finalFrontend/src/hooks/useProjectStore.ts`:
+Create `claudeFrontend/src/hooks/useProjectStore.ts`:
 
 ```typescript
 import { useStore } from 'zustand';
@@ -1238,7 +1238,7 @@ export const useProjectAssets = (id: string) => useStore(projectStore, s => s.ge
 export const useProjectState = (id: string) => useStore(projectStore, s => s.getProjectState(id));
 ```
 
-Create `finalFrontend/src/hooks/useTimelineStore.ts`:
+Create `claudeFrontend/src/hooks/useTimelineStore.ts`:
 
 ```typescript
 import { useStore } from 'zustand';
@@ -1266,7 +1266,7 @@ export const useUndo = () => {
 };
 ```
 
-Create `finalFrontend/src/hooks/useCaptureStore.ts`:
+Create `claudeFrontend/src/hooks/useCaptureStore.ts`:
 
 ```typescript
 import { useStore } from 'zustand';
@@ -1278,7 +1278,7 @@ export const useCaptureDuration = () => useStore(captureStore, s => s.durationMs
 export const useUploadProgress = () => useStore(captureStore, s => s.uploadProgress);
 ```
 
-Create `finalFrontend/src/hooks/useUIStore.ts`:
+Create `claudeFrontend/src/hooks/useUIStore.ts`:
 
 ```typescript
 import { useStore } from 'zustand';
@@ -1293,7 +1293,7 @@ export const useLeftPanel = () => useStore(uiStore, s => ({
 export const useRightPanel = () => useStore(uiStore, s => s.rightPanelCollapsed);
 ```
 
-Create `finalFrontend/src/hooks/useSignalStore.ts`:
+Create `claudeFrontend/src/hooks/useSignalStore.ts`:
 
 ```typescript
 import { useStore } from 'zustand';
@@ -1310,7 +1310,7 @@ export const useEditDecisions = (projectId: string) =>
   useStore(signalStore, s => s.getEditDecisions(projectId));
 ```
 
-Create `finalFrontend/src/hooks/index.ts`:
+Create `claudeFrontend/src/hooks/index.ts`:
 
 ```typescript
 export * from './useProjectStore';
@@ -1329,7 +1329,7 @@ cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend run typecheck
 **Step 3: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/hooks/ && git commit -m "feat: add React hook adapters for vanilla Zustand stores"
+cd /home/user/FlowStudio && git add claudeFrontend/src/hooks/ && git commit -m "feat: add React hook adapters for vanilla Zustand stores"
 ```
 
 ---
@@ -1337,13 +1337,13 @@ cd /home/user/FlowStudio && git add finalFrontend/src/hooks/ && git commit -m "f
 ### Task 1.8: Set Up SpacetimeDB → Store Sync
 
 **Files:**
-- Already exists: `finalFrontend/src/core/services/stdbSdkSync.ts`
+- Already exists: `claudeFrontend/src/core/services/stdbSdkSync.ts`
 
 This service connects the `stdbConnection` module to the Zustand stores via HTTP SQL polling, replacing the per-component subscription hooks.
 
 **Step 1: Write sync service**
 
-Already implemented at `finalFrontend/src/core/services/stdbSdkSync.ts`:
+Already implemented at `claudeFrontend/src/core/services/stdbSdkSync.ts`:
 
 ```typescript
 import { queryTable } from '../../lib/stdbConnection';
@@ -1395,7 +1395,7 @@ cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend run typecheck
 **Step 3: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/core/services/stdbSdkSync.ts && git commit -m "feat: add SpacetimeDB → Zustand store sync service"
+cd /home/user/FlowStudio && git add claudeFrontend/src/core/services/stdbSdkSync.ts && git commit -m "feat: add SpacetimeDB → Zustand store sync service"
 ```
 
 ---
@@ -1405,22 +1405,22 @@ cd /home/user/FlowStudio && git add finalFrontend/src/core/services/stdbSdkSync.
 ### Task 2.1: Set Up shadcn/ui Utility and Base Components
 
 **Files:**
-- Create: `finalFrontend/src/lib/utils.ts`
-- Create: `finalFrontend/src/components/ui/button.tsx`
-- Create: `finalFrontend/src/components/ui/dialog.tsx`
-- Create: `finalFrontend/src/components/ui/card.tsx`
-- Create: `finalFrontend/src/components/ui/badge.tsx`
-- Create: `finalFrontend/src/components/ui/dropdown-menu.tsx`
-- Create: `finalFrontend/src/components/ui/context-menu.tsx`
-- Create: `finalFrontend/src/components/ui/tabs.tsx`
-- Create: `finalFrontend/src/components/ui/slider.tsx`
-- Create: `finalFrontend/src/components/ui/tooltip.tsx`
-- Create: `finalFrontend/src/components/ui/toaster.tsx`
-- Create: `finalFrontend/src/components/ui/resizable.tsx`
+- Create: `claudeFrontend/src/lib/utils.ts`
+- Create: `claudeFrontend/src/components/ui/button.tsx`
+- Create: `claudeFrontend/src/components/ui/dialog.tsx`
+- Create: `claudeFrontend/src/components/ui/card.tsx`
+- Create: `claudeFrontend/src/components/ui/badge.tsx`
+- Create: `claudeFrontend/src/components/ui/dropdown-menu.tsx`
+- Create: `claudeFrontend/src/components/ui/context-menu.tsx`
+- Create: `claudeFrontend/src/components/ui/tabs.tsx`
+- Create: `claudeFrontend/src/components/ui/slider.tsx`
+- Create: `claudeFrontend/src/components/ui/tooltip.tsx`
+- Create: `claudeFrontend/src/components/ui/toaster.tsx`
+- Create: `claudeFrontend/src/components/ui/resizable.tsx`
 
 **Step 1:** Create the `cn` utility:
 
-Create `finalFrontend/src/lib/utils.ts`:
+Create `claudeFrontend/src/lib/utils.ts`:
 
 ```typescript
 import { clsx, type ClassValue } from 'clsx';
@@ -1451,7 +1451,7 @@ export function cn(...inputs: ClassValue[]) {
 
 ```bash
 cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend run typecheck
-git add finalFrontend/src/components/ui/ finalFrontend/src/lib/utils.ts finalFrontend/src/app/globals.css
+git add claudeFrontend/src/components/ui/ claudeFrontend/src/lib/utils.ts claudeFrontend/src/app/globals.css
 git commit -m "feat: add shadcn/ui base components and utilities"
 ```
 
@@ -1460,7 +1460,7 @@ git commit -m "feat: add shadcn/ui base components and utilities"
 ### Task 2.2: Update Header with Navigation
 
 **Files:**
-- Modify: `finalFrontend/src/components/Header.tsx`
+- Modify: `claudeFrontend/src/components/Header.tsx`
 
 **Step 1:** Rewrite Header with navigation links:
 
@@ -1525,7 +1525,7 @@ export function Header({ projectName }: HeaderProps) {
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/components/Header.tsx && git commit -m "feat: add navigation links to header"
+cd /home/user/FlowStudio && git add claudeFrontend/src/components/Header.tsx && git commit -m "feat: add navigation links to header"
 ```
 
 ---
@@ -1533,12 +1533,12 @@ cd /home/user/FlowStudio && git add finalFrontend/src/components/Header.tsx && g
 ### Task 2.3: Create Route Pages (Record, Projects)
 
 **Files:**
-- Create: `finalFrontend/src/app/record/page.tsx` (placeholder)
-- Create: `finalFrontend/src/app/projects/page.tsx` (placeholder)
+- Create: `claudeFrontend/src/app/record/page.tsx` (placeholder)
+- Create: `claudeFrontend/src/app/projects/page.tsx` (placeholder)
 
 **Step 1:** Create placeholder pages:
 
-Create `finalFrontend/src/app/record/page.tsx`:
+Create `claudeFrontend/src/app/record/page.tsx`:
 
 ```typescript
 'use client';
@@ -1557,7 +1557,7 @@ export default function RecordPage() {
 }
 ```
 
-Create `finalFrontend/src/app/projects/page.tsx`:
+Create `claudeFrontend/src/app/projects/page.tsx`:
 
 ```typescript
 'use client';
@@ -1579,7 +1579,7 @@ export default function ProjectsPage() {
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/app/record/ finalFrontend/src/app/projects/ && git commit -m "feat: add placeholder route pages for record and projects"
+cd /home/user/FlowStudio && git add claudeFrontend/src/app/record/ claudeFrontend/src/app/projects/ && git commit -m "feat: add placeholder route pages for record and projects"
 ```
 
 ---
@@ -1587,8 +1587,8 @@ cd /home/user/FlowStudio && git add finalFrontend/src/app/record/ finalFrontend/
 ### Task 2.4: Upgrade Dashboard Page
 
 **Files:**
-- Modify: `finalFrontend/src/app/page.tsx`
-- Modify: `finalFrontend/src/components/ProjectCard.tsx`
+- Modify: `claudeFrontend/src/app/page.tsx`
+- Modify: `claudeFrontend/src/components/ProjectCard.tsx`
 
 **Step 1:** Update Dashboard to use new stores, add processing banner and quick actions. Replace the existing `useProjects` hook import with the new store-based hook. Add empty states with illustrations. Add "Processing Now" section.
 
@@ -1608,7 +1608,7 @@ Key changes to `page.tsx`:
 **Step 3: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/app/page.tsx finalFrontend/src/components/ProjectCard.tsx && git commit -m "feat: upgrade dashboard with processing banner and quick actions"
+cd /home/user/FlowStudio && git add claudeFrontend/src/app/page.tsx claudeFrontend/src/components/ProjectCard.tsx && git commit -m "feat: upgrade dashboard with processing banner and quick actions"
 ```
 
 ---
@@ -1616,12 +1616,12 @@ cd /home/user/FlowStudio && git add finalFrontend/src/app/page.tsx finalFrontend
 ### Task 2.5: Wire Up Store Sync in Root Layout
 
 **Files:**
-- Modify: `finalFrontend/src/app/layout.tsx`
-- Create: `finalFrontend/src/components/StoreProvider.tsx`
+- Modify: `claudeFrontend/src/app/layout.tsx`
+- Create: `claudeFrontend/src/components/StoreProvider.tsx`
 
 **Step 1:** Create a client component that starts the SpacetimeDB sync on mount:
 
-Create `finalFrontend/src/components/StoreProvider.tsx`:
+Create `claudeFrontend/src/components/StoreProvider.tsx`:
 
 ```typescript
 'use client';
@@ -1672,7 +1672,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 **Step 3: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/components/StoreProvider.tsx finalFrontend/src/app/layout.tsx && git commit -m "feat: wire SpacetimeDB sync to root layout via StoreProvider"
+cd /home/user/FlowStudio && git add claudeFrontend/src/components/StoreProvider.tsx claudeFrontend/src/app/layout.tsx && git commit -m "feat: wire SpacetimeDB sync to root layout via StoreProvider"
 ```
 
 ---
@@ -1682,7 +1682,7 @@ cd /home/user/FlowStudio && git add finalFrontend/src/components/StoreProvider.t
 ### Task 3.1: Implement CaptureEngine
 
 **Files:**
-- Create: `finalFrontend/src/core/services/capture.ts`
+- Create: `claudeFrontend/src/core/services/capture.ts`
 
 **Step 1:** Write the framework-agnostic capture engine:
 
@@ -1878,7 +1878,7 @@ export const captureEngine = new CaptureEngine();
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/core/services/capture.ts && git commit -m "feat: add CaptureEngine for browser screen recording"
+cd /home/user/FlowStudio && git add claudeFrontend/src/core/services/capture.ts && git commit -m "feat: add CaptureEngine for browser screen recording"
 ```
 
 ---
@@ -1886,7 +1886,7 @@ cd /home/user/FlowStudio && git add finalFrontend/src/core/services/capture.ts &
 ### Task 3.2: Build Recording Page UI
 
 **Files:**
-- Modify: `finalFrontend/src/app/record/page.tsx`
+- Modify: `claudeFrontend/src/app/record/page.tsx`
 
 **Step 1:** Build the full recording page with live preview, controls, source selector, and post-recording flow.
 
@@ -1902,7 +1902,7 @@ Use `captureEngine` from core services and `captureStore` hooks for state.
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/app/record/ && git commit -m "feat: build recording page with screen capture and upload flow"
+cd /home/user/FlowStudio && git add claudeFrontend/src/app/record/ && git commit -m "feat: build recording page with screen capture and upload flow"
 ```
 
 ---
@@ -1912,7 +1912,7 @@ cd /home/user/FlowStudio && git add finalFrontend/src/app/record/ && git commit 
 ### Task 4.1: Studio Page Layout (Resizable Panels)
 
 **Files:**
-- Modify: `finalFrontend/src/app/project/[id]/page.tsx`
+- Modify: `claudeFrontend/src/app/project/[id]/page.tsx`
 
 **Step 1:** Replace the current project detail page with the resizable panel studio layout:
 
@@ -1936,7 +1936,7 @@ Start `startSignalSync(projectId)` on mount. Register studio keyboard shortcuts 
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/app/project/ && git commit -m "feat: studio page with resizable panel layout"
+cd /home/user/FlowStudio && git add claudeFrontend/src/app/project/ && git commit -m "feat: studio page with resizable panel layout"
 ```
 
 ---
@@ -1944,14 +1944,14 @@ cd /home/user/FlowStudio && git add finalFrontend/src/app/project/ && git commit
 ### Task 4.2: Asset Browser Panel
 
 **Files:**
-- Create: `finalFrontend/src/components/studio/AssetPanel.tsx`
+- Create: `claudeFrontend/src/components/studio/AssetPanel.tsx`
 
 **Step 1:** Two-tab panel (Assets / Signals). Assets tab lists project assets from store with icons by type. Items are `draggable` for drag-to-timeline (set `dataTransfer` with asset ID + type). Signals tab lists signal types with counts, expandable groups showing individual signals with timestamps. Click signal → `timelineStore.seekTo(signal.timestampMs)`.
 
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/components/studio/ && git commit -m "feat: add asset browser and signal inspector panel"
+cd /home/user/FlowStudio && git add claudeFrontend/src/components/studio/ && git commit -m "feat: add asset browser and signal inspector panel"
 ```
 
 ---
@@ -1959,14 +1959,14 @@ cd /home/user/FlowStudio && git add finalFrontend/src/components/studio/ && git 
 ### Task 4.3: Video Preview Component
 
 **Files:**
-- Create: `finalFrontend/src/components/studio/VideoPreview.tsx`
+- Create: `claudeFrontend/src/components/studio/VideoPreview.tsx`
 
 **Step 1:** `<video>` element with playback controls (play/pause, time display, scrubber). Source from project's `source_video` or `rendered_video` asset via `signedUrls.getUrl()`. Audio level meter (vertical bar, right side) using `AudioContext.createAnalyser()`. Wire to `timelineStore` playhead via `PlaybackSync`.
 
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/components/studio/VideoPreview.tsx && git commit -m "feat: add video preview component with playback controls"
+cd /home/user/FlowStudio && git add claudeFrontend/src/components/studio/VideoPreview.tsx && git commit -m "feat: add video preview component with playback controls"
 ```
 
 ---
@@ -1974,7 +1974,7 @@ cd /home/user/FlowStudio && git add finalFrontend/src/components/studio/VideoPre
 ### Task 4.4: Properties Panel
 
 **Files:**
-- Create: `finalFrontend/src/components/studio/PropertiesPanel.tsx`
+- Create: `claudeFrontend/src/components/studio/PropertiesPanel.tsx`
 
 **Step 1:** Shows properties for selected clip from `timelineStore.selectedClipIds`. Context-sensitive sections based on clip type:
 - Video: speed slider, opacity slider, zoom, panX/Y
@@ -1987,7 +1987,7 @@ All property changes dispatch to `timelineStore.setClipProperty()`.
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/components/studio/PropertiesPanel.tsx && git commit -m "feat: add properties panel for clip editing"
+cd /home/user/FlowStudio && git add claudeFrontend/src/components/studio/PropertiesPanel.tsx && git commit -m "feat: add properties panel for clip editing"
 ```
 
 ---
@@ -1995,14 +1995,14 @@ cd /home/user/FlowStudio && git add finalFrontend/src/components/studio/Properti
 ### Task 4.5: Preview Modal
 
 **Files:**
-- Create: `finalFrontend/src/components/studio/PreviewModal.tsx`
+- Create: `claudeFrontend/src/components/studio/PreviewModal.tsx`
 
 **Step 1:** Full-screen overlay with `backdrop-filter: blur(12px)`. `<video>` player for either a single clip (in-point to out-point) or full rendered output. Play/pause, fullscreen, download button. Close on Esc or click outside. Source determined by `uiStore.previewModal` state.
 
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/components/studio/PreviewModal.tsx && git commit -m "feat: add preview modal with blur backdrop"
+cd /home/user/FlowStudio && git add claudeFrontend/src/components/studio/PreviewModal.tsx && git commit -m "feat: add preview modal with blur backdrop"
 ```
 
 ---
@@ -2012,9 +2012,9 @@ cd /home/user/FlowStudio && git add finalFrontend/src/components/studio/PreviewM
 ### Task 5.1: Timeline Renderer (Canvas)
 
 **Files:**
-- Create: `finalFrontend/src/core/timeline/renderer.ts`
-- Create: `finalFrontend/src/core/timeline/types.ts` (if not already from Task 1.2)
-- Create: `finalFrontend/src/core/timeline/colors.ts`
+- Create: `claudeFrontend/src/core/timeline/renderer.ts`
+- Create: `claudeFrontend/src/core/timeline/types.ts` (if not already from Task 1.2)
+- Create: `claudeFrontend/src/core/timeline/colors.ts`
 
 **Step 1:** Write `TimelineRenderer` class. Framework-agnostic, takes a `HTMLCanvasElement` and reads from `timelineStore`.
 
@@ -2048,7 +2048,7 @@ Handle `devicePixelRatio` for retina displays.
 **Step 3: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/core/timeline/ && git commit -m "feat: add Canvas timeline renderer with hit testing"
+cd /home/user/FlowStudio && git add claudeFrontend/src/core/timeline/ && git commit -m "feat: add Canvas timeline renderer with hit testing"
 ```
 
 ---
@@ -2056,9 +2056,9 @@ cd /home/user/FlowStudio && git add finalFrontend/src/core/timeline/ && git comm
 ### Task 5.2: Timeline React Wrapper
 
 **Files:**
-- Create: `finalFrontend/src/components/studio/Timeline.tsx`
-- Create: `finalFrontend/src/components/studio/TimelineToolbar.tsx`
-- Create: `finalFrontend/src/components/studio/TrackHeader.tsx`
+- Create: `claudeFrontend/src/components/studio/Timeline.tsx`
+- Create: `claudeFrontend/src/components/studio/TimelineToolbar.tsx`
+- Create: `claudeFrontend/src/components/studio/TrackHeader.tsx`
 
 **Step 1:** `Timeline.tsx` — the hybrid component:
 - Renders Canvas element for clip grid (ref → `TimelineRenderer`)
@@ -2083,7 +2083,7 @@ cd /home/user/FlowStudio && git add finalFrontend/src/core/timeline/ && git comm
 **Step 4: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/components/studio/Timeline.tsx finalFrontend/src/components/studio/TimelineToolbar.tsx finalFrontend/src/components/studio/TrackHeader.tsx && git commit -m "feat: add timeline React wrapper with toolbar and track headers"
+cd /home/user/FlowStudio && git add claudeFrontend/src/components/studio/Timeline.tsx claudeFrontend/src/components/studio/TimelineToolbar.tsx claudeFrontend/src/components/studio/TrackHeader.tsx && git commit -m "feat: add timeline React wrapper with toolbar and track headers"
 ```
 
 ---
@@ -2091,7 +2091,7 @@ cd /home/user/FlowStudio && git add finalFrontend/src/components/studio/Timeline
 ### Task 5.3: PlaybackSync Engine
 
 **Files:**
-- Create: `finalFrontend/src/core/services/playbackSync.ts`
+- Create: `claudeFrontend/src/core/services/playbackSync.ts`
 
 **Step 1:** Write `PlaybackSync` class:
 
@@ -2148,7 +2148,7 @@ export class PlaybackSync {
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/core/services/playbackSync.ts && git commit -m "feat: add playback sync engine (video ↔ timeline)"
+cd /home/user/FlowStudio && git add claudeFrontend/src/core/services/playbackSync.ts && git commit -m "feat: add playback sync engine (video ↔ timeline)"
 ```
 
 ---
@@ -2156,7 +2156,7 @@ cd /home/user/FlowStudio && git add finalFrontend/src/core/services/playbackSync
 ### Task 5.4: Wire Keyboard Shortcuts for Studio
 
 **Files:**
-- Create: `finalFrontend/src/components/studio/useStudioShortcuts.ts`
+- Create: `claudeFrontend/src/components/studio/useStudioShortcuts.ts`
 
 **Step 1:** Hook that registers all studio shortcuts on mount, unregisters on unmount:
 
@@ -2228,7 +2228,7 @@ export function useStudioShortcuts() {
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/components/studio/useStudioShortcuts.ts && git commit -m "feat: add studio keyboard shortcuts"
+cd /home/user/FlowStudio && git add claudeFrontend/src/components/studio/useStudioShortcuts.ts && git commit -m "feat: add studio keyboard shortcuts"
 ```
 
 ---
@@ -2238,7 +2238,7 @@ cd /home/user/FlowStudio && git add finalFrontend/src/components/studio/useStudi
 ### Task 6.1: Build Projects Gallery Page
 
 **Files:**
-- Modify: `finalFrontend/src/app/projects/page.tsx`
+- Modify: `claudeFrontend/src/app/projects/page.tsx`
 
 **Step 1:** Full implementation with:
 - Grid/list toggle (state in component)
@@ -2253,7 +2253,7 @@ cd /home/user/FlowStudio && git add finalFrontend/src/components/studio/useStudi
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add finalFrontend/src/app/projects/ && git commit -m "feat: build projects gallery with filters and context menus"
+cd /home/user/FlowStudio && git add claudeFrontend/src/app/projects/ && git commit -m "feat: build projects gallery with filters and context menus"
 ```
 
 ---
@@ -2263,28 +2263,28 @@ cd /home/user/FlowStudio && git add finalFrontend/src/app/projects/ && git commi
 ### Task 7.1: Waveform Worker
 
 **Files:**
-- Create: `finalFrontend/src/core/workers/waveformWorker.ts`
+- Create: `claudeFrontend/src/core/workers/waveformWorker.ts`
 
 Receives `ArrayBuffer` of audio, decodes via `OfflineAudioContext`, returns `Float32Array` of peaks.
 
 ### Task 7.2: Thumbnail Worker
 
 **Files:**
-- Create: `finalFrontend/src/core/workers/thumbnailWorker.ts`
+- Create: `claudeFrontend/src/core/workers/thumbnailWorker.ts`
 
 Receives video URL + timestamps, draws frames to `OffscreenCanvas`, returns `ImageBitmap[]`.
 
 ### Task 7.3: Timeline Minimap
 
 **Files:**
-- Create: `finalFrontend/src/components/studio/TimelineMinimap.tsx`
+- Create: `claudeFrontend/src/components/studio/TimelineMinimap.tsx`
 
 30px Canvas strip showing compressed view of all clips + draggable viewport rectangle.
 
 ### Task 7.4: Context Menus for Timeline
 
 **Files:**
-- Create: `finalFrontend/src/components/studio/TimelineContextMenu.tsx`
+- Create: `claudeFrontend/src/components/studio/TimelineContextMenu.tsx`
 
 Right-click on clip, empty area, or track header → shadcn ContextMenu with appropriate options.
 
@@ -2301,7 +2301,7 @@ Right-click on clip, empty area, or track header → shadcn ContextMenu with app
 ### Task 8.1: Auto-save Service
 
 **Files:**
-- Create: `finalFrontend/src/core/services/autoSave.ts`
+- Create: `claudeFrontend/src/core/services/autoSave.ts`
 
 Debounced (500ms) save on every `timelineStore` mutation where `isDirty` is true. Serializes timeline → uploads to GCS → `createAsset` → `markClean()`. `beforeunload` warning if dirty.
 
@@ -2318,7 +2318,7 @@ When user clicks "Render" in toolbar:
 ### Task 8.3: Pipeline Progress Overlay
 
 **Files:**
-- Create: `finalFrontend/src/components/studio/PipelineOverlay.tsx`
+- Create: `claudeFrontend/src/components/studio/PipelineOverlay.tsx`
 
 Shows when project is still processing. Displays the 13-task DAG with checkmarks, animated progress. Overlays the video preview area. Disappears when project reaches `ready`.
 

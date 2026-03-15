@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "stdb:publish": "~/.local/bin/spacetime publish flowstudio --project-path . --delete-data",
     "stdb:logs": "~/.local/bin/spacetime logs flowstudio",
-    "stdb:generate:frontend": "~/.local/bin/spacetime generate --lang typescript --out-dir ../../finalFrontend/src/module_bindings --project-path .",
+    "stdb:generate:frontend": "~/.local/bin/spacetime generate --lang typescript --out-dir ../../claudeFrontend/src/module_bindings --project-path .",
     "stdb:generate:workers": "~/.local/bin/spacetime generate --lang typescript --out-dir ../workers/shared/src/module_bindings --project-path ."
   },
   "devDependencies": {

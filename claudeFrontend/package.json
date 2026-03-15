@@ -31,7 +31,8 @@
     "use-sync-external-store": "^1.6.0",
     "zod": "^3.23.0",
     "zundo": "^2.3.0",
-    "zustand": "^5.0.11"
+    "zustand": "^5.0.11",
+    "spacetimedb": "^2.0.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.4",

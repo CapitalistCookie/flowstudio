@@ -64,9 +64,9 @@ After each phase completes, verify:
 
 - All Zustand stores MUST use `createStore()` (vanilla), NOT `create()` (React-bound)
 - Canvas timeline renderer MUST NOT import React
-- All new React components go in `finalFrontend/src/components/` (swappable layer)
-- All framework-agnostic code goes in `finalFrontend/src/core/` (permanent layer)
-- React hook adapters go in `finalFrontend/src/hooks/` (swappable layer)
+- All new React components go in `claudeFrontend/src/components/` (swappable layer)
+- All framework-agnostic code goes in `claudeFrontend/src/core/` (permanent layer)
+- React hook adapters go in `claudeFrontend/src/hooks/` (swappable layer)
 - Use CSS variables (`var(--color-*)`) for all colors, not hardcoded hex values
 - SpacetimeDB client (`lib/stdbConnection.ts`) is already framework-agnostic — don't modify it
 - The existing `lib/stdbHooks.ts` contains the current SpacetimeDB React hooks — new code uses `hooks/` directory instead

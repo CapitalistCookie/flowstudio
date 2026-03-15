@@ -13,7 +13,7 @@ import { FolderCard } from '@/components/FolderCard';
 import { CreateFolderDialog } from '@/components/CreateFolderDialog';
 import { MoveToFolderDialog } from '@/components/MoveToFolderDialog';
 import { useProjectStore } from '@/hooks/useStores';
-import { useStdbReducer } from '@/lib/stdbHooks';
+import { getConnection } from '@/lib/spacetimedb';
 import { ProjectStatus } from '@flowstudio/shared';
 import {
   Search,
@@ -50,8 +50,6 @@ export default function ProjectsPage() {
   const moveProjectToFolder = useProjectStore((s) => s.moveProjectToFolder);
   const loading = useProjectStore((s) => s.loading);
   const router = useRouter();
-  const { callReducer } = useStdbReducer();
-
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -88,7 +86,7 @@ export default function ProjectsPage() {
   const handleToggleStar = async (projectId: string) => {
     toggleStar(projectId);
     try {
-      await callReducer('toggleProjectStar', { projectId });
+      await getConnection().reducers.toggleProjectStar({ projectId });
     } catch {
       toggleStar(projectId); // revert on failure
     }
@@ -98,7 +96,7 @@ export default function ProjectsPage() {
     const prev = projects.find((p) => p.id === projectId)?.folderId ?? '';
     moveProjectToFolder(projectId, folderId);
     try {
-      await callReducer('moveProjectToFolder', { projectId, folderId });
+      await getConnection().reducers.moveProjectToFolder({ projectId, folderId });
     } catch {
       moveProjectToFolder(projectId, prev);
     }
@@ -106,7 +104,7 @@ export default function ProjectsPage() {
 
   const handleCreateFolder = async (name: string, color: string) => {
     try {
-      await callReducer('createFolder', { name, ownerId: '', color, sortOrder: folders.length });
+      await getConnection().reducers.createFolder({ name, ownerId: '', color, sortOrder: folders.length });
     } catch (err) {
       console.error('Failed to create folder:', err);
     }
@@ -114,7 +112,7 @@ export default function ProjectsPage() {
 
   const handleDeleteFolder = async (folderId: string) => {
     try {
-      await callReducer('deleteFolder', { folderId });
+      await getConnection().reducers.deleteFolder({ folderId });
       if (activeFolderId === folderId) setActiveFolderId(null);
     } catch (err) {
       console.error('Failed to delete folder:', err);
@@ -127,7 +125,7 @@ export default function ProjectsPage() {
     const newName = prompt('Rename folder:', folder.name);
     if (!newName?.trim()) return;
     try {
-      await callReducer('renameFolder', { folderId, name: newName.trim() });
+      await getConnection().reducers.renameFolder({ folderId, name: newName.trim() });
     } catch (err) {
       console.error('Failed to rename folder:', err);
     }

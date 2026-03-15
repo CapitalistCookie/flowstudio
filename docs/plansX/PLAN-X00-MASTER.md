@@ -30,7 +30,7 @@
 | 4 | **validation.py checks snake_case, LLM outputs camelCase** | Validation always reports failures/warnings | `railtracks-gateway/app/agents/validation.py` |
 | 5 | **createAsset called without `durationMs` top-level field** | STDB reducer will reject the call (missing required u64) | `frontend/lib/upload/pipeline-trigger.ts:35` |
 | 6 | **upload-service calls Cloud Function directly, bypasses auth** | No Clerk auth on uploads; CORS issues | `frontend/lib/upload/upload-service.ts` |
-| 7 | **Dockerfile.client references `finalFrontend/`** | Docker builds fail — wrong frontend dir | `infra/docker/Dockerfile.client` |
+| 7 | **Dockerfile.client references `claudeFrontend/`** | Docker builds fail — wrong frontend dir | `infra/docker/Dockerfile.client` |
 | 8 | **Two disconnected flows** | Chat agent and worker pipeline never share data | `use-agent.ts` vs `pipeline-trigger.ts` |
 | 9 | **No cursor/keyboard capture** | Workers that process these signals always get empty data | `capture-service.ts` only records video |
 | 10 | **No RENDER trigger** | Pipeline stops at TIMELINE_BUILD; user can never get final video | `stdb-module DAG` |

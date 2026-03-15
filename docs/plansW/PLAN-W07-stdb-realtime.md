@@ -1,13 +1,13 @@
 # PLAN-W07 — SpacetimeDB Real-Time Frontend Integration
 
-> **Problem**: `finalFrontend` used HTTP polling (every 3s) instead of WebSocket subscriptions. For the real frontend, we need live updates as workers process tasks.
+> **Problem**: `claudeFrontend` used HTTP polling (every 3s) instead of WebSocket subscriptions. For the real frontend, we need live updates as workers process tasks.
 > **Goal**: Frontend subscribes to STDB tables via WebSocket. Task completions, signals, and edit plans appear instantly.
 
 ---
 
 ## Current State
 
-`finalFrontend` polls via HTTP every 3s:
+`claudeFrontend` polls via HTTP every 3s:
 ```typescript
 setInterval(async () => {
   const tasks = await queryTable("tasks", `SELECT * FROM tasks WHERE project_id = '${id}'`);

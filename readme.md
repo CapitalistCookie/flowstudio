@@ -169,7 +169,7 @@ FlowStudio/
 │   │   └── src/
 │   │       ├── index.ts                    # All tables, reducers, watchdog, task chaining logic
 │   │       └── spacetimedb-server.d.ts     # Type stubs for spacetimedb/server runtime
-│   ├── finalFrontend/                      # @flowstudio/frontend — Next.js 15 frontend (production)
+│   ├── claudeFrontend/                      # @flowstudio/frontend — Next.js 15 frontend (production)
 │   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   └── src/
@@ -321,7 +321,7 @@ This is the CI gate. Zero errors required before merge.
 
 ### `@flowstudio/frontend`
 
-**Path:** `finalFrontend/`
+**Path:** `claudeFrontend/`
 **Purpose:** Next.js 15 frontend dashboard for creating projects, uploading videos, and monitoring pipeline progress in real time.
 
 **Key Exports:** None (standalone application).
@@ -630,7 +630,7 @@ Methods: `upload(path, data, contentType)`, `download(path)`, `exists(path)`, `g
 
 ### 6c. Frontend
 
-**File:** `finalFrontend/`
+**File:** `claudeFrontend/`
 
 #### Pages and Routing
 
@@ -641,7 +641,7 @@ Methods: `upload(path, data, contentType)`, `download(path)`, `exists(path)`, `g
 
 #### SpacetimeDB Connection Management
 
-File: `finalFrontend/src/lib/stdbConnection.ts`
+File: `claudeFrontend/src/lib/stdbConnection.ts`
 
 A functional module that manages the SpacetimeDB connection via HTTP. Reducer calls go through `POST /v1/database/{module}/call/{reducer}`, and table reads go through `POST /v1/database/{module}/sql`. The `stdbSdkSync.ts` service polls these endpoints every 3 seconds to keep the Zustand stores in sync (with `forceSync()` called immediately after mutations for UI responsiveness). Exported functions: `initConnection`, `callReducer`, `queryTable`, `disconnect`, `isConnected`. This HTTP bridge is designed for easy migration to the SpacetimeDB SDK's WebSocket push model when BSATN bindings are available.
 
@@ -651,7 +651,7 @@ A functional module that manages the SpacetimeDB connection via HTTP. Reducer ca
 
 #### Hooks
 
-File: `finalFrontend/src/lib/stdbHooks.ts`
+File: `claudeFrontend/src/lib/stdbHooks.ts`
 
 | Hook | Returns | Description |
 |------|---------|-------------|

@@ -1,9 +1,9 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { TaskType } from '@flowstudio/shared';
-import { MockStdbClient, MockLogger } from './mocks.js';
+import { MockDbConnection, MockLogger } from './mocks.js';
 
 const sharedLogger = new MockLogger();
-const sharedStdb = new MockStdbClient();
+const sharedConn = new MockDbConnection();
 
 vi.mock('../src/config.js', () => ({
   loadConfig: () => ({
@@ -40,17 +40,14 @@ vi.mock('../src/gcs-client.js', () => {
   };
 });
 
-vi.mock('../src/stdb-client.js', () => {
+vi.mock('../src/module_bindings/index.js', () => {
   return {
-    StdbClient: class {
-      async callReducer(name: string, args: Record<string, unknown>) {
-        return sharedStdb.callReducer(name, args);
+    DbConnection: class {
+      static builder() {
+        return {
+          withUri: () => ({ withDatabaseName: () => ({ onConnect: () => ({ onConnectError: () => ({ onDisconnect: () => ({ build: () => sharedConn }) }) }) }) }),
+        };
       }
-      async queryTable(tableName: string) {
-        return sharedStdb.queryTable(tableName);
-      }
-      get isConnected() { return true; }
-      disconnect() {}
     },
   };
 });
@@ -75,7 +72,10 @@ class TestWorker extends BaseWorker {
     return this.processTaskMock(task);
   }
 
+  /** Expose handleClaimedTask for testing and inject mock connection */
   testHandleClaimedTask(task: TaskData) {
+    // Inject mock connection so handleClaimedTask can call reducers
+    (this as any).connection = sharedConn;
     return this.handleClaimedTask(task);
   }
 }
@@ -84,7 +84,7 @@ describe('BaseWorker', () => {
   let worker: TestWorker;
 
   beforeEach(() => {
-    sharedStdb.reducerCalls = [];
+    sharedConn.reducerCalls = [];
     sharedLogger.logs = [];
     worker = new TestWorker();
   });
@@ -114,16 +114,16 @@ describe('BaseWorker', () => {
 
     await worker.testHandleClaimedTask(taskData);
 
-    const reducerNames = sharedStdb.reducerCalls.map((c) => c.name);
+    const reducerNames = sharedConn.reducerCalls.map((c) => c.name);
     expect(reducerNames).toContain('writeSignal');
     expect(reducerNames).toContain('completeTask');
 
-    const writeSignalCall = sharedStdb.reducerCalls.find((c) => c.name === 'writeSignal');
+    const writeSignalCall = sharedConn.reducerCalls.find((c) => c.name === 'writeSignal');
     expect(writeSignalCall!.args.projectId).toBe('proj-1');
     expect(writeSignalCall!.args.signalType).toBe('speech_segment');
     expect(writeSignalCall!.args.confidence).toBe(0.9);
 
-    const completeCall = sharedStdb.reducerCalls.find((c) => c.name === 'completeTask');
+    const completeCall = sharedConn.reducerCalls.find((c) => c.name === 'completeTask');
     expect(completeCall!.args.taskId).toBe('task-1');
     expect(JSON.parse(completeCall!.args.outputAssetIds as string)).toEqual(['output-1']);
   });
@@ -142,7 +142,7 @@ describe('BaseWorker', () => {
 
     await worker.testHandleClaimedTask(taskData);
 
-    const failCall = sharedStdb.reducerCalls.find((c) => c.name === 'failTask');
+    const failCall = sharedConn.reducerCalls.find((c) => c.name === 'failTask');
     expect(failCall).toBeDefined();
     expect(failCall!.args.taskId).toBe('task-2');
     expect(failCall!.args.failureReason).toBe('FFmpeg crashed');
@@ -161,7 +161,7 @@ describe('BaseWorker', () => {
 
     await worker.testHandleClaimedTask(taskData);
 
-    const completeCall = sharedStdb.reducerCalls.find((c) => c.name === 'completeTask');
+    const completeCall = sharedConn.reducerCalls.find((c) => c.name === 'completeTask');
     expect(completeCall).toBeUndefined();
   });
 
@@ -185,10 +185,11 @@ describe('BaseWorker', () => {
 
     await worker.testHandleClaimedTask(taskData);
 
-    const signalCalls = sharedStdb.reducerCalls.filter((c) => c.name === 'writeSignal');
+    const signalCalls = sharedConn.reducerCalls.filter((c) => c.name === 'writeSignal');
     expect(signalCalls.length).toBe(3);
-    expect(signalCalls[0]!.args.timestampMs).toBe(0);
-    expect(signalCalls[1]!.args.timestampMs).toBe(1000);
-    expect(signalCalls[2]!.args.timestampMs).toBe(3000);
+    // BigInt conversion in handleClaimedTask: timestampMs and durationMs are BigInt
+    expect(Number(signalCalls[0]!.args.timestampMs)).toBe(0);
+    expect(Number(signalCalls[1]!.args.timestampMs)).toBe(1000);
+    expect(Number(signalCalls[2]!.args.timestampMs)).toBe(3000);
   });
 });

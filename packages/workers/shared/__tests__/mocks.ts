@@ -25,25 +25,38 @@ export class MockGcsClient {
   }
 }
 
-export class MockStdbClient {
+/**
+ * Mock DbConnection that records reducer calls for assertion.
+ * Mirrors the shape of the real DbConnection from module_bindings.
+ */
+export class MockDbConnection {
   public reducerCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
-  private tables: Record<string, Record<string, unknown>[]> = {};
+  public isActive = true;
 
-  async callReducer(name: string, args: Record<string, unknown>): Promise<void> {
-    this.reducerCalls.push({ name, args });
-  }
+  readonly reducers = {
+    writeSignal: async (args: Record<string, unknown>) => {
+      this.reducerCalls.push({ name: 'writeSignal', args });
+    },
+    completeTask: async (args: Record<string, unknown>) => {
+      this.reducerCalls.push({ name: 'completeTask', args });
+    },
+    failTask: async (args: Record<string, unknown>) => {
+      this.reducerCalls.push({ name: 'failTask', args });
+    },
+    findAndClaimTask: async (args: Record<string, unknown>) => {
+      this.reducerCalls.push({ name: 'findAndClaimTask', args });
+    },
+    updateWorkerConfig: async (args: Record<string, unknown>) => {
+      this.reducerCalls.push({ name: 'updateWorkerConfig', args });
+    },
+  };
 
-  async queryTable(tableName: string): Promise<Record<string, unknown>[]> {
-    return this.tables[tableName] ?? [];
-  }
-
-  setTableData(tableName: string, rows: Record<string, unknown>[]): void {
-    this.tables[tableName] = rows;
-  }
-
-  get isConnected(): boolean {
-    return true;
-  }
+  readonly db = {
+    tasks: {
+      onInsert: (_cb: any) => {},
+      onUpdate: (_cb: any) => {},
+    },
+  };
 
   disconnect(): void {}
 }

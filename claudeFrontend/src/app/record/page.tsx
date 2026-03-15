@@ -7,7 +7,7 @@ import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useCapture } from '@/hooks/useCapture';
-import { useStdbReducer } from '@/lib/stdbHooks';
+import { getConnection } from '@/lib/spacetimedb';
 import { formatTime } from '@/lib/utils';
 import {
   Video,
@@ -51,7 +51,7 @@ function RecordPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = searchParams.get('projectId');
-  const { callReducer } = useStdbReducer();  // SDK-shaped hook
+  const conn = getConnection();
 
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
@@ -88,18 +88,18 @@ function RecordPageContent() {
       if (!uploadRes.ok) throw new Error('Upload failed');
 
       setUploadProgress('Registering asset...');
-      await callReducer('createAsset', {
+      await conn.reducers.createAsset({
         projectId,
         assetType: 'source_video',
         gcsPath,
-        sizeBytes: file.size,
+        sizeBytes: BigInt(file.size),
         mimeType: file.type,
-        durationMs: elapsedMs,
+        durationMs: BigInt(elapsedMs),
         metadata: JSON.stringify({ originalName: file.name, source: 'screen_recording' }),
       });
 
       for (const taskType of INITIAL_TASK_TYPES) {
-        await callReducer('createTask', {
+        await conn.reducers.createTask({
           projectId,
           taskType,
           inputAssetIds: JSON.stringify([gcsPath]),
@@ -108,7 +108,7 @@ function RecordPageContent() {
         });
       }
 
-      await callReducer('updateProjectState', {
+      await conn.reducers.updateProjectState({
         projectId,
         currentPhase: 'processing',
         status: 'processing',

@@ -12,8 +12,7 @@ import {
 } from '../hooks/useStores';
 import { subscribeNotifications } from '../core/services/notifications';
 import { startListening, stopListening } from '../core/services/shortcuts';
-import { initConnection, disconnect } from '../lib/stdbConnection';
-import { startSdkSync, stopSdkSync } from '../core/services/stdbSdkSync';
+import { initSpacetimeDb, disconnectSpacetimeDb } from '../lib/spacetimedb';
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -38,22 +37,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // Start keyboard shortcut listener
     startListening();
 
-    // Connect to SpacetimeDB and start store sync
-    initConnection()
-      .then(() => {
-        startSdkSync({ projectStore, signalStore, pollInterval: 3000 });
-      })
-      .catch((err) => {
-        console.error('[StoreProvider] STDB connection failed:', err);
-        // Start sync anyway — individual poll attempts will retry
-        startSdkSync({ projectStore, signalStore, pollInterval: 3000 });
-      });
+    // Connect to SpacetimeDB via native WebSocket SDK
+    initSpacetimeDb({ projectStore, signalStore }).catch((err) => {
+      console.error('[StoreProvider] STDB connection failed:', err);
+      projectStore.getState().setLoading(false);
+    });
 
     return () => {
       unsubNotifs();
       stopListening();
-      stopSdkSync();
-      disconnect();
+      disconnectSpacetimeDb();
     };
   }, []);
 

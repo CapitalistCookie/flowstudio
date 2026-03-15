@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useStdbReducer } from '../lib/stdbHooks';
-import { queryTable } from '../lib/stdbConnection';
+import { getConnection } from '../lib/spacetimedb';
 import {
   Dialog,
   DialogContent,
@@ -24,7 +23,6 @@ export function NewProjectDialog({ open, onClose }: NewProjectDialogProps) {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { callReducer } = useStdbReducer();
   const router = useRouter();
 
   useEffect(() => {
@@ -42,19 +40,24 @@ export function NewProjectDialog({ open, onClose }: NewProjectDialogProps) {
 
     try {
       const trimmedName = name.trim();
-      await callReducer('createProject', {
+      const conn = getConnection();
+
+      // Call typed reducer — the SDK's onInsert callback will update the store
+      await conn.reducers.createProject({
         name: trimmedName,
         ownerId: 'anonymous',
         metadata: '{}',
       });
 
-      // Query the DB directly to find the newly created project
-      const rows = await queryTable('projects');
-      const matching = rows.filter((r) => r.name === trimmedName);
-      const sorted = matching.sort(
-        (a, b) => (b.createdAt as number) - (a.createdAt as number)
-      );
-      const newProject = sorted[0];
+      // Find the newly created project from the SDK's in-memory cache
+      let newProject: { id: string; name: string; createdAt: bigint } | null = null;
+      for (const row of conn.db.projects.iter()) {
+        if (row.name === trimmedName) {
+          if (!newProject || row.createdAt > newProject.createdAt) {
+            newProject = row;
+          }
+        }
+      }
 
       if (!newProject) {
         throw new Error('Project created but could not find it');

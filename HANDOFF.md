@@ -16,9 +16,9 @@ A complete TypeScript monorepo for an AI-powered video editing platform. Spaceti
 ```
 ┌──────────────┐      ┌─────────────────────┐      ┌──────────────┐
 │  Next.js     │─────▶│  SpacetimeDB v2     │◀─────│  13 Workers  │
-│  Client      │ HTTP │  (GCE VM + Nginx)   │ HTTP │  (Cloud Run) │
-└──────────────┘ poll └─────────────────────┘      └──────┬───────┘
-                 (3s)                                      │
+│  Client      │  WS  │  (GCE VM + Nginx)   │  WS  │  (Cloud Run) │
+└──────────────┘ push └─────────────────────┘      └──────┬───────┘
+              (real-time)                                   │
                                                      ┌────▼────┐
                                                      │  GCS    │
                                                      │  Bucket │
@@ -240,7 +240,7 @@ Add these secrets to the repo:
 | All reducers | `packages/stdb-module/src/index.ts` (11 reducers) |
 | Worker base class | `packages/workers/shared/src/base-worker.ts` |
 | SpacetimeDB type stubs | `packages/stdb-module/src/spacetimedb-server.d.ts` |
-| Upload flow | `finalFrontend/src/app/project/[id]/page.tsx` |
+| Upload flow | `claudeFrontend/src/app/project/[id]/page.tsx` |
 | Terraform entry | `infra/terraform/main.tf` |
 | Worker Dockerfile | `infra/docker/Dockerfile.worker` |
 | Deploy all script | `infra/scripts/deploy-all.sh` |

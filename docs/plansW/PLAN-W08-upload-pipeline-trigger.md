@@ -1,6 +1,6 @@
 # PLAN-W08 — Upload → Pipeline Trigger
 
-> **Problem**: Even though `finalFrontend` can upload to GCS, the connection between "video uploaded" and "pipeline starts processing" is not wired end-to-end.
+> **Problem**: Even though `claudeFrontend` can upload to GCS, the connection between "video uploaded" and "pipeline starts processing" is not wired end-to-end.
 > **Goal**: User uploads/records video → STDB tasks are created → Workers pick them up → Pipeline runs to completion.
 
 ---

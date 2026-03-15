@@ -2,4 +2,4 @@ packages:
   - "packages/shared"
   - "packages/stdb-module"
   - "packages/workers/*"
-  - "finalFrontend"
+  - "claudeFrontend"

@@ -1,14 +1,14 @@
 # PLAN-W06 — Frontend Merge & Auth
 
-> **Problem**: `frontend/` is the real app (Clerk auth, rich timeline, polished UI) but lacks SpacetimeDB, real recording, and GCS upload. `finalFrontend/` has those backend integrations but is a scaffold.
-> **Goal**: Port backend integration from `finalFrontend/` into `frontend/`. Single frontend with auth + STDB + recording + upload.
+> **Problem**: `frontend/` is the real app (Clerk auth, rich timeline, polished UI) but lacks SpacetimeDB, real recording, and GCS upload. `claudeFrontend/` has those backend integrations but is a scaffold.
+> **Goal**: Port backend integration from `claudeFrontend/` into `frontend/`. Single frontend with auth + STDB + recording + upload.
 
 ---
 
-## What to Port FROM `finalFrontend/` INTO `frontend/`
+## What to Port FROM `claudeFrontend/` INTO `frontend/`
 
 ### 1. SpacetimeDB Connection Layer
-**Source**: `finalFrontend/src/lib/stdbConnection.ts`, `finalFrontend/src/lib/stdbHooks.ts`
+**Source**: `claudeFrontend/src/lib/stdbConnection.ts`, `claudeFrontend/src/lib/stdbHooks.ts`
 **Target**: `frontend/lib/stdb/connection.ts`, `frontend/lib/stdb/hooks.ts`
 
 - HTTP bridge: `queryTable()`, `callReducer()`, `initConnection()`
@@ -16,7 +16,7 @@
 - STDB proxy API route: `frontend/app/api/stdb/[...path]/route.ts`
 
 ### 2. Real Recording (MediaRecorder)
-**Source**: `finalFrontend/src/core/services/capture.ts`
+**Source**: `claudeFrontend/src/core/services/capture.ts`
 **Target**: `frontend/lib/capture/capture-service.ts`
 
 Replace the timer-only recording in `frontend/app/record/page.tsx` with:
@@ -25,7 +25,7 @@ Replace the timer-only recording in `frontend/app/record/page.tsx` with:
 - Blob output for upload
 
 ### 3. GCS Upload Flow
-**Source**: `finalFrontend/src/core/services/signedUrls.ts` + record page upload logic
+**Source**: `claudeFrontend/src/core/services/signedUrls.ts` + record page upload logic
 **Target**: `frontend/lib/upload/upload-service.ts`
 
 - Fetch signed URL from Cloud Function
@@ -33,7 +33,7 @@ Replace the timer-only recording in `frontend/app/record/page.tsx` with:
 - Call `createAsset` and `createTask` reducers via STDB
 
 ### 4. Capture Store (cursor + keyboard events)
-**Source**: `finalFrontend/src/core/stores/captureStore.ts`, `finalFrontend/src/core/stores/signalStore.ts`
+**Source**: `claudeFrontend/src/core/stores/captureStore.ts`, `claudeFrontend/src/core/stores/signalStore.ts`
 **Target**: `frontend/lib/stores/capture-store.ts`, `frontend/lib/stores/signal-store.ts`
 
 - Cursor position tracking during recording
@@ -41,7 +41,7 @@ Replace the timer-only recording in `frontend/app/record/page.tsx` with:
 - Signal aggregation
 
 ### 5. Pipeline Status
-**Source**: `finalFrontend/src/components/PipelineStatus.tsx`, `PipelineOverlay.tsx`
+**Source**: `claudeFrontend/src/components/PipelineStatus.tsx`, `PipelineOverlay.tsx`
 **Target**: `frontend/components/pipeline-status.tsx`
 
 - Real-time task progress from STDB

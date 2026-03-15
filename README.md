@@ -74,7 +74,7 @@ SpacetimeDB v2 (a real-time database running as a WASM module on a GCE VM) repla
 | Runtime | Node.js | >= 20.18.0 |
 | Package Manager | pnpm (workspaces) | >= 9.0.0 |
 | Frontend | Next.js + React + Tailwind CSS | 15.3.2 / 19.1.0 / 4.1.4 |
-| Database | SpacetimeDB v2 (WASM module, HTTP polling) | 2.0.1 |
+| Database | SpacetimeDB v2 (WASM module, WebSocket push) | 2.0.4 |
 | Object Storage | Google Cloud Storage | -- |
 | Workers | Cloud Run (one service per worker type) | -- |
 | AI / LLM | Anthropic Claude, Google Gemini | claude-sonnet-4-20250514, gemini-1.5-flash |
@@ -169,7 +169,7 @@ FlowStudio/
 │   │   └── src/
 │   │       ├── index.ts                    # All tables, reducers, watchdog, task chaining logic
 │   │       └── spacetimedb-server.d.ts     # Type stubs for spacetimedb/server runtime
-│   ├── finalFrontend/                      # @flowstudio/frontend — Next.js 15 frontend (production)
+│   ├── claudeFrontend/                      # @flowstudio/frontend — Next.js 15 frontend (production)
 │   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   └── src/
@@ -321,7 +321,7 @@ This is the CI gate. Zero errors required before merge.
 
 ### `@flowstudio/frontend`
 
-**Path:** `finalFrontend/`
+**Path:** `claudeFrontend/`
 **Purpose:** Next.js 15 frontend dashboard for creating projects, uploading videos, and monitoring pipeline progress in real time.
 
 **Key Exports:** None (standalone application).
@@ -338,17 +338,16 @@ This is the CI gate. Zero errors required before merge.
 ### `@flowstudio/worker-shared`
 
 **Path:** `packages/workers/shared/`
-**Purpose:** Base worker framework providing the `BaseWorker` abstract class, GCS client, SpacetimeDB client, health server, semaphore, and structured logger.
+**Purpose:** Base worker framework providing the `BaseWorker` abstract class, GCS client, health server, semaphore, and structured logger. Communicates with SpacetimeDB via native WebSocket SDK.
 
 **Key Exports:**
 
 | Export | Description |
 |--------|-------------|
-| `BaseWorker` | Abstract class: poll loop, task claiming, signal writing, error handling |
+| `BaseWorker` | Abstract class: WebSocket subscription, reactive task claiming, signal writing, error handling |
 | `TaskData` | Interface: id, projectId, taskType, inputAssetIds, config |
 | `TaskResult` | Interface: outputAssetIds, signals array |
 | `GcsClient` | Upload/download/exists with exponential backoff retry (3 attempts) |
-| `StdbClient` | HTTP-only reducer calls + SQL table queries to SpacetimeDB |
 | `Semaphore` | Counting semaphore for concurrent task limiting |
 | `Logger` | Structured JSON logger with levels (debug, info, warn, error) |
 | `loadConfig()` | Load WorkerConfig from environment variables |
@@ -401,7 +400,7 @@ packages/workers/{worker-name}/
 
 **File:** `packages/stdb-module/src/index.ts`
 
-SpacetimeDB is an in-memory database that runs application logic as WASM modules. It exposes reducer calls and SQL queries via HTTP endpoints. (The WebSocket subscription API exists but is not currently used -- the client and workers communicate via HTTP polling until SDK BSATN support matures.) The module defines 7 tables and 11 reducers.
+SpacetimeDB is an in-memory database that runs application logic as WASM modules. The client and workers communicate via the native SpacetimeDB TypeScript SDK (v2.0.4) over WebSocket with real-time push subscriptions. Table changes arrive instantly via `onInsert`/`onUpdate`/`onDelete` callbacks, and reducers are called through typed generated bindings. The module defines 7 tables and 16 reducers.
 
 #### Tables
 
@@ -495,14 +494,13 @@ TYPING_DETECT  ─────┘                              │
 ```
 start()
   ├── Start HTTP health server on port 8080 (/health endpoint)
-  ├── Connect to SpacetimeDB via HTTP
-  ├── Register worker config (heartbeat)
-  ├── Begin poll loop
-  │     └── Every WORKER_POLL_INTERVAL_MS (default 1000ms):
-  │           ├── Check semaphore capacity
-  │           ├── Call findAndClaimTask reducer via HTTP
-  │           └── On success: handleClaimedTask()
+  ├── Connect to SpacetimeDB via WebSocket (native SDK)
+  ├── Register worker config via typed reducer
+  ├── Subscribe to tasks table
+  │     └── onInsert: if pending + matching taskType → tryClaimTask()
+  │     └── onUpdate: if claimed by this worker → dispatchTask()
   │
+  ├── Fallback poll loop (if WebSocket unavailable)
   └── Listen for SIGTERM/SIGINT -> graceful shutdown
 
 handleClaimedTask(task)
@@ -630,7 +628,7 @@ Methods: `upload(path, data, contentType)`, `download(path)`, `exists(path)`, `g
 
 ### 6c. Frontend
 
-**File:** `finalFrontend/`
+**File:** `claudeFrontend/`
 
 #### Pages and Routing
 
@@ -641,22 +639,17 @@ Methods: `upload(path, data, contentType)`, `download(path)`, `exists(path)`, `g
 
 #### SpacetimeDB Connection Management
 
-File: `finalFrontend/src/lib/stdbConnection.ts`
+File: `claudeFrontend/src/lib/spacetimedb.ts`
 
-A functional module that manages the SpacetimeDB connection via HTTP. Reducer calls go through `POST /v1/database/{module}/call/{reducer}`, and table reads go through `POST /v1/database/{module}/sql`. The `stdbSdkSync.ts` service polls these endpoints every 3 seconds to keep the Zustand stores in sync (with `forceSync()` called immediately after mutations for UI responsiveness). Exported functions: `initConnection`, `callReducer`, `queryTable`, `disconnect`, `isConnected`. This HTTP bridge is designed for easy migration to the SpacetimeDB SDK's WebSocket push model when BSATN bindings are available.
+A singleton module managing the SpacetimeDB WebSocket connection via the native SDK (v2.0.4). On connect, it subscribes to all 5 public tables and wires `onInsert`/`onUpdate`/`onDelete` callbacks to Zustand stores for real-time push updates. Reducer calls are type-safe through generated bindings (`getConnection().reducers.createProject({...})`). BigInt fields from the SDK are converted to Number at the store boundary.
 
-- `initConnection()` probes the module with a trivial SQL query to confirm reachability
-- `queryTable()` reads full tables via the SQL endpoint with snake_case-to-camelCase conversion
-- `callReducer()` invokes reducers via the HTTP `/call/` endpoint
+- `initSpacetimeDb(config)` connects via WebSocket, subscribes to tables, wires store callbacks
+- `getConnection()` returns the singleton `DbConnection` for typed reducer calls
+- `syncStoresForProject(projectStore, signalStore)` re-syncs scoped data on project switch
+- `setActiveProjectForSync(id)` sets the active project filter for scoped table callbacks
+- `disconnectSpacetimeDb()` tears down the connection
 
-#### Hooks
-
-File: `finalFrontend/src/lib/stdbHooks.ts`
-
-| Hook | Returns | Description |
-|------|---------|-------------|
-| `useStdbReducer()` | `{ callReducer }` | Call any SpacetimeDB reducer by name with args. Triggers `forceSync()` after each call. |
-| `useConnectionStatus()` | `boolean` | Polls connection state every 1s via `isConnected()`. |
+Module bindings: `claudeFrontend/src/module_bindings/index.ts` — typed table schemas and reducer definitions matching the STDB module.
 
 #### Component Hierarchy
 
