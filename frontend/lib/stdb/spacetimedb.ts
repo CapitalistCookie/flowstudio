@@ -6,8 +6,7 @@
  * Replaces the HTTP bridge (connection.ts) with WebSocket push via the SDK.
  * Provides getConnection(), typed reducer calls, and store sync helpers.
  *
- * Firebase ID token is passed to STDB for authenticated connections.
- * Token refresh is handled via onIdTokenChanged listener.
+ * STDB uses its own identity system; Firebase UID is passed via registerIdentity reducer.
  */
 
 import { DbConnection, type SubscriptionEventContext, type ErrorContext } from './module_bindings';
@@ -110,6 +109,32 @@ type OnEffectBlocksChanged = (blocks: EffectBlockData[]) => void;
 type OnPresenceChanged = (users: StdbPresenceUser[]) => void;
 type OnLockChanged = (lock: StdbProjectLock | null) => void;
 
+export interface StdbCollaborator {
+  id: string;
+  projectId: string;
+  firebaseUid: string;
+  role: string;
+  displayName: string;
+  email: string;
+  addedBy: string;
+  addedAt: number;
+}
+
+export interface StdbShareLink {
+  id: string;
+  projectId: string;
+  token: string;
+  role: string;
+  createdBy: string;
+  createdAt: number;
+  expiresAt: number;
+  maxUses: number;
+  useCount: number;
+}
+
+type OnCollaboratorsChanged = (collaborators: StdbCollaborator[]) => void;
+type OnShareLinksChanged = (links: StdbShareLink[]) => void;
+
 let onConnectCb: OnConnectCallback | null = null;
 let onDisconnectCb: OnDisconnectCallback | null = null;
 let onProjectsChangedCb: OnProjectsChanged | null = null;
@@ -119,6 +144,8 @@ let onMediaFilesChangedCb: OnMediaFilesChanged | null = null;
 let onEffectBlocksChangedCb: OnEffectBlocksChanged | null = null;
 let onPresenceChangedCb: OnPresenceChanged | null = null;
 let onLockChangedCb: OnLockChanged | null = null;
+let onCollaboratorsChangedCb: OnCollaboratorsChanged | null = null;
+let onShareLinksChangedCb: OnShareLinksChanged | null = null;
 let subscribedProjectId: string | null = null;
 let projectSubscriptionActive = false;
 
@@ -148,6 +175,14 @@ export function setOnPresenceChanged(cb: OnPresenceChanged | null) {
 
 export function setOnLockChanged(cb: OnLockChanged | null) {
   onLockChangedCb = cb;
+}
+
+export function setOnCollaboratorsChanged(cb: OnCollaboratorsChanged | null) {
+  onCollaboratorsChangedCb = cb;
+}
+
+export function setOnShareLinksChanged(cb: OnShareLinksChanged | null) {
+  onShareLinksChangedCb = cb;
 }
 
 // Debounce helpers
@@ -241,6 +276,78 @@ function notifyLockChanged() {
   }
 }
 
+function notifyCollaboratorsChanged() {
+  if (!onCollaboratorsChangedCb || !connection || !subscribedProjectId) return;
+  const collabs: StdbCollaborator[] = [];
+  try {
+    for (const row of connection.db.projectCollaborators.byProjectId.filter(subscribedProjectId)) {
+      collabs.push({
+        id: (row as any).id,
+        projectId: (row as any).projectId,
+        firebaseUid: (row as any).firebaseUid,
+        role: (row as any).role,
+        displayName: (row as any).displayName,
+        email: (row as any).email,
+        addedBy: (row as any).addedBy,
+        addedAt: toNum((row as any).addedAt),
+      });
+    }
+  } catch {
+    for (const row of connection.db.projectCollaborators.iter()) {
+      if ((row as any).projectId === subscribedProjectId) {
+        collabs.push({
+          id: (row as any).id,
+          projectId: (row as any).projectId,
+          firebaseUid: (row as any).firebaseUid,
+          role: (row as any).role,
+          displayName: (row as any).displayName,
+          email: (row as any).email,
+          addedBy: (row as any).addedBy,
+          addedAt: toNum((row as any).addedAt),
+        });
+      }
+    }
+  }
+  onCollaboratorsChangedCb(collabs);
+}
+
+function notifyShareLinksChanged() {
+  if (!onShareLinksChangedCb || !connection || !subscribedProjectId) return;
+  const links: StdbShareLink[] = [];
+  try {
+    for (const row of connection.db.shareLinks.byProjectId.filter(subscribedProjectId)) {
+      links.push({
+        id: (row as any).id,
+        projectId: (row as any).projectId,
+        token: (row as any).token,
+        role: (row as any).role,
+        createdBy: (row as any).createdBy,
+        createdAt: toNum((row as any).createdAt),
+        expiresAt: toNum((row as any).expiresAt),
+        maxUses: (row as any).maxUses,
+        useCount: (row as any).useCount,
+      });
+    }
+  } catch {
+    for (const row of connection.db.shareLinks.iter()) {
+      if ((row as any).projectId === subscribedProjectId) {
+        links.push({
+          id: (row as any).id,
+          projectId: (row as any).projectId,
+          token: (row as any).token,
+          role: (row as any).role,
+          createdBy: (row as any).createdBy,
+          createdAt: toNum((row as any).createdAt),
+          expiresAt: toNum((row as any).expiresAt),
+          maxUses: (row as any).maxUses,
+          useCount: (row as any).useCount,
+        });
+      }
+    }
+  }
+  onShareLinksChangedCb(links);
+}
+
 // ─── Row converters ──────────────────────────────────────────────────
 
 function projectRowToStore(row: any): StdbProject {
@@ -283,46 +390,6 @@ function assetRowToStore(row: any): StdbAsset {
   };
 }
 
-// ─── Token refresh ───────────────────────────────────────────────────
-
-let tokenRefreshCleanup: (() => void) | null = null;
-
-/**
- * Set up a Firebase token refresh listener.
- * When the token changes (e.g., near expiry), reconnect to STDB with the new token.
- */
-function setupTokenRefresh() {
-  if (tokenRefreshCleanup) return;
-
-  try {
-    // Dynamic import to keep this module importable in non-Firebase contexts
-    const { getFirebaseAuth } = require('@/lib/auth/firebase-config');
-    const { onIdTokenChanged } = require('firebase/auth');
-    const auth = getFirebaseAuth();
-
-    let initialFire = true;
-    const unsubscribe = onIdTokenChanged(auth, async (user: any) => {
-      // Skip the initial fire — we already connected with the token
-      if (initialFire) {
-        initialFire = false;
-        return;
-      }
-
-      if (user && connection) {
-        console.log('[STDB] Firebase token refreshed, reconnecting...');
-        const newToken = await user.getIdToken();
-        // Reconnect with new token
-        disconnectSpacetimeDb();
-        await initSpacetimeDb(onConnectCb ?? undefined, onDisconnectCb ?? undefined, newToken, currentUid ?? undefined);
-      }
-    });
-
-    tokenRefreshCleanup = unsubscribe;
-  } catch {
-    // Firebase not available — skip token refresh (e.g., during SSR or tests)
-  }
-}
-
 // ─── Init ────────────────────────────────────────────────────────────
 
 /**
@@ -331,7 +398,7 @@ function setupTokenRefresh() {
  *
  * @param onConnect - called when subscription is applied
  * @param onDisconnect - called on disconnect
- * @param firebaseToken - optional Firebase ID token for authenticated connection
+ * @param firebaseToken - unused, kept for API compat
  * @param firebaseUid - optional Firebase UID for subscription filtering and identity registration
  */
 export function initSpacetimeDb(
@@ -359,11 +426,6 @@ export function initSpacetimeDb(
       .withUri(HOST)
       .withDatabaseName(MODULE);
 
-    // Use Firebase token if provided, otherwise no token (anonymous)
-    if (firebaseToken) {
-      builder.withToken(firebaseToken);
-    }
-
     connection = builder
       .onConnect((conn: DbConnection, identity: any, token: string) => {
         console.log('[STDB] Connected, identity:', identity.toHexString());
@@ -380,6 +442,33 @@ export function initSpacetimeDb(
               } catch (err) {
                 console.error('[STDB] Failed to register identity:', err);
               }
+
+              // Subscribe to projects shared with this user
+              const sharedProjectIds: string[] = [];
+              try {
+                for (const row of conn.db.projectCollaborators.byFirebaseUid.filter(currentUid)) {
+                  const r = row as any;
+                  if (r.role !== 'owner') {
+                    sharedProjectIds.push(r.projectId);
+                  }
+                }
+              } catch {
+                for (const row of conn.db.projectCollaborators.iter()) {
+                  const r = row as any;
+                  if (r.firebaseUid === currentUid && r.role !== 'owner') {
+                    sharedProjectIds.push(r.projectId);
+                  }
+                }
+              }
+              if (sharedProjectIds.length > 0) {
+                const queries = sharedProjectIds.map(pid => `SELECT * FROM projects WHERE id = '${pid}'`);
+                conn.subscriptionBuilder()
+                  .onApplied(() => {
+                    console.log(`[STDB] Shared projects subscription applied (${sharedProjectIds.length} projects)`);
+                    notifyProjectsChanged();
+                  })
+                  .subscribe(queries);
+              }
             }
             onConnectCb?.();
             resolve();
@@ -394,6 +483,9 @@ export function initSpacetimeDb(
             currentUid
               ? `SELECT * FROM folders WHERE ownerId = '${currentUid}'`
               : 'SELECT * FROM folders WHERE 1=0',
+            currentUid
+              ? `SELECT * FROM project_collaborators WHERE firebaseUid = '${currentUid}'`
+              : 'SELECT * FROM project_collaborators WHERE 1=0',
           ]);
       })
       .onConnectError((_ctx: ErrorContext, err: Error) => {
@@ -407,8 +499,6 @@ export function initSpacetimeDb(
       })
       .build();
 
-    // Set up token refresh after successful build
-    setupTokenRefresh();
   });
 }
 
@@ -443,6 +533,15 @@ export function subscribeToProject(projectId: string): Promise<void> {
         console.log(`[STDB] Project subscription applied for ${projectId}`);
         projectSubscriptionActive = true;
         wireProjectCallbacks(connection!);
+        // Push initial state for all project-scoped tables (data loaded before
+        // callbacks were wired, so onInsert won't fire for pre-existing rows)
+        notifyLockChanged();
+        notifyPresenceChanged();
+        notifyTimelineClipsChanged();
+        notifyMediaFilesChanged();
+        notifyEffectBlocksChanged();
+        notifyCollaboratorsChanged();
+        notifyShareLinksChanged();
         resolve();
       })
       .onError((ctx: any) => {
@@ -458,6 +557,8 @@ export function subscribeToProject(projectId: string): Promise<void> {
         `SELECT * FROM effect_blocks WHERE projectId = '${projectId}'`,
         `SELECT * FROM project_presence WHERE projectId = '${projectId}'`,
         `SELECT * FROM project_locks WHERE projectId = '${projectId}'`,
+        `SELECT * FROM project_collaborators WHERE projectId = '${projectId}'`,
+        `SELECT * FROM share_links WHERE projectId = '${projectId}'`,
       ]);
   });
 }
@@ -482,6 +583,14 @@ function wireProjectCallbacks(conn: DbConnection) {
   conn.db.projectLocks.onInsert(() => notifyLockChanged());
   conn.db.projectLocks.onUpdate(() => notifyLockChanged());
   conn.db.projectLocks.onDelete(() => notifyLockChanged());
+
+  conn.db.projectCollaborators.onInsert(() => { notifyCollaboratorsChanged(); notifyProjectsChanged(); });
+  conn.db.projectCollaborators.onUpdate(() => notifyCollaboratorsChanged());
+  conn.db.projectCollaborators.onDelete(() => { notifyCollaboratorsChanged(); notifyProjectsChanged(); });
+
+  conn.db.shareLinks.onInsert(() => notifyShareLinksChanged());
+  conn.db.shareLinks.onUpdate(() => notifyShareLinksChanged());
+  conn.db.shareLinks.onDelete(() => notifyShareLinksChanged());
 }
 
 // ─── Query helpers for project-scoped data ──────────────────────────
@@ -544,12 +653,116 @@ export function getProjectLock(projectId: string): StdbProjectLock | null {
   };
 }
 
+export function getProjectCollaborators(projectId: string): StdbCollaborator[] {
+  if (!connection) return [];
+  const collabs: StdbCollaborator[] = [];
+  try {
+    for (const row of connection.db.projectCollaborators.byProjectId.filter(projectId)) {
+      collabs.push({
+        id: (row as any).id,
+        projectId: (row as any).projectId,
+        firebaseUid: (row as any).firebaseUid,
+        role: (row as any).role,
+        displayName: (row as any).displayName,
+        email: (row as any).email,
+        addedBy: (row as any).addedBy,
+        addedAt: toNum((row as any).addedAt),
+      });
+    }
+  } catch {
+    for (const row of connection.db.projectCollaborators.iter()) {
+      if ((row as any).projectId === projectId) {
+        collabs.push({
+          id: (row as any).id,
+          projectId: (row as any).projectId,
+          firebaseUid: (row as any).firebaseUid,
+          role: (row as any).role,
+          displayName: (row as any).displayName,
+          email: (row as any).email,
+          addedBy: (row as any).addedBy,
+          addedAt: toNum((row as any).addedAt),
+        });
+      }
+    }
+  }
+  return collabs;
+}
+
+export function getProjectShareLinks(projectId: string): StdbShareLink[] {
+  if (!connection) return [];
+  const links: StdbShareLink[] = [];
+  try {
+    for (const row of connection.db.shareLinks.byProjectId.filter(projectId)) {
+      links.push({
+        id: (row as any).id,
+        projectId: (row as any).projectId,
+        token: (row as any).token,
+        role: (row as any).role,
+        createdBy: (row as any).createdBy,
+        createdAt: toNum((row as any).createdAt),
+        expiresAt: toNum((row as any).expiresAt),
+        maxUses: (row as any).maxUses,
+        useCount: (row as any).useCount,
+      });
+    }
+  } catch {
+    for (const row of connection.db.shareLinks.iter()) {
+      if ((row as any).projectId === projectId) {
+        links.push({
+          id: (row as any).id,
+          projectId: (row as any).projectId,
+          token: (row as any).token,
+          role: (row as any).role,
+          createdBy: (row as any).createdBy,
+          createdAt: toNum((row as any).createdAt),
+          expiresAt: toNum((row as any).expiresAt),
+          maxUses: (row as any).maxUses,
+          useCount: (row as any).useCount,
+        });
+      }
+    }
+  }
+  return links;
+}
+
+/** Get collaborator rows where the given user is a member (for dashboard filtering) */
+export function getUserCollaborations(firebaseUid: string): StdbCollaborator[] {
+  if (!connection) return [];
+  const collabs: StdbCollaborator[] = [];
+  try {
+    for (const row of connection.db.projectCollaborators.byFirebaseUid.filter(firebaseUid)) {
+      collabs.push({
+        id: (row as any).id,
+        projectId: (row as any).projectId,
+        firebaseUid: (row as any).firebaseUid,
+        role: (row as any).role,
+        displayName: (row as any).displayName,
+        email: (row as any).email,
+        addedBy: (row as any).addedBy,
+        addedAt: toNum((row as any).addedAt),
+      });
+    }
+  } catch {
+    for (const row of connection.db.projectCollaborators.iter()) {
+      if ((row as any).firebaseUid === firebaseUid) {
+        collabs.push({
+          id: (row as any).id,
+          projectId: (row as any).projectId,
+          firebaseUid: (row as any).firebaseUid,
+          role: (row as any).role,
+          displayName: (row as any).displayName,
+          email: (row as any).email,
+          addedBy: (row as any).addedBy,
+          addedAt: toNum((row as any).addedAt),
+        });
+      }
+    }
+  }
+  return collabs;
+}
+
 /** Disconnect and clean up. */
 export function disconnectSpacetimeDb() {
-  if (tokenRefreshCleanup) {
-    tokenRefreshCleanup();
-    tokenRefreshCleanup = null;
-  }
   if (connection) {
     connection.disconnect();
     connection = null;
@@ -566,6 +779,8 @@ export function disconnectSpacetimeDb() {
     onEffectBlocksChangedCb = null;
     onPresenceChangedCb = null;
     onLockChangedCb = null;
+    onCollaboratorsChangedCb = null;
+    onShareLinksChangedCb = null;
   }
 }
 

@@ -4,7 +4,7 @@ Exhaustive internal architecture reference for the FlowStudio AI-powered video e
 platform. This document covers every design decision, data flow, edge case, and pattern
 a developer must understand to safely modify the codebase.
 
-**Codebase:** `/Users/vishnu/Documents/FlowStudio`
+**Codebase:** `/home/user/projects/flowstudio`
 **Stats:** ~8,700 lines, 17 packages, 13 workers, 7 SpacetimeDB tables, 11 reducers
 
 ---
@@ -203,7 +203,7 @@ NOT `{"name": "My Project", "ownerId": "user-123", "metadata": "{}"}`.
 
 ## 2. SpacetimeDB Module -- Complete Reference
 
-**Source:** `/home/user/FlowStudio/packages/stdb-module/src/index.ts` (782 lines)
+**Source:** `/home/user/projects/flowstudio/packages/stdb-module/src/index.ts` (782 lines)
 
 The WASM module is entirely self-contained. It cannot import from other workspace packages
 at runtime, so all constants (`MAX_TASK_RETRIES`, `STALE_TASK_THRESHOLD_MS`,
@@ -685,7 +685,7 @@ death (no error to record on the original), while `failTask` records a specific 
 
 ### 3a. BaseWorker Lifecycle
 
-**Source:** `/home/user/FlowStudio/packages/workers/shared/src/base-worker.ts`
+**Source:** `/home/user/projects/flowstudio/packages/workers/shared/src/base-worker.ts`
 
 ```
   start()
@@ -770,7 +770,7 @@ The task claiming flow uses WebSocket subscription callbacks:
 
 ### 3c. GCS Client
 
-**Source:** `/home/user/FlowStudio/packages/workers/shared/src/gcs-client.ts`
+**Source:** `/home/user/projects/flowstudio/packages/workers/shared/src/gcs-client.ts`
 
 **Path cleaning:** All methods strip the `gs://bucket/` prefix from paths using
 `gcsPath.replace('gs://${this.bucket}/', '')`. This means workers can pass either raw
@@ -804,7 +804,7 @@ projects/{projectId}/rendered_video/output.mp4    -- final rendered video
 
 ### 3d. Concurrency Control
 
-**Source:** `/home/user/FlowStudio/packages/workers/shared/src/semaphore.ts`
+**Source:** `/home/user/projects/flowstudio/packages/workers/shared/src/semaphore.ts`
 
 A counting semaphore that limits the number of concurrent task executions per worker
 instance.
@@ -828,7 +828,7 @@ This prevents polling when all slots are full.
 
 ### 3e. Health Checks
 
-**Source:** `/home/user/FlowStudio/packages/workers/shared/src/health.ts`
+**Source:** `/home/user/projects/flowstudio/packages/workers/shared/src/health.ts`
 
 A minimal HTTP server that responds to `GET /health` with a JSON status object.
 
@@ -874,7 +874,7 @@ dependencies.
 
 #### audio-extract
 
-**Source:** `/home/user/FlowStudio/packages/workers/audio-extract/src/worker.ts`
+**Source:** `/home/user/projects/flowstudio/packages/workers/audio-extract/src/worker.ts`
 
 - **Purpose:** Extract audio track from source video.
 - **Input:** Source video from GCS (`projects/{projectId}/source_video/{inputAssetId}`).
@@ -894,7 +894,7 @@ dependencies.
 
 #### video-sample
 
-**Source:** `/home/user/FlowStudio/packages/workers/video-sample/src/worker.ts`
+**Source:** `/home/user/projects/flowstudio/packages/workers/video-sample/src/worker.ts`
 
 - **Purpose:** Extract frame samples at regular intervals and detect scene changes.
 - **Input:** Source video from GCS (`projects/{projectId}/source_video/{inputAssetId}`).
@@ -919,7 +919,7 @@ dependencies.
 
 #### cursor-processor
 
-**Source:** `/home/user/FlowStudio/packages/workers/cursor-processor/src/worker.ts`
+**Source:** `/home/user/projects/flowstudio/packages/workers/cursor-processor/src/worker.ts`
 
 - **Purpose:** Analyze cursor movement events into classified movement signals.
 - **Input:** Cursor event JSON from GCS (`projects/{projectId}/cursor_data/{inputAssetId}`).
@@ -940,7 +940,7 @@ dependencies.
 
 #### typing-detector
 
-**Source:** `/home/user/FlowStudio/packages/workers/typing-detector/src/worker.ts`
+**Source:** `/home/user/projects/flowstudio/packages/workers/typing-detector/src/worker.ts`
 
 - **Purpose:** Detect typing bursts and paste events from keyboard data.
 - **Input:** Keyboard event JSON from GCS (`projects/{projectId}/keyboard_data/{inputAssetId}`).
@@ -964,7 +964,7 @@ These workers depend on Stage 1 outputs.
 
 #### speech-transcription
 
-**Source:** `/home/user/FlowStudio/packages/workers/speech-transcription/src/worker.ts`
+**Source:** `/home/user/projects/flowstudio/packages/workers/speech-transcription/src/worker.ts`
 
 - **Purpose:** Transcribe extracted audio using Deepgram.
 - **Input:** Audio file from GCS (`projects/{projectId}/audio_track/audio.wav`).
@@ -987,7 +987,7 @@ These workers depend on Stage 1 outputs.
 
 #### video-understanding
 
-**Source:** `/home/user/FlowStudio/packages/workers/video-understanding/src/worker.ts`
+**Source:** `/home/user/projects/flowstudio/packages/workers/video-understanding/src/worker.ts`
 
 - **Purpose:** Analyze frame content using Google Gemini multimodal AI.
 - **Input:** Frame asset IDs from `VIDEO_SAMPLE` output (e.g., `frame-0000`, `frame-0001`).
@@ -1014,7 +1014,7 @@ These workers depend on Stage 1 outputs.
 
 #### ui-change-detector
 
-**Source:** `/home/user/FlowStudio/packages/workers/ui-change-detector/src/worker.ts`
+**Source:** `/home/user/projects/flowstudio/packages/workers/ui-change-detector/src/worker.ts`
 
 - **Purpose:** Detect UI transitions by comparing consecutive frames pixel-by-pixel.
 - **Input:** Frame asset IDs from `VIDEO_SAMPLE` output.
@@ -1045,7 +1045,7 @@ These workers depend on Stage 1 outputs.
 
 #### interaction-pattern
 
-**Source:** `/home/user/FlowStudio/packages/workers/interaction-pattern/src/worker.ts`
+**Source:** `/home/user/projects/flowstudio/packages/workers/interaction-pattern/src/worker.ts`
 
 - **Purpose:** Cluster cursor and typing signals into interaction patterns.
 - **Input:** Signal files from GCS (cursor_movements.json, typing_events.json).
@@ -1070,7 +1070,7 @@ These workers depend on Stage 1 outputs.
 
 #### intent-graph
 
-**Source:** `/home/user/FlowStudio/packages/workers/intent-graph/src/worker.ts`
+**Source:** `/home/user/projects/flowstudio/packages/workers/intent-graph/src/worker.ts`
 
 - **Purpose:** Build a hierarchical intent graph from all upstream signals using Claude.
 - **Input:** Four signal files from GCS: `speech_segments.json`,
@@ -1099,7 +1099,7 @@ These workers depend on Stage 1 outputs.
 
 #### narrative-planner
 
-**Source:** `/home/user/FlowStudio/packages/workers/narrative-planner/src/worker.ts`
+**Source:** `/home/user/projects/flowstudio/packages/workers/narrative-planner/src/worker.ts`
 
 - **Purpose:** Create a narrative structure (beats) from the intent graph.
 - **Input:** `projects/{projectId}/signals/intent_graph.json`.
@@ -1122,7 +1122,7 @@ These workers depend on Stage 1 outputs.
 
 #### edit-planner
 
-**Source:** `/home/user/FlowStudio/packages/workers/edit-planner/src/worker.ts`
+**Source:** `/home/user/projects/flowstudio/packages/workers/edit-planner/src/worker.ts`
 
 - **Purpose:** Convert narrative beats into specific video edit decisions.
 - **Input:** `projects/{projectId}/signals/narrative_plan.json`.
@@ -1147,7 +1147,7 @@ These workers depend on Stage 1 outputs.
 
 #### timeline-builder
 
-**Source:** `/home/user/FlowStudio/packages/workers/timeline-builder/src/worker.ts`
+**Source:** `/home/user/projects/flowstudio/packages/workers/timeline-builder/src/worker.ts`
 
 - **Purpose:** Transform edit decisions into a structured timeline with video and audio
   tracks.
@@ -1173,7 +1173,7 @@ These workers depend on Stage 1 outputs.
 
 #### render
 
-**Source:** `/home/user/FlowStudio/packages/workers/render/src/worker.ts`
+**Source:** `/home/user/projects/flowstudio/packages/workers/render/src/worker.ts`
 
 - **Purpose:** Execute the timeline by rendering the final edited video using FFmpeg.
 - **Input:** `projects/{projectId}/timeline/timeline.json` and source video.
@@ -1470,7 +1470,7 @@ layout.tsx                          (RootLayout -- HTML shell, metadata from BRA
 | `flowstudio-allow-web` | TCP | 80, 443 | `0.0.0.0/0` | tag: `stdb` | Public HTTPS |
 | `flowstudio-allow-ssh` | TCP | 22 | `35.235.240.0/20` | tag: `stdb` | IAP SSH only |
 
-**Source:** `/home/user/FlowStudio/infra/terraform/network.tf`
+**Source:** `/home/user/projects/flowstudio/infra/terraform/network.tf`
 
 ### 7b. Cloud Run Services
 
@@ -1503,7 +1503,7 @@ layout.tsx                          (RootLayout -- HTML shell, metadata from BRA
   - video-understanding: `GOOGLE_AI_API_KEY` (from Secret Manager)
   - intent-graph, narrative-planner, edit-planner: `ANTHROPIC_API_KEY` (from Secret Manager)
 
-**Source:** `/home/user/FlowStudio/infra/terraform/cloud-run.tf`
+**Source:** `/home/user/projects/flowstudio/infra/terraform/cloud-run.tf`
 
 ### 7c. Security Model
 
@@ -1533,13 +1533,13 @@ account has `roles/secretmanager.secretAccessor` on all three secrets.
 - CORS wildcard `*` on Cloud Function (should be restricted to frontend domain)
 - No user identity system (all projects owned by `'anonymous'`)
 
-**Source:** `/home/user/FlowStudio/infra/terraform/secrets.tf`
+**Source:** `/home/user/projects/flowstudio/infra/terraform/secrets.tf`
 
 ### 7d. Docker Build
 
 **Two Dockerfiles:**
 
-#### `Dockerfile.client` (`/home/user/FlowStudio/infra/docker/Dockerfile.client`)
+#### `Dockerfile.client` (`/home/user/projects/flowstudio/infra/docker/Dockerfile.client`)
 
 ```
 Multi-stage build:
@@ -1559,7 +1559,7 @@ Multi-stage build:
 `docker build` time, not runtime. Next.js inlines these values during the build. Missing
 build args = broken frontend.
 
-#### `Dockerfile.worker` (`/home/user/FlowStudio/infra/docker/Dockerfile.worker`)
+#### `Dockerfile.worker` (`/home/user/projects/flowstudio/infra/docker/Dockerfile.worker`)
 
 ```
 Multi-stage build:
@@ -1577,7 +1577,7 @@ Multi-stage build:
     - Exposes port 8080
 ```
 
-**Build and push script:** `/home/user/FlowStudio/infra/scripts/build-and-push.sh`
+**Build and push script:** `/home/user/projects/flowstudio/infra/scripts/build-and-push.sh`
 
 ```bash
 # Workers (auto-detects FFmpeg need)
@@ -1882,7 +1882,7 @@ worker.start().catch((err) => {
 
 ### 6. Add the TaskType enum value
 
-In `/home/user/FlowStudio/packages/shared/src/types/enums.ts`:
+In `/home/user/projects/flowstudio/packages/shared/src/types/enums.ts`:
 
 ```typescript
 export enum TaskType {
@@ -1928,7 +1928,7 @@ in `packages/shared/src/constants.ts`.
 
 ### 8. Add SignalType if producing new signal types
 
-In `/home/user/FlowStudio/packages/shared/src/types/enums.ts`:
+In `/home/user/projects/flowstudio/packages/shared/src/types/enums.ts`:
 
 ```typescript
 export enum SignalType {
@@ -1939,7 +1939,7 @@ export enum SignalType {
 
 ### 9. Add to Terraform workers list
 
-In `/home/user/FlowStudio/infra/terraform/cloud-run.tf`:
+In `/home/user/projects/flowstudio/infra/terraform/cloud-run.tf`:
 
 ```hcl
 locals {
@@ -1961,7 +1961,7 @@ locals {
 
 ### 10. Add to deploy scripts
 
-In `/home/user/FlowStudio/infra/scripts/deploy-all.sh`, the script iterates `local.workers`
+In `/home/user/projects/flowstudio/infra/scripts/deploy-all.sh`, the script iterates `local.workers`
 from Terraform, so it should pick up the new worker automatically if using the standard
 deploy flow. Verify by running:
 

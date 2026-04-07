@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
-import { ArrowLeft, Save, Loader2, Download, Sparkles, X, CheckCircle2 } from "lucide-react"
+import { ArrowLeft, Save, Loader2, Download, Sparkles, X, CheckCircle2, Share2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ExportModal } from "./export-modal"
 import { MediaPanel } from "./media-panel"
@@ -13,7 +13,7 @@ import { InspectorPanel } from "./inspector-panel"
 import { PipelineProgressBar } from "./pipeline-progress"
 import { EditorProvider, useEditor } from "./editor-context"
 import { useEditStats } from "./use-edit-stats"
-import { getConnection, isConnected, getProjectAssets, subscribeToProject } from "@/lib/stdb/spacetimedb"
+import { getConnection, isConnected, getProjectAssets, subscribeToProject, getProjectCollaborators } from "@/lib/stdb/spacetimedb"
 import { useAuth } from "@/lib/auth/use-auth"
 import { AssetType } from "@flowstudio/shared"
 import { useCaptureStore } from "@/lib/capture/capture-store"
@@ -23,6 +23,7 @@ import { useProjectLock } from "@/hooks/use-project-lock"
 import { PresenceAvatars } from "./presence-avatars"
 import { LockStatusBanner } from "./lock-status-banner"
 import { LockTakeoverDialog } from "./lock-takeover-dialog"
+import { ShareDialog } from "./share-dialog"
 import { usePipelineStatus } from "@/lib/services/pipeline-status"
 import {
   ResizablePanelGroup,
@@ -93,6 +94,28 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
   const { isEditor: hasLock, lockHolder, acquireLock: doAcquireLock, releaseLock: doReleaseLock, forceAcquire: doForceAcquire } = useProjectLock(projectId !== "local-project" ? projectId : null)
   const stdbStatus = useStdbStatus()
   const [showTakeoverDialog, setShowTakeoverDialog] = useState(false)
+  const [showShareDialog, setShowShareDialog] = useState(false)
+
+  // Compute user's role for this project
+  const myRole = (() => {
+    if (projectId === "local-project") return "owner"
+    if (!user?.uid) return "viewer"
+    // Check if owner via STDB project data
+    if (isConnected()) {
+      try {
+        const conn = getConnection()
+        for (const row of conn.db.projects.iter()) {
+          if (row.id === projectId && row.ownerId === user.uid) return "owner"
+        }
+      } catch {}
+    }
+    // Check collaborators
+    const collabs = getProjectCollaborators(projectId)
+    const myCollab = collabs.find(c => c.firebaseUid === user.uid)
+    return myCollab?.role ?? "viewer"
+  })()
+  const isOwner = myRole === "owner"
+  const isViewer = myRole === "viewer"
 
   // Handle direct export action from recording
   useEffect(() => {
@@ -126,11 +149,15 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
           const conn = getConnection()
           for (const row of conn.db.projects.iter()) {
             if (row.id === projectId) {
-              // Ownership check
+              // Ownership / collaborator check
               if (user?.uid && row.ownerId && row.ownerId !== user.uid) {
-                setError("You don't have access to this project")
-                setIsLoading(false)
-                return
+                const collabs = getProjectCollaborators(projectId)
+                const isCollaborator = collabs.some(c => c.firebaseUid === user.uid)
+                if (!isCollaborator) {
+                  setError("You don't have access to this project")
+                  setIsLoading(false)
+                  return
+                }
               }
               foundProject = {
                 id: row.id,
@@ -161,61 +188,115 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
       setProjectResolution(foundProject.resolution)
       loadTimelineData(null)
 
-      // Subscribe to project-scoped STDB tables and load persisted timeline data
+      // Subscribe to project-scoped STDB tables, then load assets + timeline
       if (projectId !== "local-project" && isConnected()) {
         subscribeToProject(projectId)
           .then(() => {
-            if (!cancelled) loadFromStdb(projectId)
+            if (cancelled) return
+            loadFromStdb(projectId)
+
+            // Load source video from STDB assets (must be after subscription resolves)
+            try {
+              const assets = getProjectAssets(projectId)
+              const sourceAsset = assets.find(
+                (a) => a.assetType === AssetType.SOURCE_VIDEO
+              )
+              if (sourceAsset) {
+                const bucketUrl = process.env.NEXT_PUBLIC_GCS_BUCKET_URL ?? "https://storage.googleapis.com/flowstudio-assets"
+                // gcsPath comes as gs://bucket/path — strip the gs://bucket/ prefix
+                const pathPortion = sourceAsset.gcsPath.replace(/^gs:\/\/[^/]+\//, '')
+                const videoUrl = `${bucketUrl}/${pathPortion}`
+
+                // Generate thumbnail from GCS video URL, then add to media panel
+                const video = document.createElement("video")
+                video.crossOrigin = "anonymous"
+                video.preload = "auto"
+                video.muted = true
+                const thumbTimeout = setTimeout(() => {
+                  // Timeout — add without thumbnail
+                  addMediaFiles([{
+                    id: `source-${projectId}`,
+                    name: "Source Recording",
+                    duration: formatDuration(sourceAsset.durationMs),
+                    durationSeconds: sourceAsset.durationMs / 1000,
+                    type: "video/webm",
+                    thumbnail: null,
+                    objectUrl: videoUrl,
+                    storageUrl: videoUrl,
+                    storagePath: sourceAsset.gcsPath,
+                  }])
+                }, 8000)
+                video.onloadeddata = () => {
+                  video.currentTime = Math.min(1, video.duration * 0.1)
+                }
+                video.onseeked = () => {
+                  clearTimeout(thumbTimeout)
+                  let thumb: string | null = null
+                  try {
+                    const canvas = document.createElement("canvas")
+                    canvas.width = 320
+                    canvas.height = 180
+                    const ctx = canvas.getContext("2d")
+                    if (ctx) {
+                      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+                      thumb = canvas.toDataURL("image/jpeg", 0.7)
+                    }
+                  } catch { /* ignore */ }
+                  if (!cancelled) {
+                    addMediaFiles([{
+                      id: `source-${projectId}`,
+                      name: "Source Recording",
+                      duration: formatDuration(sourceAsset.durationMs),
+                      durationSeconds: sourceAsset.durationMs / 1000,
+                      type: "video/webm",
+                      thumbnail: thumb,
+                      objectUrl: videoUrl,
+                      storageUrl: videoUrl,
+                      storagePath: sourceAsset.gcsPath,
+                    }])
+                  }
+                }
+                video.onerror = () => {
+                  clearTimeout(thumbTimeout)
+                  if (!cancelled) {
+                    addMediaFiles([{
+                      id: `source-${projectId}`,
+                      name: "Source Recording",
+                      duration: formatDuration(sourceAsset.durationMs),
+                      durationSeconds: sourceAsset.durationMs / 1000,
+                      type: "video/webm",
+                      thumbnail: null,
+                      objectUrl: videoUrl,
+                      storageUrl: videoUrl,
+                      storagePath: sourceAsset.gcsPath,
+                    }])
+                  }
+                }
+                video.src = videoUrl
+              } else {
+                // Fallback: capture store blob (e.g. fresh recording, not yet in STDB)
+                const captureBlobUrl = useCaptureStore.getState().blobUrl
+                const captureElapsed = useCaptureStore.getState().elapsedMs
+                if (captureBlobUrl) {
+                  console.log("[Editor] Using capture store blob as fallback source video")
+                  addMediaFiles([{
+                    id: `capture-${projectId}`,
+                    name: "Recording (unsaved)",
+                    duration: formatDuration(captureElapsed),
+                    durationSeconds: captureElapsed / 1000,
+                    type: "video/webm",
+                    thumbnail: null,
+                    objectUrl: captureBlobUrl,
+                  }])
+                }
+              }
+            } catch (e) {
+              console.warn("[Editor] Could not load source video from STDB:", e)
+            }
           })
           .catch((err) => {
             if (!cancelled) console.warn("[Editor] Project subscription failed:", err)
           })
-      }
-
-      // Load source video from STDB assets
-      let assets: ReturnType<typeof getProjectAssets> = []
-      if (projectId !== "local-project") {
-        try {
-          assets = getProjectAssets(projectId)
-          const sourceAsset = assets.find(
-            (a) => a.assetType === AssetType.SOURCE_VIDEO
-          )
-          if (sourceAsset) {
-            const bucketUrl = process.env.NEXT_PUBLIC_GCS_BUCKET_URL ?? "https://storage.googleapis.com/flowstudio-assets"
-            const videoUrl = `${bucketUrl}/${sourceAsset.gcsPath}`
-            addMediaFiles([{
-              id: `source-${projectId}`,
-              name: "Source Recording",
-              duration: formatDuration(sourceAsset.durationMs),
-              durationSeconds: sourceAsset.durationMs / 1000,
-              type: "video/webm",
-              thumbnail: null,
-              objectUrl: videoUrl,
-              storageUrl: videoUrl,
-              storagePath: sourceAsset.gcsPath,
-            }])
-          }
-        } catch (e) {
-          console.warn("[Editor] Could not load source video from STDB:", e)
-        }
-
-        // Fallback: if no source asset found but capture store has a blob, use it directly
-        if (!assets?.find((a) => a.assetType === AssetType.SOURCE_VIDEO)) {
-          const captureBlobUrl = useCaptureStore.getState().blobUrl
-          const captureElapsed = useCaptureStore.getState().elapsedMs
-          if (captureBlobUrl) {
-            console.log("[Editor] Using capture store blob as fallback source video")
-            addMediaFiles([{
-              id: `capture-${projectId}`,
-              name: "Recording (unsaved)",
-              duration: formatDuration(captureElapsed),
-              durationSeconds: captureElapsed / 1000,
-              type: "video/webm",
-              thumbnail: null,
-              objectUrl: captureBlobUrl,
-            }])
-          }
-        }
       }
 
       setIsLoading(false)
@@ -337,8 +418,16 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
     }
 
     setIsUpdatingName(true)
-    // Update project name via STDB — the reactive callback will update the store
-    setProject({ ...project, name: editedName.trim() })
+    const newName = editedName.trim()
+    // Persist name change to STDB
+    if (isConnected() && projectId !== "local-project") {
+      try {
+        getConnection().reducers.renameProject({ projectId, name: newName })
+      } catch (e) {
+        console.warn("[Editor] Failed to rename project:", e)
+      }
+    }
+    setProject({ ...project, name: newName })
     setIsUpdatingName(false)
     setIsEditingName(false)
   }
@@ -432,27 +521,45 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
           <EditStatsDisplay />
         </div>
         <div className="flex items-center gap-2">
-          <PresenceAvatars users={presenceUsers} />
-          {!hasLock && projectId !== "local-project" && (
+          <PresenceAvatars users={presenceUsers} collaborators={getProjectCollaborators(projectId)} />
+          {isOwner && projectId !== "local-project" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2"
+              onClick={() => setShowShareDialog(true)}
+            >
+              <Share2 className="h-4 w-4" />
+              Share
+            </Button>
+          )}
+          {isViewer && projectId !== "local-project" && (
+            <div className="text-xs text-blue-400 font-medium px-2 py-1 rounded bg-blue-500/10">
+              Viewing
+            </div>
+          )}
+          {!isViewer && !hasLock && projectId !== "local-project" && (
             <div className="text-xs text-amber-400 font-medium px-2 py-1 rounded bg-amber-500/10">
               Read-only
             </div>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-2"
-            onClick={handleSave}
-            disabled={isSaving || !hasUnsavedChanges || !hasLock}
-          >
-            {isSaving ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            {isSaving ? "Saving..." : hasUnsavedChanges ? "Save" : "Saved"}
-          </Button>
-          {projectId !== "local-project" && pipelineStatus?.hasSignals && !isApproved && (
+          {!isViewer && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2"
+              onClick={handleSave}
+              disabled={isSaving || !hasUnsavedChanges || !hasLock}
+            >
+              {isSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              {isSaving ? "Saving..." : hasUnsavedChanges ? "Save" : "Saved"}
+            </Button>
+          )}
+          {!isViewer && projectId !== "local-project" && pipelineStatus?.hasSignals && !isApproved && (
             <Button
               variant="ghost"
               size="sm"
@@ -468,19 +575,21 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
               Approve & Render
             </Button>
           )}
-          <motion.div
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            transition={{ type: "spring", stiffness: 400, damping: 17 }}
-          >
-            <Button
-              className="gap-2 bg-[oklch(0.78_0.16_75)] hover:bg-[oklch(0.72_0.18_75)] text-[oklch(0.15_0.02_75)]"
-              onClick={() => setShowExportModal(true)}
+          {!isViewer && (
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 400, damping: 17 }}
             >
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
-          </motion.div>
+              <Button
+                className="gap-2 bg-[oklch(0.78_0.16_75)] hover:bg-[oklch(0.72_0.18_75)] text-[oklch(0.15_0.02_75)]"
+                onClick={() => setShowExportModal(true)}
+              >
+                <Download className="h-4 w-4" />
+                Export
+              </Button>
+            </motion.div>
+          )}
         </div>
       </div>
 
@@ -510,7 +619,8 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
           lockHolder={lockHolder}
           onAcquireLock={doAcquireLock}
           onForceAcquire={() => setShowTakeoverDialog(true)}
-          isOwner={!!user?.uid}
+          isOwner={isOwner}
+          role={myRole}
         />
       )}
 
@@ -524,6 +634,15 @@ function EditorContent({ projectId, initialEditMode = "none" }: { projectId: str
         }}
         onCancel={() => setShowTakeoverDialog(false)}
       />
+
+      {/* Share Dialog */}
+      {projectId !== "local-project" && (
+        <ShareDialog
+          open={showShareDialog}
+          onOpenChange={setShowShareDialog}
+          projectId={projectId}
+        />
+      )}
 
       {/* Export Modal */}
       <ExportModal open={showExportModal} onOpenChange={setShowExportModal} />

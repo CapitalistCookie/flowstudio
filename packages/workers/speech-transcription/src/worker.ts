@@ -7,7 +7,11 @@ export class SpeechTranscriptionWorker extends BaseWorker {
 
   async processTask(task: TaskData): Promise<TaskResult> {
     const inputAssetId = task.inputAssetIds[0];
-    if (!inputAssetId) throw new Error('No input asset ID provided');
+    if (!inputAssetId) {
+      // No audio was extracted (video has no audio stream) — complete gracefully
+      this.logger.info('No input asset provided (no audio stream), completing with empty output');
+      return { outputAssetIds: [], signals: [] };
+    }
 
     if (!this.config.deepgramApiKey) {
       throw new Error('DEEPGRAM_API_KEY not configured');

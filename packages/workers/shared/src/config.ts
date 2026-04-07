@@ -57,6 +57,6 @@ export function loadConfig(): WorkerConfig {
     vertexRegion: optional('VERTEX_REGION') ?? 'us-central1',
     vertexProjectId: optional('VERTEX_PROJECT_ID') ?? optional('GCP_PROJECT_ID'),
     anthropicModel: optional('ANTHROPIC_MODEL') ?? 'claude-sonnet-4-20250514',
-    googleAiModel: optional('GOOGLE_AI_MODEL') ?? 'gemini-1.5-flash',
+    googleAiModel: optional('GOOGLE_AI_MODEL') ?? 'gemini-2.5-pro',
   };
 }

@@ -17,11 +17,12 @@ import {
   Trash2,
   FolderPlus,
   FolderInput,
+  Users,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useProjectStore } from "@/lib/stores/project-store"
 import { useAuth } from "@/lib/auth/use-auth"
-import { getConnection, isConnected } from "@/lib/stdb/spacetimedb"
+import { getConnection, isConnected, getUserCollaborations, getProjectCollaborators } from "@/lib/stdb/spacetimedb"
 import { WorkspaceSidebar } from "@/components/workspace-sidebar"
 import { FolderCard } from "@/components/folder-card"
 import { CreateFolderDialog } from "@/components/create-folder-dialog"
@@ -98,6 +99,24 @@ export function ProjectsView() {
     }
     return counts
   }, [stdbProjects])
+
+  // Determine shared projects and their owner names
+  const sharedProjectInfo = useMemo(() => {
+    if (!user?.uid) return new Map<string, { isShared: boolean; ownerName: string }>()
+    const info = new Map<string, { isShared: boolean; ownerName: string }>()
+    for (const p of stdbProjects) {
+      if (p.ownerId !== user.uid) {
+        // This is a shared project — find owner name from collaborators
+        const collabs = getProjectCollaborators(p.id)
+        const owner = collabs.find(c => c.role === 'owner')
+        info.set(p.id, {
+          isShared: true,
+          ownerName: owner?.displayName ?? 'Unknown',
+        })
+      }
+    }
+    return info
+  }, [stdbProjects, user?.uid])
 
   const visibleProjects = useMemo(() => {
     let filtered = visibilityMode === "starred"
@@ -284,6 +303,7 @@ export function ProjectsView() {
               >
                 {visibleProjects.map((project) => {
                   const isStarred = starredProjectIds.includes(project.id)
+                  const shared = sharedProjectInfo.get(project.id)
 
                   return (
                     <motion.article
@@ -317,7 +337,20 @@ export function ProjectsView() {
 
                       <div className="p-4">
                         <div className="mb-2 flex items-start justify-between gap-3">
-                          <h3 className="line-clamp-1 text-sm font-semibold text-foreground">{project.name}</h3>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="line-clamp-1 text-sm font-semibold text-foreground">{project.name}</h3>
+                            {shared?.isShared && (
+                              <div className="mt-0.5 flex items-center gap-1.5">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 border border-blue-500/20 px-1.5 py-0 text-[10px] font-medium text-blue-400">
+                                  <Users className="h-2.5 w-2.5" />
+                                  Shared
+                                </span>
+                                <span className="text-[10px] text-muted-foreground truncate">
+                                  by {shared.ownerName}
+                                </span>
+                              </div>
+                            )}
+                          </div>
 
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>

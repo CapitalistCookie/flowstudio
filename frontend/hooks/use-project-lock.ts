@@ -14,7 +14,7 @@ export interface LockState {
   forceAcquire: () => void;
 }
 
-export function useProjectLock(projectId: string | null): LockState {
+export function useProjectLock(projectId: string | null, role?: string): LockState {
   const { user } = useAuth();
   const [isEditor, setIsEditor] = useState(false);
   const [lockHolder, setLockHolder] = useState<{ name: string; uid: string } | null>(null);
@@ -34,6 +34,8 @@ export function useProjectLock(projectId: string | null): LockState {
   }, [user?.uid]);
 
   const acquireLock = useCallback(() => {
+    // Viewers cannot acquire locks
+    if (role === 'viewer') return;
     if (!projectId || !isConnected() || !user) return;
     const displayName = user.displayName || user.email || 'Anonymous';
     try {
@@ -41,7 +43,7 @@ export function useProjectLock(projectId: string | null): LockState {
     } catch (err) {
       console.warn('[Lock] Failed to acquire:', err);
     }
-  }, [projectId, user]);
+  }, [projectId, user, role]);
 
   const releaseLock = useCallback(() => {
     if (!projectId || !isConnected()) return;
@@ -78,8 +80,10 @@ export function useProjectLock(projectId: string | null): LockState {
     const currentLock = getProjectLock(projectId);
     updateLockState(currentLock);
 
-    // Auto-acquire lock
-    if (!currentLock) {
+    // Auto-acquire lock (skip for viewers)
+    if (role === 'viewer') {
+      // Viewers never acquire locks
+    } else if (!currentLock) {
       acquireLock();
     } else if (currentLock.lockedBy === user.uid) {
       setIsEditor(true);
@@ -105,7 +109,7 @@ export function useProjectLock(projectId: string | null): LockState {
       setOnLockChanged(null);
       releaseLock();
     };
-  }, [projectId, user, updateLockState, acquireLock, releaseLock]);
+  }, [projectId, user, role, updateLockState, acquireLock, releaseLock]);
 
   return { isEditor, lockHolder, acquireLock, releaseLock, forceAcquire };
 }

@@ -237,7 +237,7 @@ function TimelineTrackRow({ track, index }: { track: string; index: number }) {
       style={{
         background: dropTargetTrack === track
           ? undefined
-          : index < 2 ? "oklch(0.97 0.006 84)" : "oklch(0.95 0.008 82)",
+          : index < 2 ? "oklch(0.20 0.006 84)" : "oklch(0.18 0.008 82)",
       }}
       onDragOver={(e) => handleTrackDragOver(e, track)}
       onDragLeave={handleTrackDragLeave}

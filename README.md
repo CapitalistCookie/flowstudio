@@ -2,7 +2,7 @@
 
 An AI-powered video editing platform that automatically transforms screen recordings into polished, narrative-driven videos. A source recording is uploaded, decomposed into audio, visual, and interaction signals by 13 specialized workers, then reassembled into an edited output via LLM-driven intent analysis, narrative planning, and FFmpeg rendering.
 
-**Repository:** https://github.com/Dawgsrlife/FlowStudio
+**Repository:** https://github.com/CapitalistCookie/flowstudio
 **Stats:** 254 TypeScript files, ~39,000 lines of code, 19 workspace packages
 
 ---
@@ -292,7 +292,7 @@ FlowStudio/
 The fastest way to run the full stack locally:
 
 ```bash
-git clone https://github.com/Dawgsrlife/FlowStudio.git
+git clone https://github.com/CapitalistCookie/flowstudio.git
 cd FlowStudio
 
 # Set up environment
@@ -316,7 +316,7 @@ docker compose --profile full up --build
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/Dawgsrlife/FlowStudio.git
+git clone https://github.com/CapitalistCookie/flowstudio.git
 cd FlowStudio
 corepack enable && corepack prepare pnpm@9 --activate
 pnpm install
@@ -1108,7 +1108,7 @@ docker compose up stdb
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/Dawgsrlife/FlowStudio.git
+git clone https://github.com/CapitalistCookie/flowstudio.git
 cd FlowStudio
 corepack enable && corepack prepare pnpm@9 --activate
 pnpm install

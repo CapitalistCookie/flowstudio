@@ -43,9 +43,10 @@ export default function RecordPage() {
         try {
           const conn = getConnection()
           conn.reducers.createProject({
+            id: newId,
             name: "Untitled Recording",
             ownerId: user.uid,
-            metadata: JSON.stringify({ id: newId }),
+            metadata: JSON.stringify({}),
           })
         } catch {
           /* STDB not ready */

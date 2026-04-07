@@ -1,6 +1,6 @@
 'use client';
 
-import { Lock, Unlock } from 'lucide-react';
+import { Lock, Unlock, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface LockStatusBannerProps {
@@ -9,6 +9,7 @@ interface LockStatusBannerProps {
   onAcquireLock: () => void;
   onForceAcquire: () => void;
   isOwner: boolean;
+  role?: string;
 }
 
 export function LockStatusBanner({
@@ -17,9 +18,22 @@ export function LockStatusBanner({
   onAcquireLock,
   onForceAcquire,
   isOwner,
+  role = 'owner',
 }: LockStatusBannerProps) {
   // Don't show banner if user is the editor
   if (isEditor) return null;
+
+  // Viewers see a simplified "View only" banner with no edit controls
+  if (role === 'viewer') {
+    return (
+      <div className="flex shrink-0 items-center justify-between border-b border-border bg-blue-500/10 px-4 py-2">
+        <div className="flex items-center gap-2 text-sm text-foreground">
+          <Eye className="h-4 w-4 text-blue-400" />
+          <span>View only — you have viewer access to this project</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex shrink-0 items-center justify-between border-b border-border bg-amber-500/10 px-4 py-2">

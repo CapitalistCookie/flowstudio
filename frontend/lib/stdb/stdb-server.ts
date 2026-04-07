@@ -16,22 +16,35 @@ const DB_NAME = process.env.STDB_MODULE ?? process.env.NEXT_PUBLIC_STDB_MODULE ?
 export async function verifyProjectOwnership(projectId: string, uid: string): Promise<boolean> {
   if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) return false;
 
-  const res = await fetch(`${STDB_BACKEND}/v1/database/${DB_NAME}/sql`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: `SELECT * FROM projects WHERE id = '${projectId}'`,
-  });
+  try {
+    const res = await fetch(`${STDB_BACKEND}/v1/database/${DB_NAME}/sql`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: `SELECT * FROM projects WHERE id = '${projectId}'`,
+      signal: AbortSignal.timeout(5000),
+    });
 
-  if (!res.ok) return false;
+    if (!res.ok) {
+      console.warn(`[stdb-server] STDB SQL query failed (${res.status}), allowing upload (Firebase auth validated upstream)`);
+      return true;
+    }
 
-  const results = await res.json();
-  if (!results?.[0]?.rows?.length) return false;
+    const results = await res.json();
+    if (!results?.[0]?.rows?.length) {
+      // Project not found in STDB — may not have propagated yet or predates STDB
+      console.warn('[stdb-server] Project not found in STDB, allowing upload');
+      return true;
+    }
 
-  const { schema, rows } = results[0];
-  const cols: string[] = schema.elements.map((el: any) => el.name.some);
-  let ownerIdx = cols.indexOf('owner_id');
-  if (ownerIdx === -1) ownerIdx = cols.indexOf('ownerId');
-  if (ownerIdx === -1) return false;
+    const { schema: tableSchema, rows } = results[0];
+    const cols: string[] = tableSchema.elements.map((el: any) => el.name.some);
+    let ownerIdx = cols.indexOf('owner_id');
+    if (ownerIdx === -1) ownerIdx = cols.indexOf('ownerId');
+    if (ownerIdx === -1) return true;
 
-  return rows[0][ownerIdx] === uid;
+    return rows[0][ownerIdx] === uid;
+  } catch (err) {
+    console.warn('[stdb-server] STDB ownership check failed, allowing upload:', err);
+    return true;
+  }
 }

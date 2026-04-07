@@ -2,14 +2,15 @@ import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TaskType, SignalType } from '@flowstudio/shared';
 import { type TaskData, type WorkerDeps } from '@flowstudio/worker-shared';
 
-// ─── Anthropic mock ────────────────────────────────────────────────────────────
+// ─── LLM mock ─────────────────────────────────────────────────────────────────
 
-const mockMessagesCreate = vi.fn();
+const { mockCallVertexLlm } = vi.hoisted(() => ({
+  mockCallVertexLlm: vi.fn(),
+}));
 
-vi.mock('@anthropic-ai/vertex-sdk', () => ({
-  AnthropicVertex: class {
-    messages = { create: mockMessagesCreate };
-  },
+vi.mock('@flowstudio/worker-shared', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@flowstudio/worker-shared')>()),
+  callVertexLlm: mockCallVertexLlm,
 }));
 
 import { NarrativePlannerWorker } from '../src/worker.js';
@@ -38,7 +39,7 @@ function createMockDeps(): WorkerDeps & {
       healthPort: 0,
       vertexRegion: 'us-central1',
       vertexProjectId: 'test-project',
-      anthropicModel: 'claude-sonnet-4-20250514',
+      googleAiModel: 'gemini-2.5-pro',
     },
     logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as any,
     gcs: {
@@ -83,9 +84,7 @@ function makeValidNarrativeResponse(beats: Array<{
   endMs: number;
   relatedIntentIds: string[];
 }>) {
-  return {
-    content: [{ type: 'text', text: JSON.stringify(beats) }],
-  };
+  return JSON.stringify(beats);
 }
 
 const defaultBeats = [
@@ -164,7 +163,7 @@ describe('NarrativePlannerWorker', () => {
     mockGcsUpload = deps.mockGcsUpload;
     mockGcsDownload = deps.mockGcsDownload;
     mockGcsDownload.mockResolvedValue(Buffer.from(JSON.stringify(makeIntentGraph())));
-    mockMessagesCreate.mockResolvedValue(makeValidNarrativeResponse(defaultBeats));
+    mockCallVertexLlm.mockResolvedValue(makeValidNarrativeResponse(defaultBeats));
     worker = new NarrativePlannerWorker(deps);
   });
 
@@ -191,28 +190,25 @@ describe('NarrativePlannerWorker', () => {
   test('sends intent hierarchy to Claude for narrative planning', async () => {
     await worker.processTask(makeTask());
 
-    expect(mockMessagesCreate).toHaveBeenCalledTimes(1);
-    const callArgs = mockMessagesCreate.mock.calls[0]![0];
-    expect(callArgs.system).toBeDefined();
-    expect(callArgs.messages).toHaveLength(1);
-    expect(callArgs.messages[0].role).toBe('user');
-    expect(callArgs.messages[0].content).toContain('intent_graph');
+    expect(mockCallVertexLlm).toHaveBeenCalledTimes(1);
+    const callArgs = mockCallVertexLlm.mock.calls[0]![1];
+    expect(callArgs.prompt.system).toBeDefined();
+    expect(callArgs.prompt.user).toContain('intent_graph');
   });
 
   test('uses PROMPT_REGISTRY system prompt for narrative-planner', async () => {
     await worker.processTask(makeTask());
 
-    const systemPrompt = mockMessagesCreate.mock.calls[0]![0].system;
+    const systemPrompt = mockCallVertexLlm.mock.calls[0]![1].prompt.system;
     expect(systemPrompt).toContain('narrative');
   });
 
-  test('calls Claude with configured model', async () => {
+  test('calls LLM via callVertexLlm with config', async () => {
     await worker.processTask(makeTask());
 
-    expect(mockMessagesCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: 'claude-sonnet-4-20250514',
-      }),
+    expect(mockCallVertexLlm).toHaveBeenCalledWith(
+      expect.objectContaining({ vertexProjectId: 'test-project' }),
+      expect.objectContaining({ maxTokens: expect.any(Number), prompt: expect.any(Object) }),
     );
   });
 
@@ -228,15 +224,15 @@ describe('NarrativePlannerWorker', () => {
 
     await worker.processTask(customTask);
 
-    const callArgs = mockMessagesCreate.mock.calls[0]![0];
-    expect(callArgs.system).toContain('Custom system prompt for testing');
-    expect(callArgs.max_tokens).toBe(8192);
+    const callArgs = mockCallVertexLlm.mock.calls[0]![1];
+    expect(callArgs.prompt.system).toContain('Custom system prompt for testing');
+    expect(callArgs.maxTokens).toBe(8192);
   });
 
   test('uses buildSecurePrompt for XML-fenced data', async () => {
     await worker.processTask(makeTask());
 
-    const userContent = mockMessagesCreate.mock.calls[0]![0].messages[0].content;
+    const userContent = mockCallVertexLlm.mock.calls[0]![1].prompt.user;
     expect(userContent).toContain('<signal_data type="intent_graph">');
     expect(userContent).toContain('</signal_data>');
   });
@@ -251,7 +247,7 @@ describe('NarrativePlannerWorker', () => {
       { beatIndex: 3, beatType: 'transition' as const, title: 'Transition', description: 'desc', suggestedDurationMs: 1000, startMs: 20000, endMs: 22000, relatedIntentIds: [] },
       { beatIndex: 4, beatType: 'highlight' as const, title: 'Highlight', description: 'desc', suggestedDurationMs: 5000, startMs: 22000, endMs: 30000, relatedIntentIds: [] },
     ];
-    mockMessagesCreate.mockResolvedValue(makeValidNarrativeResponse(allTypesBeats));
+    mockCallVertexLlm.mockResolvedValue(makeValidNarrativeResponse(allTypesBeats));
 
     const result = await worker.processTask(makeTask());
 
@@ -333,48 +329,34 @@ describe('NarrativePlannerWorker', () => {
   // ─── Claude response failures ──────────────────────────────────────────
 
   test('throws on invalid JSON from Claude', async () => {
-    mockMessagesCreate.mockResolvedValue({
-      content: [{ type: 'text', text: 'Sorry, I cannot analyze this.' }],
-    });
+    mockCallVertexLlm.mockResolvedValue('Sorry, I cannot analyze this.');
 
     await expect(worker.processTask(makeTask())).rejects.toThrow('Failed to parse narrative beats');
   });
 
   test('throws when Claude returns schema-invalid JSON', async () => {
-    mockMessagesCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([{ invalid: 'not a beat object' }]),
-      }],
-    });
+    mockCallVertexLlm.mockResolvedValue(JSON.stringify([{ invalid: 'not a beat object' }]));
 
     await expect(worker.processTask(makeTask())).rejects.toThrow('Failed to parse narrative beats');
   });
 
   test('throws when Claude returns beat with invalid beatType', async () => {
-    mockMessagesCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([{
-          beatIndex: 0,
-          beatType: 'invalid_type',
-          title: 'Test',
-          description: 'Test',
-          suggestedDurationMs: 1000,
-          startMs: 0,
-          endMs: 1000,
-          relatedIntentIds: [],
-        }]),
-      }],
-    });
+    mockCallVertexLlm.mockResolvedValue(JSON.stringify([{
+      beatIndex: 0,
+      beatType: 'invalid_type',
+      title: 'Test',
+      description: 'Test',
+      suggestedDurationMs: 1000,
+      startMs: 0,
+      endMs: 1000,
+      relatedIntentIds: [],
+    }]));
 
     await expect(worker.processTask(makeTask())).rejects.toThrow('Failed to parse narrative beats');
   });
 
   test('throws when Claude returns empty text', async () => {
-    mockMessagesCreate.mockResolvedValue({
-      content: [{ type: 'text', text: '' }],
-    });
+    mockCallVertexLlm.mockResolvedValue('');
 
     await expect(worker.processTask(makeTask())).rejects.toThrow('Failed to parse narrative beats');
   });
@@ -414,7 +396,7 @@ describe('NarrativePlannerWorker', () => {
   // ─── Edge cases ────────────────────────────────────────────────────────
 
   test('handles single beat response', async () => {
-    mockMessagesCreate.mockResolvedValue(makeValidNarrativeResponse([{
+    mockCallVertexLlm.mockResolvedValue(makeValidNarrativeResponse([{
       beatIndex: 0,
       beatType: 'highlight',
       title: 'Key moment',
@@ -432,12 +414,9 @@ describe('NarrativePlannerWorker', () => {
   });
 
   test('handles Claude response with surrounding text', async () => {
-    mockMessagesCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: `Here's the narrative plan:\n${JSON.stringify(defaultBeats)}\nHope that helps!`,
-      }],
-    });
+    mockCallVertexLlm.mockResolvedValue(
+      `Here's the narrative plan:\n${JSON.stringify(defaultBeats)}\nHope that helps!`,
+    );
 
     const result = await worker.processTask(makeTask());
     expect(result.signals).toHaveLength(3);

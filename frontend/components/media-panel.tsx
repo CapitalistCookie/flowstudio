@@ -192,6 +192,10 @@ function MediaTab({
   );
   const previewVideoRef = useRef<HTMLVideoElement>(null);
 
+  // Preview state for media items
+  const [previewMedia, setPreviewMedia] = useState<MediaFile | null>(null);
+  const mediaPreviewRef = useRef<HTMLVideoElement>(null);
+
   // Format time for display
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -597,14 +601,20 @@ function MediaTab({
   // Close preview on escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && previewResult) {
-        setPreviewResult(null);
+      if (e.key === "Escape") {
+        if (previewMedia) {
+          setPreviewMedia(null);
+          if (mediaPreviewRef.current) mediaPreviewRef.current.pause();
+        }
+        if (previewResult) {
+          setPreviewResult(null);
+        }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [previewResult]);
+  }, [previewResult, previewMedia]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -794,6 +804,7 @@ function MediaTab({
                       media,
                     )
                   }
+                  onClick={() => !media.isUploading && setPreviewMedia(media)}
                 >
                   {media.thumbnail ? (
                     <img
@@ -1121,6 +1132,82 @@ function MediaTab({
                     handleNlpResultDragStart(
                       e as unknown as React.DragEvent<Element>,
                       previewResult,
+                    )
+                  }
+                >
+                  <GripVertical className="h-3 w-3" />
+                  <span>Drag to timeline</span>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Media Item Preview Modal */}
+      <AnimatePresence>
+        {previewMedia && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+            onClick={() => {
+              setPreviewMedia(null);
+              if (mediaPreviewRef.current) mediaPreviewRef.current.pause();
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative max-w-2xl w-full mx-4 bg-background rounded-lg overflow-hidden shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between p-3 border-b">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">
+                    {previewMedia.name}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {previewMedia.duration}
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setPreviewMedia(null);
+                    if (mediaPreviewRef.current) mediaPreviewRef.current.pause();
+                  }}
+                  className="p-1.5 rounded-full hover:bg-muted transition-colors cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Video */}
+              <div className="relative aspect-video bg-black">
+                <video
+                  ref={mediaPreviewRef}
+                  src={previewMedia.objectUrl || previewMedia.storageUrl}
+                  className="w-full h-full object-contain"
+                  controls
+                  autoPlay
+                />
+              </div>
+
+              {/* Footer with drag hint */}
+              <div className="p-3 border-t flex items-center justify-between">
+                <div className="text-xs text-muted-foreground">
+                  Press Esc or click outside to close
+                </div>
+                <div
+                  className="flex items-center gap-2 text-xs text-primary cursor-grab active:cursor-grabbing px-3 py-1.5 rounded border border-primary/30 hover:bg-primary/10 transition-colors"
+                  draggable
+                  onDragStart={(e) =>
+                    handleMediaDragStart(
+                      e as unknown as React.DragEvent<Element>,
+                      previewMedia,
                     )
                   }
                 >

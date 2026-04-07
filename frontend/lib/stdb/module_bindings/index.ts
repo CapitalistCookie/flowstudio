@@ -174,13 +174,47 @@ const projectLocks = table({
   lockVersion: t.i32(),
 });
 
+const projectCollaborators = table({
+  name: 'project_collaborators', public: true,
+  indexes: [
+    { accessor: 'byProjectId', algorithm: 'btree' as const, columns: ['projectId'] as const },
+    { accessor: 'byFirebaseUid', algorithm: 'btree' as const, columns: ['firebaseUid'] as const },
+  ],
+}, {
+  id: t.string().primaryKey(),
+  projectId: t.string(),
+  firebaseUid: t.string(),
+  role: t.string(),
+  displayName: t.string(),
+  email: t.string(),
+  addedBy: t.string(),
+  addedAt: t.u64(),
+});
+
+const shareLinks = table({
+  name: 'share_links', public: true,
+  indexes: [
+    { accessor: 'byProjectId', algorithm: 'btree' as const, columns: ['projectId'] as const },
+  ],
+}, {
+  id: t.string().primaryKey(),
+  projectId: t.string(),
+  token: t.string(),
+  role: t.string(),
+  createdBy: t.string(),
+  createdAt: t.u64(),
+  expiresAt: t.u64(),
+  maxUses: t.i32(),
+  useCount: t.i32(),
+});
+
 // ─── Schema & Reducers ───────────────────────────────────────────────
 
-const s = schema({ projects, folders, assets, tasks, signals, timelineClips, mediaFiles: mediaFilesTable, effectBlocks, projectPresence, projectLocks });
+const s = schema({ projects, folders, assets, tasks, signals, timelineClips, mediaFiles: mediaFilesTable, effectBlocks, projectPresence, projectLocks, projectCollaborators, shareLinks });
 
 const r = reducers(
   reducerSchema('create_project', {
-    name: t.string(), ownerId: t.string(), metadata: t.string(),
+    id: t.string(), name: t.string(), ownerId: t.string(), metadata: t.string(),
   }),
   reducerSchema('create_asset', {
     projectId: t.string(), assetType: t.string(), gcsPath: t.string(),
@@ -225,6 +259,9 @@ const r = reducers(
   reducerSchema('rename_folder', {
     folderId: t.string(), name: t.string(),
   }),
+  reducerSchema('rename_project', {
+    projectId: t.string(), name: t.string(),
+  }),
   reducerSchema('delete_folder', {
     folderId: t.string(),
   }),
@@ -268,6 +305,28 @@ const r = reducers(
   reducerSchema('renew_lock', { projectId: t.string() }),
   reducerSchema('release_lock', { projectId: t.string() }),
   reducerSchema('force_release_lock', { projectId: t.string() }),
+  // Collaboration reducers
+  reducerSchema('add_collaborator', {
+    projectId: t.string(), firebaseUid: t.string(), role: t.string(), displayName: t.string(), email: t.string(),
+  }),
+  reducerSchema('update_collaborator_role', {
+    projectId: t.string(), firebaseUid: t.string(), role: t.string(),
+  }),
+  reducerSchema('remove_collaborator', {
+    projectId: t.string(), firebaseUid: t.string(),
+  }),
+  reducerSchema('leave_collaborator_project', {
+    projectId: t.string(),
+  }),
+  reducerSchema('create_share_link', {
+    projectId: t.string(), role: t.string(), expiresAt: t.u64(), maxUses: t.i32(),
+  }),
+  reducerSchema('delete_share_link', {
+    linkId: t.string(),
+  }),
+  reducerSchema('redeem_share_link', {
+    token: t.string(),
+  }),
 );
 
 // ─── Remote Module ───────────────────────────────────────────────────
@@ -423,4 +482,27 @@ export type ProjectLockRow = {
   lockedAt: bigint;
   expiresAt: bigint;
   lockVersion: number;
+};
+
+export type ProjectCollaboratorRow = {
+  id: string;
+  projectId: string;
+  firebaseUid: string;
+  role: string;
+  displayName: string;
+  email: string;
+  addedBy: string;
+  addedAt: bigint;
+};
+
+export type ShareLinkRow = {
+  id: string;
+  projectId: string;
+  token: string;
+  role: string;
+  createdBy: string;
+  createdAt: bigint;
+  expiresAt: bigint;
+  maxUses: number;
+  useCount: number;
 };

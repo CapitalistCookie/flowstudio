@@ -135,7 +135,7 @@ pnpm --filter @flowstudio/frontend add @radix-ui/react-dialog @radix-ui/react-dr
 
 ## Environment
 
-- **Working directory:** `/home/user/FlowStudio`
+- **Working directory:** `/home/user/projects/flowstudio`
 - **Package manager:** pnpm (monorepo)
 - **Client package:** `@flowstudio/frontend` at `claudeFrontend/`
 - **Shared package:** `@flowstudio/shared` at `packages/shared/`

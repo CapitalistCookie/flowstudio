@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { isConnected, getConnection } from "@/lib/stdb/spacetimedb"
 
 export function InspectorPanel() {
   return (
@@ -26,7 +27,7 @@ export function InspectorPanel() {
 
 function AgentTab() {
   const { messages, input, handleInputChange, handleSubmit, isLoading, isLoadingHistory, sendQuickAction, clearChat, status, sendMessage, currentEditPlan, editHistory, revertToVersion } = useVideoAgent()
-  const { selectedClipId, currentTime, timelineClips, mediaFiles, applyEditPlan } = useEditor()
+  const { selectedClipId, currentTime, timelineClips, mediaFiles, applyEditPlan, projectId } = useEditor()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const lastAppliedPlanRef = useRef<EditDecision[] | null>(null)
@@ -39,6 +40,40 @@ function AgentTab() {
   const [showAutoEnhanceModal, setShowAutoEnhanceModal] = useState(false)
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [expandedEditPlan, setExpandedEditPlan] = useState<number | null>(null)
+
+  // Check if pipeline signals or active tasks exist in STDB — enables
+  // Auto Enhance even when timeline is still empty (workers in progress).
+  const [hasPipelineActivity, setHasPipelineActivity] = useState(false)
+  useEffect(() => {
+    if (!projectId || !isConnected()) {
+      setHasPipelineActivity(false)
+      return
+    }
+    const check = () => {
+      try {
+        const conn = getConnection()
+        // Check for any signals
+        for (const _row of conn.db.signals.byProjectId.filter(projectId)) {
+          setHasPipelineActivity(true)
+          return
+        }
+        // Check for tasks that are completed or in_progress
+        for (const row of conn.db.tasks.byProjectId.filter(projectId)) {
+          if ((row as any).status === "completed" || (row as any).status === "in_progress") {
+            setHasPipelineActivity(true)
+            return
+          }
+        }
+        setHasPipelineActivity(false)
+      } catch {
+        setHasPipelineActivity(false)
+      }
+    }
+    check()
+    // Re-check periodically since STDB callbacks update the cache asynchronously
+    const interval = setInterval(check, 3000)
+    return () => clearInterval(interval)
+  }, [projectId])
 
   // Auto-scroll to bottom when messages change or during streaming
   useEffect(() => {
@@ -244,10 +279,10 @@ function AgentTab() {
         <div className="mb-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Smart Enhance</div>
         <motion.button
           onClick={() => setShowAutoEnhanceModal(true)}
-          disabled={isLoading || timelineClips.length === 0}
+          disabled={isLoading || (timelineClips.length === 0 && !hasPipelineActivity)}
           className="w-full flex items-center justify-center gap-2 rounded-md bg-gradient-to-r from-primary/20 to-primary/10 border border-primary/30 px-3 py-2.5 text-[11px] font-medium text-primary hover:from-primary/30 hover:to-primary/20 hover:border-primary/50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
-          whileHover={{ scale: isLoading || timelineClips.length === 0 ? 1 : 1.02 }}
-          whileTap={{ scale: isLoading || timelineClips.length === 0 ? 1 : 0.98 }}
+          whileHover={{ scale: isLoading || (timelineClips.length === 0 && !hasPipelineActivity) ? 1 : 1.02 }}
+          whileTap={{ scale: isLoading || (timelineClips.length === 0 && !hasPipelineActivity) ? 1 : 0.98 }}
           transition={{ type: "spring", stiffness: 400, damping: 17 }}
         >
           <motion.div

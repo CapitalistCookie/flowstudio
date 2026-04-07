@@ -77,26 +77,27 @@ exports.generateUploadUrl = async (req, res) => {
     return;
   }
 
-  // Validate content type: video, audio, or image (for thumbnails/media)
+  // Validate content type
   const isVideo = contentType.startsWith("video/");
   const isAudio = contentType.startsWith("audio/");
   const isImage = contentType.startsWith("image/");
-  if (!isVideo && !isAudio && !isImage) {
+  const isJson = contentType === "application/json";
+  if (!isVideo && !isAudio && !isImage && !isJson) {
     res
       .status(400)
       .json({
-        error: "Only video, audio, or image files are accepted",
+        error: "Only video, audio, image, or JSON files are accepted",
       });
     return;
   }
 
   // Determine folder: use requested folder if valid, otherwise derive from content type
-  const ALLOWED_FOLDERS = ["source_video", "audio_track", "media_files"];
+  const ALLOWED_FOLDERS = ["source_video", "audio_track", "media_files", "interaction_data"];
   let folder;
   if (requestedFolder && ALLOWED_FOLDERS.includes(requestedFolder)) {
     folder = requestedFolder;
   } else {
-    folder = isVideo ? "source_video" : isAudio ? "audio_track" : "media_files";
+    folder = isVideo ? "source_video" : isAudio ? "audio_track" : isJson ? "interaction_data" : "media_files";
   }
   const gcsPath = `projects/${projectId}/${folder}/${filename}`;
   const file = storage.bucket(BUCKET).file(gcsPath);

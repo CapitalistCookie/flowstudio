@@ -26,11 +26,11 @@
 ### Step 1: Apply remaining Terraform (VPC connector + 14 Cloud Run services)
 
 ```bash
-cd /home/user/FlowStudio/infra/terraform
-GOOGLE_APPLICATION_CREDENTIALS=/home/user/FlowStudio/lyrical-epigram-484715-v6-f865e736b70b.json \
+cd /home/user/projects/flowstudio/infra/terraform
+GOOGLE_APPLICATION_CREDENTIALS=/home/user/projects/flowstudio/lyrical-epigram-484715-v6-f865e736b70b.json \
 GOOGLE_PROJECT=lyrical-epigram-484715-v6 \
 terraform plan -out=tfplan3 && \
-GOOGLE_APPLICATION_CREDENTIALS=/home/user/FlowStudio/lyrical-epigram-484715-v6-f865e736b70b.json \
+GOOGLE_APPLICATION_CREDENTIALS=/home/user/projects/flowstudio/lyrical-epigram-484715-v6-f865e736b70b.json \
 GOOGLE_PROJECT=lyrical-epigram-484715-v6 \
 terraform apply tfplan3
 ```
@@ -50,8 +50,8 @@ curl -s -o /dev/null -w "%{http_code}" $CLIENT_URL
 ### Step 3: Get terraform outputs
 
 ```bash
-cd /home/user/FlowStudio/infra/terraform
-GOOGLE_APPLICATION_CREDENTIALS=/home/user/FlowStudio/lyrical-epigram-484715-v6-f865e736b70b.json \
+cd /home/user/projects/flowstudio/infra/terraform
+GOOGLE_APPLICATION_CREDENTIALS=/home/user/projects/flowstudio/lyrical-epigram-484715-v6-f865e736b70b.json \
 GOOGLE_PROJECT=lyrical-epigram-484715-v6 \
 terraform output
 ```

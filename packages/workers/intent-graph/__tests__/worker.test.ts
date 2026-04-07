@@ -2,14 +2,15 @@ import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TaskType, SignalType } from '@flowstudio/shared';
 import { type TaskData, type WorkerDeps } from '@flowstudio/worker-shared';
 
-// ─── Anthropic mock ────────────────────────────────────────────────────────────
+// ─── LLM mock ─────────────────────────────────────────────────────────────────
 
-const mockMessagesCreate = vi.fn();
+const { mockCallVertexLlm } = vi.hoisted(() => ({
+  mockCallVertexLlm: vi.fn(),
+}));
 
-vi.mock('@anthropic-ai/vertex-sdk', () => ({
-  AnthropicVertex: class {
-    messages = { create: mockMessagesCreate };
-  },
+vi.mock('@flowstudio/worker-shared', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@flowstudio/worker-shared')>()),
+  callVertexLlm: mockCallVertexLlm,
 }));
 
 import { IntentGraphWorker } from '../src/worker.js';
@@ -38,7 +39,7 @@ function createMockDeps(): WorkerDeps & {
       healthPort: 0,
       vertexRegion: 'us-central1',
       vertexProjectId: 'test-project',
-      anthropicModel: 'claude-sonnet-4-20250514',
+      googleAiModel: 'gemini-2.5-pro',
     },
     logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as any,
     gcs: {
@@ -83,9 +84,7 @@ function makeValidIntentResponse(intents: Array<{
   endMs: number;
   relatedSignalIndices: number[];
 }>) {
-  return {
-    content: [{ type: 'text', text: JSON.stringify(intents) }],
-  };
+  return JSON.stringify(intents);
 }
 
 const defaultIntents = [
@@ -152,7 +151,7 @@ describe('IntentGraphWorker', () => {
     const deps = createMockDeps();
     mockGcsUpload = deps.mockGcsUpload;
     mockGcsDownload = deps.mockGcsDownload;
-    mockMessagesCreate.mockResolvedValue(makeValidIntentResponse(defaultIntents));
+    mockCallVertexLlm.mockResolvedValue(makeValidIntentResponse(defaultIntents));
     worker = new IntentGraphWorker(deps);
   });
 
@@ -201,11 +200,9 @@ describe('IntentGraphWorker', () => {
 
     await worker.processTask(makeTask());
 
-    const callArgs = mockMessagesCreate.mock.calls[0]![0];
-    expect(callArgs.system).toBeDefined();
-    expect(callArgs.messages).toHaveLength(1);
-    expect(callArgs.messages[0].role).toBe('user');
-    expect(callArgs.messages[0].content).toContain('upstream_signals');
+    const callArgs = mockCallVertexLlm.mock.calls[0]![1];
+    expect(callArgs.prompt.system).toBeDefined();
+    expect(callArgs.prompt.user).toContain('upstream_signals');
   });
 
   test('signals are sorted by timestamp in prompt', async () => {
@@ -218,7 +215,7 @@ describe('IntentGraphWorker', () => {
 
     await worker.processTask(makeTask());
 
-    const userContent = mockMessagesCreate.mock.calls[0]![0].messages[0].content;
+    const userContent = mockCallVertexLlm.mock.calls[0]![1].prompt.user;
     const scene1sPos = userContent.indexOf('1.0s');
     const speech5sPos = userContent.indexOf('5.0s');
     expect(scene1sPos).toBeLessThan(speech5sPos);
@@ -234,11 +231,11 @@ describe('IntentGraphWorker', () => {
 
     await worker.processTask(makeTask());
 
-    const systemPrompt = mockMessagesCreate.mock.calls[0]![0].system;
+    const systemPrompt = mockCallVertexLlm.mock.calls[0]![1].prompt.system;
     expect(systemPrompt).toContain('intent');
   });
 
-  test('calls Claude with configured model', async () => {
+  test('calls LLM via callVertexLlm with config', async () => {
     setGcsSignalFiles({
       'speech_segments.json': [makeSpeechSignal(0)],
       'scene_descriptions.json': [],
@@ -248,10 +245,9 @@ describe('IntentGraphWorker', () => {
 
     await worker.processTask(makeTask());
 
-    expect(mockMessagesCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: 'claude-sonnet-4-20250514',
-      }),
+    expect(mockCallVertexLlm).toHaveBeenCalledWith(
+      expect.objectContaining({ vertexProjectId: 'test-project' }),
+      expect.objectContaining({ maxTokens: expect.any(Number), prompt: expect.any(Object) }),
     );
   });
 
@@ -265,7 +261,7 @@ describe('IntentGraphWorker', () => {
       'interaction_clusters.json': [],
     });
 
-    mockMessagesCreate.mockResolvedValue(makeValidIntentResponse([
+    mockCallVertexLlm.mockResolvedValue(makeValidIntentResponse([
       {
         intentId: 'i1', parentIntentId: null, action: 'Writing code',
         reasoning: 'User is typing', confidence: 0.95,
@@ -296,7 +292,7 @@ describe('IntentGraphWorker', () => {
       'interaction_clusters.json': [],
     });
 
-    mockMessagesCreate.mockResolvedValue(makeValidIntentResponse([{
+    mockCallVertexLlm.mockResolvedValue(makeValidIntentResponse([{
       intentId: 'i1', parentIntentId: null, action: 'Test',
       reasoning: 'Test', confidence: 0.9,
       startMs: 5000, endMs: 15000, relatedSignalIndices: [],
@@ -316,7 +312,7 @@ describe('IntentGraphWorker', () => {
       'interaction_clusters.json': [],
     });
 
-    mockMessagesCreate.mockResolvedValue(makeValidIntentResponse([{
+    mockCallVertexLlm.mockResolvedValue(makeValidIntentResponse([{
       intentId: 'i1', parentIntentId: null, action: 'Test',
       reasoning: 'Test', confidence: 0.87,
       startMs: 0, endMs: 1000, relatedSignalIndices: [],
@@ -335,7 +331,7 @@ describe('IntentGraphWorker', () => {
       'interaction_clusters.json': [],
     });
 
-    mockMessagesCreate.mockResolvedValue(makeValidIntentResponse([{
+    mockCallVertexLlm.mockResolvedValue(makeValidIntentResponse([{
       intentId: 'i1', parentIntentId: null, action: 'Test',
       reasoning: 'Test', confidence: 0.9,
       startMs: 0, endMs: 1000, relatedSignalIndices: [0, 2, 5],
@@ -365,7 +361,7 @@ describe('IntentGraphWorker', () => {
     const result = await worker.processTask(makeTask());
 
     expect(result.signals.length).toBeGreaterThan(0);
-    expect(mockMessagesCreate).toHaveBeenCalledTimes(1);
+    expect(mockCallVertexLlm).toHaveBeenCalledTimes(1);
   });
 
   test('works with only one signal source', async () => {
@@ -391,9 +387,7 @@ describe('IntentGraphWorker', () => {
       'interaction_clusters.json': [],
     });
 
-    mockMessagesCreate.mockResolvedValue({
-      content: [{ type: 'text', text: 'Sorry, I cannot analyze this.' }],
-    });
+    mockCallVertexLlm.mockResolvedValue('Sorry, I cannot analyze this.');
 
     await expect(worker.processTask(makeTask())).rejects.toThrow('Failed to parse intent graph');
   });
@@ -406,12 +400,7 @@ describe('IntentGraphWorker', () => {
       'interaction_clusters.json': [],
     });
 
-    mockMessagesCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([{ invalid: 'not an intent object' }]),
-      }],
-    });
+    mockCallVertexLlm.mockResolvedValue(JSON.stringify([{ invalid: 'not an intent object' }]));
 
     await expect(worker.processTask(makeTask())).rejects.toThrow('Failed to parse intent graph');
   });

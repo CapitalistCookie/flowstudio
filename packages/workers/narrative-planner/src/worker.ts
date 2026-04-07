@@ -1,16 +1,10 @@
 import { TaskType, SignalType, buildSecurePrompt, validateOutput, PROMPT_REGISTRY, NarrativePlanOutputSchema } from '@flowstudio/shared';
-import { BaseWorker, type TaskData, type TaskResult } from '@flowstudio/worker-shared';
-import { AnthropicVertex } from '@anthropic-ai/vertex-sdk';
+import { BaseWorker, type TaskData, type TaskResult, callVertexLlm } from '@flowstudio/worker-shared';
 
 export class NarrativePlannerWorker extends BaseWorker {
   readonly taskType = TaskType.NARRATIVE_PLAN;
 
   async processTask(task: TaskData): Promise<TaskResult> {
-    const anthropic = new AnthropicVertex({
-      region: this.config.vertexRegion ?? 'us-central1',
-      projectId: this.config.vertexProjectId ?? this.config.gcsProjectId,
-    });
-
     // Download intent graph
     const graphPath = `projects/${task.projectId}/signals/intent_graph.json`;
     const graphData = await this.gcs.download(graphPath);
@@ -32,14 +26,7 @@ export class NarrativePlannerWorker extends BaseWorker {
       }],
     });
 
-    const message = await anthropic.messages.create({
-      model: this.config.anthropicModel ?? 'claude-sonnet-4-20250514',
-      max_tokens: maxTokens,
-      system: prompt.system,
-      messages: [{ role: 'user', content: prompt.user }],
-    });
-
-    const responseText = message.content[0]?.type === 'text' ? message.content[0].text : '';
+    const responseText = await callVertexLlm(this.config, { maxTokens, prompt });
 
     // Validate output against Zod schema
     const validation = validateOutput(responseText, NarrativePlanOutputSchema);

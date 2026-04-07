@@ -32,10 +32,11 @@ settings = get_settings()
 
 def _get_llm() -> rt.llm.ModelBase:
     """Create the LLM instance based on configuration."""
+    model = settings.google_ai_model or "gemini-2.5-pro"
     api_key = settings.google_ai_api_key
     if api_key:
-        return rt.llm.GeminiLLM("gemini-2.0-flash", api_key=api_key)
-    return rt.llm.GeminiLLM("gemini-2.0-flash")
+        return rt.llm.GeminiLLM(model, api_key=api_key)
+    return rt.llm.GeminiLLM(model)
 
 
 # ── Validation tools (agents can call these to check their own output) ────────

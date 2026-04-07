@@ -15,5 +15,8 @@
   },
   "devDependencies": {
     "typescript": "5.7.3"
+  },
+  "dependencies": {
+    "spacetimedb": "^2.0.4"
   }
 }

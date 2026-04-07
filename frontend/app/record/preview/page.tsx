@@ -7,7 +7,8 @@ import { useCaptureStore } from "@/lib/capture/capture-store"
 import { getRecordedBlob, discardCapture } from "@/lib/capture/capture-service"
 import { uploadToGcs } from "@/lib/upload/upload-service"
 import { triggerPipeline } from "@/lib/upload/pipeline-trigger"
-import { getConnection, isConnected } from "@/lib/stdb/spacetimedb"
+import { getConnection, isConnected, getProjectAssets } from "@/lib/stdb/spacetimedb"
+import { toast } from "sonner"
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000)
@@ -38,7 +39,39 @@ export default function RecordingPreviewPage() {
   const [uploadError, setUploadError] = useState<string | null>(null)
 
   const handleAutoApply = async () => {
-    if (!blobUrl || !projectId) return
+    if (!projectId) return
+
+    // Fallback: if blob is unavailable (page refresh / navigation), check for
+    // an existing SOURCE_VIDEO asset in STDB and skip upload entirely.
+    if (!blobUrl) {
+      if (isConnected()) {
+        const assets = getProjectAssets(projectId)
+        const sourceAsset = assets.find((a) => a.assetType === "source_video")
+        if (sourceAsset) {
+          setUploadState("processing")
+          setUploadProgress(60)
+          try {
+            await triggerPipeline({
+              projectId,
+              gcsPath: sourceAsset.gcsPath,
+              fileSize: sourceAsset.sizeBytes,
+              contentType: "video/webm",
+              durationMs: elapsedMs,
+            })
+            setUploadProgress(100)
+            setUploadState("done")
+            return
+          } catch (err) {
+            setUploadError(err instanceof Error ? err.message : "Pipeline trigger failed")
+            setUploadState("error")
+            return
+          }
+        }
+      }
+      toast.error("No recording available. Please record again.")
+      return
+    }
+
     setUploadState("uploading")
     setUploadProgress(10)
 
@@ -185,7 +218,9 @@ export default function RecordingPreviewPage() {
       }
 
       setRefineUploadProgress(100)
-      discardCapture()
+      // Don't discard capture here — editor-shell needs the blob as fallback
+      // in case STDB asset hasn't synced yet. Editor will use GCS URL once
+      // subscription resolves.
 
       const params = new URLSearchParams({ edits: "refine" })
       params.set("projectId", projectId)

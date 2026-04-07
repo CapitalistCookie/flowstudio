@@ -1,6 +1,5 @@
 import { TaskType, SignalType, sanitizeText, buildSecurePrompt, validateOutput, PROMPT_REGISTRY, IntentGraphOutputSchema } from '@flowstudio/shared';
-import { BaseWorker, type TaskData, type TaskResult } from '@flowstudio/worker-shared';
-import { AnthropicVertex } from '@anthropic-ai/vertex-sdk';
+import { BaseWorker, type TaskData, type TaskResult, callVertexLlm } from '@flowstudio/worker-shared';
 
 interface UpstreamSignal {
   signalType: string;
@@ -14,11 +13,6 @@ export class IntentGraphWorker extends BaseWorker {
   readonly taskType = TaskType.INTENT_GRAPH;
 
   async processTask(task: TaskData): Promise<TaskResult> {
-    const anthropic = new AnthropicVertex({
-      region: this.config.vertexRegion ?? 'us-central1',
-      projectId: this.config.vertexProjectId ?? this.config.gcsProjectId,
-    });
-
     // Download all upstream signals from individual signal files
     const signalFiles = [
       `projects/${task.projectId}/signals/speech_segments.json`,
@@ -70,14 +64,7 @@ export class IntentGraphWorker extends BaseWorker {
       }],
     });
 
-    const message = await anthropic.messages.create({
-      model: this.config.anthropicModel ?? 'claude-sonnet-4-20250514',
-      max_tokens: maxTokens,
-      system: prompt.system,
-      messages: [{ role: 'user', content: prompt.user }],
-    });
-
-    const responseText = message.content[0]?.type === 'text' ? message.content[0].text : '';
+    const responseText = await callVertexLlm(this.config, { maxTokens, prompt });
 
     // Validate output against Zod schema
     const validation = validateOutput(responseText, IntentGraphOutputSchema);

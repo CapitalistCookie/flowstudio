@@ -22,25 +22,25 @@
 **Step 1: Install zustand, zundo, and sonner**
 
 ```bash
-cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend add zustand zundo sonner
+cd /home/user/projects/flowstudio && pnpm --filter @flowstudio/frontend add zustand zundo sonner
 ```
 
 **Step 2: Install shadcn/ui prerequisites**
 
 ```bash
-cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend add @radix-ui/react-dialog @radix-ui/react-dropdown-menu @radix-ui/react-context-menu @radix-ui/react-tooltip @radix-ui/react-tabs @radix-ui/react-slider @radix-ui/react-toggle @radix-ui/react-toggle-group @radix-ui/react-popover @radix-ui/react-select class-variance-authority clsx tailwind-merge lucide-react react-resizable-panels
+cd /home/user/projects/flowstudio && pnpm --filter @flowstudio/frontend add @radix-ui/react-dialog @radix-ui/react-dropdown-menu @radix-ui/react-context-menu @radix-ui/react-tooltip @radix-ui/react-tabs @radix-ui/react-slider @radix-ui/react-toggle @radix-ui/react-toggle-group @radix-ui/react-popover @radix-ui/react-select class-variance-authority clsx tailwind-merge lucide-react react-resizable-panels
 ```
 
 **Step 3: Verify build**
 
 ```bash
-cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend run typecheck
+cd /home/user/projects/flowstudio && pnpm --filter @flowstudio/frontend run typecheck
 ```
 
 **Step 4: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/package.json pnpm-lock.yaml && git commit -m "chore: add zustand, shadcn primitives, and NLE dependencies"
+cd /home/user/projects/flowstudio && git add claudeFrontend/package.json pnpm-lock.yaml && git commit -m "chore: add zustand, shadcn primitives, and NLE dependencies"
 ```
 
 ---
@@ -67,7 +67,7 @@ cd /home/user/FlowStudio && git add claudeFrontend/package.json pnpm-lock.yaml &
 **Step 1: Create directories**
 
 ```bash
-mkdir -p /home/user/FlowStudio/claudeFrontend/src/core/{stores,services,timeline,workers}
+mkdir -p /home/user/projects/flowstudio/claudeFrontend/src/core/{stores,services,timeline,workers}
 ```
 
 **Step 2: Create core types file**
@@ -206,7 +206,7 @@ export interface PreviewModalState {
 **Step 3: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/core/ && git commit -m "feat: create core directory structure and types"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/core/ && git commit -m "feat: create core directory structure and types"
 ```
 
 ---
@@ -311,13 +311,13 @@ export const projectStore = createStore<ProjectStoreState>((set, get) => ({
 **Step 2: Verify typecheck**
 
 ```bash
-cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend run typecheck
+cd /home/user/projects/flowstudio && pnpm --filter @flowstudio/frontend run typecheck
 ```
 
 **Step 3: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/core/stores/projectStore.ts && git commit -m "feat: add framework-agnostic project store"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/core/stores/projectStore.ts && git commit -m "feat: add framework-agnostic project store"
 ```
 
 ---
@@ -773,13 +773,13 @@ export const timelineStore = createStore<TimelineStoreState>()(
 **Step 2: Verify typecheck**
 
 ```bash
-cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend run typecheck
+cd /home/user/projects/flowstudio && pnpm --filter @flowstudio/frontend run typecheck
 ```
 
 **Step 3: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/core/stores/timelineStore.ts && git commit -m "feat: add timeline store with undo/redo via zundo"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/core/stores/timelineStore.ts && git commit -m "feat: add timeline store with undo/redo via zundo"
 ```
 
 ---
@@ -972,13 +972,13 @@ export const signalStore = createStore<SignalStoreState>((set, get) => ({
 **Step 4: Verify typecheck**
 
 ```bash
-cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend run typecheck
+cd /home/user/projects/flowstudio && pnpm --filter @flowstudio/frontend run typecheck
 ```
 
 **Step 5: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/core/stores/ && git commit -m "feat: add ui, capture, and signal stores"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/core/stores/ && git commit -m "feat: add ui, capture, and signal stores"
 ```
 
 ---
@@ -1196,13 +1196,13 @@ export const signedUrls = new SignedUrlManager();
 **Step 4: Verify typecheck**
 
 ```bash
-cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend run typecheck
+cd /home/user/projects/flowstudio && pnpm --filter @flowstudio/frontend run typecheck
 ```
 
 **Step 5: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/core/services/ && git commit -m "feat: add notification, shortcut, and signed URL services"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/core/services/ && git commit -m "feat: add notification, shortcut, and signed URL services"
 ```
 
 ---
@@ -1220,7 +1220,7 @@ cd /home/user/FlowStudio && git add claudeFrontend/src/core/services/ && git com
 **Step 1: Create hooks directory and adapter files**
 
 ```bash
-mkdir -p /home/user/FlowStudio/claudeFrontend/src/hooks
+mkdir -p /home/user/projects/flowstudio/claudeFrontend/src/hooks
 ```
 
 Create `claudeFrontend/src/hooks/useProjectStore.ts`:
@@ -1323,13 +1323,13 @@ export * from './useSignalStore';
 **Step 2: Verify typecheck**
 
 ```bash
-cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend run typecheck
+cd /home/user/projects/flowstudio && pnpm --filter @flowstudio/frontend run typecheck
 ```
 
 **Step 3: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/hooks/ && git commit -m "feat: add React hook adapters for vanilla Zustand stores"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/hooks/ && git commit -m "feat: add React hook adapters for vanilla Zustand stores"
 ```
 
 ---
@@ -1389,13 +1389,13 @@ export function stopSdkSync() {
 **Step 2: Verify typecheck**
 
 ```bash
-cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend run typecheck
+cd /home/user/projects/flowstudio && pnpm --filter @flowstudio/frontend run typecheck
 ```
 
 **Step 3: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/core/services/stdbSdkSync.ts && git commit -m "feat: add SpacetimeDB → Zustand store sync service"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/core/services/stdbSdkSync.ts && git commit -m "feat: add SpacetimeDB → Zustand store sync service"
 ```
 
 ---
@@ -1450,7 +1450,7 @@ export function cn(...inputs: ClassValue[]) {
 **Step 3: Verify typecheck and commit**
 
 ```bash
-cd /home/user/FlowStudio && pnpm --filter @flowstudio/frontend run typecheck
+cd /home/user/projects/flowstudio && pnpm --filter @flowstudio/frontend run typecheck
 git add claudeFrontend/src/components/ui/ claudeFrontend/src/lib/utils.ts claudeFrontend/src/app/globals.css
 git commit -m "feat: add shadcn/ui base components and utilities"
 ```
@@ -1525,7 +1525,7 @@ export function Header({ projectName }: HeaderProps) {
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/components/Header.tsx && git commit -m "feat: add navigation links to header"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/components/Header.tsx && git commit -m "feat: add navigation links to header"
 ```
 
 ---
@@ -1579,7 +1579,7 @@ export default function ProjectsPage() {
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/app/record/ claudeFrontend/src/app/projects/ && git commit -m "feat: add placeholder route pages for record and projects"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/app/record/ claudeFrontend/src/app/projects/ && git commit -m "feat: add placeholder route pages for record and projects"
 ```
 
 ---
@@ -1608,7 +1608,7 @@ Key changes to `page.tsx`:
 **Step 3: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/app/page.tsx claudeFrontend/src/components/ProjectCard.tsx && git commit -m "feat: upgrade dashboard with processing banner and quick actions"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/app/page.tsx claudeFrontend/src/components/ProjectCard.tsx && git commit -m "feat: upgrade dashboard with processing banner and quick actions"
 ```
 
 ---
@@ -1672,7 +1672,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 **Step 3: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/components/StoreProvider.tsx claudeFrontend/src/app/layout.tsx && git commit -m "feat: wire SpacetimeDB sync to root layout via StoreProvider"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/components/StoreProvider.tsx claudeFrontend/src/app/layout.tsx && git commit -m "feat: wire SpacetimeDB sync to root layout via StoreProvider"
 ```
 
 ---
@@ -1878,7 +1878,7 @@ export const captureEngine = new CaptureEngine();
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/core/services/capture.ts && git commit -m "feat: add CaptureEngine for browser screen recording"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/core/services/capture.ts && git commit -m "feat: add CaptureEngine for browser screen recording"
 ```
 
 ---
@@ -1902,7 +1902,7 @@ Use `captureEngine` from core services and `captureStore` hooks for state.
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/app/record/ && git commit -m "feat: build recording page with screen capture and upload flow"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/app/record/ && git commit -m "feat: build recording page with screen capture and upload flow"
 ```
 
 ---
@@ -1936,7 +1936,7 @@ Start `startSignalSync(projectId)` on mount. Register studio keyboard shortcuts 
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/app/project/ && git commit -m "feat: studio page with resizable panel layout"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/app/project/ && git commit -m "feat: studio page with resizable panel layout"
 ```
 
 ---
@@ -1951,7 +1951,7 @@ cd /home/user/FlowStudio && git add claudeFrontend/src/app/project/ && git commi
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/components/studio/ && git commit -m "feat: add asset browser and signal inspector panel"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/components/studio/ && git commit -m "feat: add asset browser and signal inspector panel"
 ```
 
 ---
@@ -1966,7 +1966,7 @@ cd /home/user/FlowStudio && git add claudeFrontend/src/components/studio/ && git
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/components/studio/VideoPreview.tsx && git commit -m "feat: add video preview component with playback controls"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/components/studio/VideoPreview.tsx && git commit -m "feat: add video preview component with playback controls"
 ```
 
 ---
@@ -1987,7 +1987,7 @@ All property changes dispatch to `timelineStore.setClipProperty()`.
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/components/studio/PropertiesPanel.tsx && git commit -m "feat: add properties panel for clip editing"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/components/studio/PropertiesPanel.tsx && git commit -m "feat: add properties panel for clip editing"
 ```
 
 ---
@@ -2002,7 +2002,7 @@ cd /home/user/FlowStudio && git add claudeFrontend/src/components/studio/Propert
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/components/studio/PreviewModal.tsx && git commit -m "feat: add preview modal with blur backdrop"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/components/studio/PreviewModal.tsx && git commit -m "feat: add preview modal with blur backdrop"
 ```
 
 ---
@@ -2048,7 +2048,7 @@ Handle `devicePixelRatio` for retina displays.
 **Step 3: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/core/timeline/ && git commit -m "feat: add Canvas timeline renderer with hit testing"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/core/timeline/ && git commit -m "feat: add Canvas timeline renderer with hit testing"
 ```
 
 ---
@@ -2083,7 +2083,7 @@ cd /home/user/FlowStudio && git add claudeFrontend/src/core/timeline/ && git com
 **Step 4: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/components/studio/Timeline.tsx claudeFrontend/src/components/studio/TimelineToolbar.tsx claudeFrontend/src/components/studio/TrackHeader.tsx && git commit -m "feat: add timeline React wrapper with toolbar and track headers"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/components/studio/Timeline.tsx claudeFrontend/src/components/studio/TimelineToolbar.tsx claudeFrontend/src/components/studio/TrackHeader.tsx && git commit -m "feat: add timeline React wrapper with toolbar and track headers"
 ```
 
 ---
@@ -2148,7 +2148,7 @@ export class PlaybackSync {
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/core/services/playbackSync.ts && git commit -m "feat: add playback sync engine (video ↔ timeline)"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/core/services/playbackSync.ts && git commit -m "feat: add playback sync engine (video ↔ timeline)"
 ```
 
 ---
@@ -2228,7 +2228,7 @@ export function useStudioShortcuts() {
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/components/studio/useStudioShortcuts.ts && git commit -m "feat: add studio keyboard shortcuts"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/components/studio/useStudioShortcuts.ts && git commit -m "feat: add studio keyboard shortcuts"
 ```
 
 ---
@@ -2253,7 +2253,7 @@ cd /home/user/FlowStudio && git add claudeFrontend/src/components/studio/useStud
 **Step 2: Commit**
 
 ```bash
-cd /home/user/FlowStudio && git add claudeFrontend/src/app/projects/ && git commit -m "feat: build projects gallery with filters and context menus"
+cd /home/user/projects/flowstudio && git add claudeFrontend/src/app/projects/ && git commit -m "feat: build projects gallery with filters and context menus"
 ```
 
 ---

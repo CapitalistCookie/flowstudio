@@ -31,7 +31,11 @@ REPROMPT_SYSTEM_PROMPT = """You are a professional video editor revising an edit
 
 The user has seen the previous edit plan and wants changes. Modify the edit plan to address their feedback while maintaining good video flow.
 
-Previous edit plan and user feedback are provided. Respond with the COMPLETE revised edit plan as a JSON array (same format as above)."""
+Previous edit plan and user feedback are provided. You MUST respond with the COMPLETE revised edit plan as a JSON array. Each element must have: editType, sourceStartMs, sourceEndMs, outputStartMs, outputEndMs, parameters, reasoning.
+
+Valid editType values: "cut", "trim", "speedup", "slowdown", "zoom", "pan", "transition", "overlay".
+
+If the user says "implement" or similar, return the previous edit plan unchanged as a JSON array. Always output a JSON array — never plain text."""
 
 
 async def run_edit_agent(

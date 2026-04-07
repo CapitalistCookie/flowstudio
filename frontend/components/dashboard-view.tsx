@@ -114,9 +114,10 @@ export function DashboardView() {
                 const projectId = crypto.randomUUID()
                 const conn = getConnection()
                 conn.reducers.createProject({
+                  id: projectId,
                   name: "Untitled Recording",
                   ownerId: user.uid,
-                  metadata: JSON.stringify({ id: projectId }),
+                  metadata: JSON.stringify({}),
                 })
                 router.push(`/record?projectId=${projectId}`)
               }}

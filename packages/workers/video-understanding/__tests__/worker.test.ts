@@ -25,7 +25,7 @@ function createMockDeps(): WorkerDeps & {
       pollIntervalMs: 100,
       healthPort: 0,
       googleAiApiKey: 'test-google-ai-key',
-      googleAiModel: 'gemini-1.5-flash',
+      googleAiModel: 'gemini-2.0-flash',
     },
     logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as any,
     gcs: {

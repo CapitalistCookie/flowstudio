@@ -10,11 +10,11 @@
 
 ## Context
 
-You are deploying the FlowStudio project from `/home/user/FlowStudio` to GCP project `lyrical-epigram-484715-v6`.
+You are deploying the FlowStudio project from `/home/user/projects/flowstudio` to GCP project `lyrical-epigram-484715-v6`.
 
 **CRITICAL: This VM also hosts the Eigenstate project (`quanta-ai-dev-941522`). Do NOT modify gcloud's global config. Use `--project` flags on every gcloud command. Never run `gcloud config set project`.**
 
-The service account key is at `/home/user/FlowStudio/lyrical-epigram-484715-v6-f865e736b70b.json`.
+The service account key is at `/home/user/projects/flowstudio/lyrical-epigram-484715-v6-f865e736b70b.json`.
 
 ## Credentials Available
 
@@ -25,7 +25,7 @@ VERTEX_PROJECT_ID=lyrical-epigram-484715-v6
 VERTEX_LOCATION=us-central1
 GCP_PROJECT_ID=lyrical-epigram-484715-v6
 GCP_REGION=us-east4
-SERVICE_ACCOUNT_JSON=/home/user/FlowStudio/lyrical-epigram-484715-v6-f865e736b70b.json
+SERVICE_ACCOUNT_JSON=/home/user/projects/flowstudio/lyrical-epigram-484715-v6-f865e736b70b.json
 SERVICE_ACCOUNT_EMAIL=vertex-express@lyrical-epigram-484715-v6.iam.gserviceaccount.com
 ```
 
@@ -85,7 +85,7 @@ Do NOT use `gcloud auth activate-service-account` globally — it would affect E
 gcloud config configurations create flowstudio 2>/dev/null || true
 gcloud config configurations activate flowstudio
 gcloud auth activate-service-account vertex-express@lyrical-epigram-484715-v6.iam.gserviceaccount.com \
-  --key-file=/home/user/FlowStudio/lyrical-epigram-484715-v6-f865e736b70b.json \
+  --key-file=/home/user/projects/flowstudio/lyrical-epigram-484715-v6-f865e736b70b.json \
   --project=lyrical-epigram-484715-v6
 gcloud config set project lyrical-epigram-484715-v6 --configuration=flowstudio
 gcloud config set compute/region us-east4 --configuration=flowstudio
@@ -142,10 +142,10 @@ done
 ### Step 5: Apply Terraform
 
 ```bash
-cd /home/user/FlowStudio/infra/terraform
+cd /home/user/projects/flowstudio/infra/terraform
 
 # Use the service account key for Terraform
-export GOOGLE_APPLICATION_CREDENTIALS=/home/user/FlowStudio/lyrical-epigram-484715-v6-f865e736b70b.json
+export GOOGLE_APPLICATION_CREDENTIALS=/home/user/projects/flowstudio/lyrical-epigram-484715-v6-f865e736b70b.json
 export GOOGLE_PROJECT=lyrical-epigram-484715-v6
 
 terraform init
@@ -183,7 +183,7 @@ echo -n "AQ.Ab8RN6L6oBdbR1-HlL0lx5-I337M4wzwjzznh83sdVxJfVl1xQ" | \
 ### Step 7: Build Shared Packages
 
 ```bash
-cd /home/user/FlowStudio
+cd /home/user/projects/flowstudio
 pnpm install
 pnpm --filter @flowstudio/shared run build
 pnpm --filter @flowstudio/worker-shared run build
@@ -196,14 +196,14 @@ pnpm -r exec tsc --noEmit
 
 ```bash
 # Auth Docker to push to Artifact Registry using SA key
-cat /home/user/FlowStudio/lyrical-epigram-484715-v6-f865e736b70b.json | \
+cat /home/user/projects/flowstudio/lyrical-epigram-484715-v6-f865e736b70b.json | \
   docker login -u _json_key --password-stdin us-east4-docker.pkg.dev
 ```
 
 ### Step 9: Build and Push Docker Images
 
 ```bash
-cd /home/user/FlowStudio
+cd /home/user/projects/flowstudio
 PROJECT_ID=lyrical-epigram-484715-v6
 REGION=us-east4
 VERSION=v1
@@ -278,7 +278,7 @@ done
 ### Step 11: Deploy Cloud Function
 
 ```bash
-cd /home/user/FlowStudio/infra/cloud-function/generate-upload-url
+cd /home/user/projects/flowstudio/infra/cloud-function/generate-upload-url
 
 gcloud functions deploy flowstudio-generate-upload-url \
   --runtime=nodejs20 \
@@ -396,8 +396,8 @@ All FlowStudio resources are prefixed with `flowstudio-`. Eigenstate uses `quant
 
 To tear down everything:
 ```bash
-cd /home/user/FlowStudio/infra/terraform
-export GOOGLE_APPLICATION_CREDENTIALS=/home/user/FlowStudio/lyrical-epigram-484715-v6-f865e736b70b.json
+cd /home/user/projects/flowstudio/infra/terraform
+export GOOGLE_APPLICATION_CREDENTIALS=/home/user/projects/flowstudio/lyrical-epigram-484715-v6-f865e736b70b.json
 terraform destroy
 unset GOOGLE_APPLICATION_CREDENTIALS
 ```

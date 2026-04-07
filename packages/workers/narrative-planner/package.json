@@ -10,7 +10,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@anthropic-ai/vertex-sdk": "^0.6.0",
     "@flowstudio/shared": "workspace:*",
     "@flowstudio/worker-shared": "workspace:*"
   },

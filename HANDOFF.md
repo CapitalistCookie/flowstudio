@@ -1,8 +1,8 @@
 # FlowStudio — Build Handoff
 
 **Updated:** 2026-03-15
-**Repo:** https://github.com/Dawgsrlife/FlowStudio
-**Location:** `/home/user/FlowStudio`
+**Repo:** https://github.com/CapitalistCookie/flowstudio
+**Location:** `/home/user/projects/flowstudio`
 **Stats:** 254 TypeScript files, ~39,000 lines, 19 packages, 38 issues fixed across 10 code sweeps
 
 ---
@@ -211,13 +211,7 @@ All 10 stop conditions pass:
 
 ## Git Push
 
-**Auth is resolved.** The VM's `gh` auth is for `CapitalistCookie` which doesn't have push access. Use the classic PAT with credential helper disabled:
-
-```bash
-git -c credential.helper= -c "credential.https://github.com.helper=" push https://USER:TOKEN@github.com/Dawgsrlife/FlowStudio.git main
-```
-
-See project memory for actual credentials. Must disable gh credential helper to prevent `CapitalistCookie` override.
+**Remote:** `origin` points to `https://github.com/CapitalistCookie/flowstudio.git`. Standard `git push` works with `gh` auth.
 
 ---
 

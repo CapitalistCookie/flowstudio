@@ -191,7 +191,7 @@ export class MockStdbClient {
 
 ```bash
 # Add vitest to worker-shared
-cd /Users/vishnu/Documents/FlowStudio
+cd /home/user/projects/flowstudio
 pnpm --filter @flowstudio/worker-shared add -D vitest
 
 # Run tests

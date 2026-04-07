@@ -33,6 +33,23 @@ export class AudioExtractWorker extends BaseWorker {
         writeStream.on('error', reject);
       });
 
+      // Check if video has an audio stream
+      const hasAudio = await new Promise<boolean>((resolve) => {
+        (ffmpeg as any).ffprobe(inputPath, (err: any, metadata: any) => {
+          if (err) { resolve(false); return; }
+          const audioStream = metadata.streams?.find((s: any) => s.codec_type === 'audio');
+          resolve(!!audioStream);
+        });
+      });
+
+      if (!hasAudio) {
+        // No audio stream — complete successfully with empty output
+        return {
+          outputAssetIds: [],
+          signals: [],
+        };
+      }
+
       // Extract audio using FFmpeg
       await new Promise<void>((resolve, reject) => {
         ffmpeg(inputPath)

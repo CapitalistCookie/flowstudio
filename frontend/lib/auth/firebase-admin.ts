@@ -45,7 +45,8 @@ export async function verifyAuthToken(
   try {
     const decoded = await getAdminAuth().verifyIdToken(idToken);
     return { uid: decoded.uid, email: decoded.email };
-  } catch {
+  } catch (err) {
+    console.error('[firebase-admin] verifyIdToken failed:', err instanceof Error ? err.message : String(err));
     return null;
   }
 }

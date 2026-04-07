@@ -2,14 +2,15 @@ import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TaskType, SignalType } from '@flowstudio/shared';
 import { type TaskData, type WorkerDeps } from '@flowstudio/worker-shared';
 
-// ─── Anthropic mock ────────────────────────────────────────────────────────────
+// ─── LLM mock ─────────────────────────────────────────────────────────────────
 
-const mockMessagesCreate = vi.fn();
+const { mockCallVertexLlm } = vi.hoisted(() => ({
+  mockCallVertexLlm: vi.fn(),
+}));
 
-vi.mock('@anthropic-ai/vertex-sdk', () => ({
-  AnthropicVertex: class {
-    messages = { create: mockMessagesCreate };
-  },
+vi.mock('@flowstudio/worker-shared', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@flowstudio/worker-shared')>()),
+  callVertexLlm: mockCallVertexLlm,
 }));
 
 import { EditPlannerWorker } from '../src/worker.js';
@@ -38,7 +39,7 @@ function createMockDeps(): WorkerDeps & {
       healthPort: 0,
       vertexRegion: 'us-central1',
       vertexProjectId: 'test-project',
-      anthropicModel: 'claude-sonnet-4-20250514',
+      googleAiModel: 'gemini-2.5-pro',
     },
     logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as any,
     gcs: {
@@ -82,9 +83,7 @@ function makeValidEditResponse(edits: Array<{
   parameters: Record<string, unknown>;
   reasoning: string;
 }>) {
-  return {
-    content: [{ type: 'text', text: JSON.stringify(edits) }],
-  };
+  return JSON.stringify(edits);
 }
 
 const defaultEdits = [
@@ -148,7 +147,7 @@ describe('EditPlannerWorker', () => {
     mockGcsUpload = deps.mockGcsUpload;
     mockGcsDownload = deps.mockGcsDownload;
     mockGcsDownload.mockResolvedValue(Buffer.from(JSON.stringify(makeNarrativePlan())));
-    mockMessagesCreate.mockResolvedValue(makeValidEditResponse(defaultEdits));
+    mockCallVertexLlm.mockResolvedValue(makeValidEditResponse(defaultEdits));
     worker = new EditPlannerWorker(deps);
   });
 
@@ -183,7 +182,7 @@ describe('EditPlannerWorker', () => {
       { editType: 'transition' as const, sourceStartMs: 25000, sourceEndMs: 26000, outputStartMs: 23000, outputEndMs: 24000, parameters: { transitionType: 'crossfade' }, reasoning: 'transition' },
       { editType: 'overlay' as const, sourceStartMs: 26000, sourceEndMs: 30000, outputStartMs: 24000, outputEndMs: 28000, parameters: { text: 'Great job!' }, reasoning: 'overlay' },
     ];
-    mockMessagesCreate.mockResolvedValue(makeValidEditResponse(allTypeEdits));
+    mockCallVertexLlm.mockResolvedValue(makeValidEditResponse(allTypeEdits));
 
     const result = await worker.processTask(makeTask());
 
@@ -239,57 +238,42 @@ describe('EditPlannerWorker', () => {
   // ─── T14.4: Zod schema validation ────────────────────────────────────
 
   test('rejects edit with invalid editType', async () => {
-    mockMessagesCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([{
-          editType: 'invalid_type',
-          sourceStartMs: 0,
-          sourceEndMs: 1000,
-          outputStartMs: 0,
-          outputEndMs: 1000,
-          parameters: {},
-          reasoning: 'test',
-        }]),
-      }],
-    });
+    mockCallVertexLlm.mockResolvedValue(JSON.stringify([{
+      editType: 'invalid_type',
+      sourceStartMs: 0,
+      sourceEndMs: 1000,
+      outputStartMs: 0,
+      outputEndMs: 1000,
+      parameters: {},
+      reasoning: 'test',
+    }]));
 
     await expect(worker.processTask(makeTask())).rejects.toThrow('Failed to parse edit decisions');
   });
 
   test('rejects edit with negative timestamps', async () => {
-    mockMessagesCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([{
-          editType: 'cut',
-          sourceStartMs: -100,
-          sourceEndMs: 1000,
-          outputStartMs: 0,
-          outputEndMs: 1000,
-          parameters: {},
-          reasoning: 'test',
-        }]),
-      }],
-    });
+    mockCallVertexLlm.mockResolvedValue(JSON.stringify([{
+      editType: 'cut',
+      sourceStartMs: -100,
+      sourceEndMs: 1000,
+      outputStartMs: 0,
+      outputEndMs: 1000,
+      parameters: {},
+      reasoning: 'test',
+    }]));
 
     await expect(worker.processTask(makeTask())).rejects.toThrow('Failed to parse edit decisions');
   });
 
   test('rejects edit with missing reasoning field', async () => {
-    mockMessagesCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([{
-          editType: 'cut',
-          sourceStartMs: 0,
-          sourceEndMs: 1000,
-          outputStartMs: 0,
-          outputEndMs: 1000,
-          parameters: {},
-        }]),
-      }],
-    });
+    mockCallVertexLlm.mockResolvedValue(JSON.stringify([{
+      editType: 'cut',
+      sourceStartMs: 0,
+      sourceEndMs: 1000,
+      outputStartMs: 0,
+      outputEndMs: 1000,
+      parameters: {},
+    }]));
 
     await expect(worker.processTask(makeTask())).rejects.toThrow('Failed to parse edit decisions');
   });
@@ -324,26 +308,25 @@ describe('EditPlannerWorker', () => {
   test('sends narrative beats to Claude for edit planning', async () => {
     await worker.processTask(makeTask());
 
-    expect(mockMessagesCreate).toHaveBeenCalledTimes(1);
-    const callArgs = mockMessagesCreate.mock.calls[0]![0];
-    expect(callArgs.system).toBeDefined();
-    expect(callArgs.messages[0].content).toContain('narrative_beats');
+    expect(mockCallVertexLlm).toHaveBeenCalledTimes(1);
+    const callArgs = mockCallVertexLlm.mock.calls[0]![1];
+    expect(callArgs.prompt.system).toBeDefined();
+    expect(callArgs.prompt.user).toContain('narrative_beats');
   });
 
   test('uses PROMPT_REGISTRY system prompt for edit-planner', async () => {
     await worker.processTask(makeTask());
 
-    const systemPrompt = mockMessagesCreate.mock.calls[0]![0].system;
+    const systemPrompt = mockCallVertexLlm.mock.calls[0]![1].prompt.system;
     expect(systemPrompt).toContain('edit');
   });
 
-  test('calls Claude with configured model', async () => {
+  test('calls LLM via callVertexLlm with config', async () => {
     await worker.processTask(makeTask());
 
-    expect(mockMessagesCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: 'claude-sonnet-4-20250514',
-      }),
+    expect(mockCallVertexLlm).toHaveBeenCalledWith(
+      expect.objectContaining({ vertexProjectId: 'test-project' }),
+      expect.objectContaining({ maxTokens: expect.any(Number), prompt: expect.any(Object) }),
     );
   });
 
@@ -359,9 +342,9 @@ describe('EditPlannerWorker', () => {
 
     await worker.processTask(customTask);
 
-    const callArgs = mockMessagesCreate.mock.calls[0]![0];
-    expect(callArgs.system).toContain('Custom edit planner prompt');
-    expect(callArgs.max_tokens).toBe(8192);
+    const callArgs = mockCallVertexLlm.mock.calls[0]![1];
+    expect(callArgs.prompt.system).toContain('Custom edit planner prompt');
+    expect(callArgs.maxTokens).toBe(8192);
   });
 
   // ─── Error paths ──────────────────────────────────────────────────────
@@ -373,17 +356,13 @@ describe('EditPlannerWorker', () => {
   });
 
   test('throws on empty Claude response', async () => {
-    mockMessagesCreate.mockResolvedValue({
-      content: [{ type: 'text', text: '' }],
-    });
+    mockCallVertexLlm.mockResolvedValue('');
 
     await expect(worker.processTask(makeTask())).rejects.toThrow('Failed to parse edit decisions');
   });
 
   test('throws on non-JSON Claude response', async () => {
-    mockMessagesCreate.mockResolvedValue({
-      content: [{ type: 'text', text: 'I cannot make edit decisions for this content.' }],
-    });
+    mockCallVertexLlm.mockResolvedValue('I cannot make edit decisions for this content.');
 
     await expect(worker.processTask(makeTask())).rejects.toThrow('Failed to parse edit decisions');
   });
@@ -426,12 +405,9 @@ describe('EditPlannerWorker', () => {
   // ─── Edge cases ────────────────────────────────────────────────────────
 
   test('handles Claude response with surrounding text', async () => {
-    mockMessagesCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: `Here are the edit decisions:\n${JSON.stringify(defaultEdits)}\nDone!`,
-      }],
-    });
+    mockCallVertexLlm.mockResolvedValue(
+      `Here are the edit decisions:\n${JSON.stringify(defaultEdits)}\nDone!`,
+    );
 
     const result = await worker.processTask(makeTask());
     expect(result.signals).toHaveLength(3);

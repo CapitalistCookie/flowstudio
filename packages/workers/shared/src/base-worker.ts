@@ -213,7 +213,7 @@ export abstract class BaseWorker {
 
           // Register worker identity for authorization
           try {
-            const workerSecret = process.env.STDB_WORKER_SECRET ?? '';
+            const workerSecret = (process.env.STDB_WORKER_SECRET ?? '').trim();
             await conn.reducers.registerWorkerIdentity({
               workerId: this.config.workerId,
               secret: workerSecret,

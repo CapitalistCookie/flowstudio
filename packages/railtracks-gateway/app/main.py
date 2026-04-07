@@ -53,7 +53,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._hits: dict[str, list[float]] = defaultdict(list)
 
     async def dispatch(self, request: Request, call_next):
-        if request.url.path == "/health":
+        if request.url.path == "/health" or request.method == "OPTIONS":
             return await call_next(request)
 
         client = request.client.host if request.client else "unknown"
@@ -78,7 +78,7 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
         self.api_key = api_key
 
     async def dispatch(self, request: Request, call_next):
-        if not self.api_key or request.url.path == "/health":
+        if not self.api_key or request.url.path == "/health" or request.method == "OPTIONS":
             return await call_next(request)
 
         provided = request.headers.get("x-api-key", "")
@@ -93,7 +93,7 @@ class FirebaseAuthMiddleware(BaseHTTPMiddleware):
     """Verify Firebase ID token from Authorization: Bearer header."""
 
     async def dispatch(self, request: Request, call_next):
-        if request.url.path == "/health":
+        if request.url.path == "/health" or request.method == "OPTIONS":
             return await call_next(request)
 
         auth_header = request.headers.get("authorization", "")
@@ -156,7 +156,8 @@ async def generate_edits(request: GenerateEditsRequest):
 
     try:
         result = await edit_flow.ainvoke(json.dumps(signals))
-        output = json.loads(result.text)
+        result_text = result.text if hasattr(result, 'text') else result
+        output = json.loads(result_text)
     except Exception as e:
         logger.exception(f"Edit flow failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -184,7 +185,8 @@ async def reprompt(request: RepromptRequest):
             "previous_edit_plan": prev_plan,
             "feedback": request.feedback,
         }))
-        output = json.loads(result.text)
+        result_text = result.text if hasattr(result, 'text') else result
+        output = json.loads(result_text)
     except Exception as e:
         logger.exception(f"Reprompt flow failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

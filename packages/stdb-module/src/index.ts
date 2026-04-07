@@ -12,6 +12,18 @@ const MAX_TASK_RETRIES = 3;
 const STALE_TASK_THRESHOLD_MS = BigInt(5 * 60 * 1000);
 const WATCHDOG_INTERVAL_SECS = 30;
 
+// Helper: get tasks by projectId, using index if available, falling back to iter()
+function getTasksByProjectId(ctx: any, projectId: string) {
+  if (ctx.db.tasks.byProjectId) {
+    return [...ctx.db.tasks.byProjectId.filter(projectId)];
+  }
+  const results: any[] = [];
+  for (const task of ctx.db.tasks.iter()) {
+    if (task.projectId === projectId) results.push(task);
+  }
+  return results;
+}
+
 const TASK_CHAIN_DAG: Record<string, string[]> = {
   AUDIO_EXTRACT: ["SPEECH_TRANSCRIPTION"],
   VIDEO_SAMPLE: ["VIDEO_UNDERSTANDING", "UI_CHANGE_DETECT"],
@@ -44,9 +56,9 @@ const TASK_DEPENDENCIES: Record<string, string[]> = {
   RENDER: ["TIMELINE_BUILD"],
 };
 
-// Phase 1.1: Remove mutable global state — use ctx.timestamp + Math.random()
+// Phase 1.1: Remove mutable global state — use ctx.timestamp + ctx.random()
 function generateId(ctx: any): string {
-  return ctx.timestamp.microsSinceUnixEpoch.toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  return ctx.timestamp.microsSinceUnixEpoch.toString(36) + '-' + ctx.random().toString(36).slice(2, 10);
 }
 
 // Phase 1.2: Replace Date.now() with ctx.timestamp
@@ -72,6 +84,42 @@ function assertProjectOwnership(ctx: any, projectId: string): void {
   const project = ctx.db.projects.id.find(projectId);
   if (!project) throw new Error('Project not found');
   if (callerUid !== project.ownerId) throw new Error('Permission denied');
+}
+
+const ROLE_LEVEL: Record<string, number> = { viewer: 1, editor: 2, owner: 3 };
+
+function assertProjectAccess(ctx: any, projectId: string, requiredRole: string): void {
+  const callerUid = getCallerUid(ctx);
+  if (!callerUid) throw new Error('Identity not registered');
+  if (callerUid.startsWith('worker:')) return; // Worker bypass
+
+  const project = ctx.db.projects.id.find(projectId);
+  if (!project) throw new Error('Project not found');
+
+  // Check collaborator table first
+  let found = false;
+  for (const collab of ctx.db.projectCollaborators.iter()) {
+    if (collab.projectId === projectId && collab.firebaseUid === callerUid) {
+      if ((ROLE_LEVEL[collab.role] || 0) >= (ROLE_LEVEL[requiredRole] || 0)) {
+        return; // Authorized
+      }
+      found = true;
+      break;
+    }
+  }
+
+  // Backward compat: if no collaborator rows exist for this project, treat ownerId as implicit owner
+  if (!found) {
+    let hasAnyCollabs = false;
+    for (const collab of ctx.db.projectCollaborators.iter()) {
+      if (collab.projectId === projectId) { hasAnyCollabs = true; break; }
+    }
+    if (!hasAnyCollabs && callerUid === project.ownerId) {
+      return; // Legacy implicit owner
+    }
+  }
+
+  throw new Error('Permission denied');
 }
 
 function assertFolderOwnership(ctx: any, folderId: string): void {
@@ -268,6 +316,38 @@ const projectLocks = table({ name: "project_locks", public: true }, {
   lockVersion: t.i32(),
 });
 
+const projectCollaborators = table({ name: "project_collaborators", public: true }, {
+  id: t.string().primaryKey(),
+  projectId: t.string(),
+  firebaseUid: t.string(),
+  role: t.string(),        // "owner" | "editor" | "viewer"
+  displayName: t.string(),
+  email: t.string(),
+  addedBy: t.string(),
+  addedAt: t.u64(),
+}, {
+  indexes: [
+    { name: 'byProjectId', algorithm: 'btree' as const, columns: ['projectId'] },
+    { name: 'byFirebaseUid', algorithm: 'btree' as const, columns: ['firebaseUid'] },
+  ],
+});
+
+const shareLinks = table({ name: "share_links", public: true }, {
+  id: t.string().primaryKey(),
+  projectId: t.string(),
+  token: t.string(),
+  role: t.string(),         // "editor" | "viewer"
+  createdBy: t.string(),
+  createdAt: t.u64(),
+  expiresAt: t.u64(),       // 0 = never
+  maxUses: t.i32(),         // 0 = unlimited
+  useCount: t.i32(),
+}, {
+  indexes: [
+    { name: 'byProjectId', algorithm: 'btree' as const, columns: ['projectId'] },
+  ],
+});
+
 // Phase 2.4: Watchdog schedule table
 const watchdogSchedule = table(
   { name: "watchdog_schedule", scheduled: (): any => runWatchdog },
@@ -298,6 +378,8 @@ const stdb = (schema as any)({
   effectBlocks,
   projectPresence,
   projectLocks,
+  projectCollaborators,
+  shareLinks,
 });
 
 // Phase 2.3: Lifecycle reducers
@@ -431,17 +513,30 @@ export const registerWorkerIdentity = stdb.reducer(
 // Reducers — Phase 2.6: All reducers include console.log
 export const createProject = stdb.reducer(
   "create_project",
-  { name: t.string(), ownerId: t.string(), metadata: t.string() },
+  { id: t.string(), name: t.string(), ownerId: t.string(), metadata: t.string() },
   (ctx: any, args: any) => {
-    console.log(`[createProject] name=${args.name} ownerId=${args.ownerId}`);
+    console.log(`[createProject] id=${args.id} name=${args.name} ownerId=${args.ownerId}`);
     const callerUid = getCallerUid(ctx);
     if (!callerUid) throw new Error('Identity not registered');
     if (!callerUid.startsWith('worker:') && callerUid !== args.ownerId) {
       throw new Error('Cannot create project with a different ownerId');
     }
+    if (!args.id || args.id.trim() === '') throw new Error('Project id is required');
+    if (ctx.db.projects.id.find(args.id)) throw new Error('Project with this id already exists');
     const now = nowMs(ctx);
-    const id = generateId(ctx);
+    const id = args.id;
     ctx.db.projects.insert({ id, name: args.name, status: "created", createdAt: now, updatedAt: now, ownerId: args.ownerId, metadata: args.metadata, starred: false, folderId: "" });
+    // Auto-insert owner as collaborator
+    ctx.db.projectCollaborators.insert({
+      id: generateId(ctx),
+      projectId: id,
+      firebaseUid: args.ownerId,
+      role: 'owner',
+      displayName: '',
+      email: '',
+      addedBy: args.ownerId,
+      addedAt: now,
+    });
     ctx.db.projectState.insert({ projectId: id, completedTasks: "[]", totalTasks: 0, completedCount: 0, currentPhase: "created", lastUpdated: now });
   },
 );
@@ -478,16 +573,22 @@ export const claimTask = stdb.reducer(
   },
 );
 
-// Phase 2.2: Use index for findAndClaimTask
+// Phase 2.2: Find and claim a pending task by type
 export const findAndClaimTask = stdb.reducer(
   "find_and_claim_task",
   { taskType: t.string(), workerId: t.string() },
   (ctx: any, args: any) => {
     console.log(`[findAndClaimTask] taskType=${args.taskType} workerId=${args.workerId}`);
     let found: any = null;
-    for (const task of ctx.db.tasks.byTaskTypeStatus.filter([args.taskType, 'pending'])) {
-      found = task;
-      break;
+    // Use index if available, fall back to iter()
+    const source = ctx.db.tasks.byTaskTypeStatus
+      ? ctx.db.tasks.byTaskTypeStatus.filter([args.taskType, 'pending'])
+      : ctx.db.tasks.iter();
+    for (const task of source) {
+      if (task.taskType === args.taskType && task.status === 'pending') {
+        found = task;
+        break;
+      }
     }
     if (!found) throw new Error("findAndClaimTask: no pending " + args.taskType + " tasks");
     ctx.db.tasks.id.update({ ...found, status: "claimed", workerId: args.workerId, claimedAt: nowMs(ctx) });
@@ -527,7 +628,7 @@ export const completeTask = stdb.reducer(
 
     const completedTypesSet = new Set<string>();
     const existingTaskTypes = new Set<string>();
-    for (const row of ctx.db.tasks.byProjectId.filter(projectId)) {
+    for (const row of getTasksByProjectId(ctx, projectId)) {
       if (row.status === "completed") completedTypesSet.add(row.taskType);
       existingTaskTypes.add(row.taskType);
     }
@@ -540,7 +641,7 @@ export const completeTask = stdb.reducer(
       if (!deps.every((dep) => completedTypesSet.has(dep))) continue;
 
       const upstreamAssetIds: string[] = [];
-      for (const row of ctx.db.tasks.byProjectId.filter(projectId)) {
+      for (const row of getTasksByProjectId(ctx, projectId)) {
         if (row.status === "completed" && deps.includes(row.taskType)) {
           try { const outputs = JSON.parse(row.outputAssetIds); if (Array.isArray(outputs)) upstreamAssetIds.push(...outputs); } catch {}
         }
@@ -628,12 +729,24 @@ export const updateWorkerConfig = stdb.reducer(
   },
 );
 
+export const renameProject = stdb.reducer(
+  "rename_project",
+  { projectId: t.string(), name: t.string() },
+  (ctx: any, args: any) => {
+    console.log(`[renameProject] projectId=${args.projectId} name=${args.name}`);
+    assertProjectAccess(ctx, args.projectId, 'owner');
+    const project = ctx.db.projects.id.find(args.projectId);
+    if (!project) throw new Error("renameProject: project not found");
+    ctx.db.projects.id.update({ ...project, name: args.name, updatedAt: nowMs(ctx) });
+  },
+);
+
 export const toggleProjectStar = stdb.reducer(
   "toggle_project_star",
   { projectId: t.string() },
   (ctx: any, args: any) => {
     console.log(`[toggleProjectStar] projectId=${args.projectId}`);
-    assertProjectOwnership(ctx, args.projectId);
+    assertProjectAccess(ctx, args.projectId, 'editor');
     const project = ctx.db.projects.id.find(args.projectId);
     if (!project) throw new Error("toggleProjectStar: project not found");
     ctx.db.projects.id.update({ ...project, starred: !project.starred, updatedAt: nowMs(ctx) });
@@ -691,7 +804,7 @@ export const moveProjectToFolder = stdb.reducer(
   { projectId: t.string(), folderId: t.string() },
   (ctx: any, args: any) => {
     console.log(`[moveProjectToFolder] projectId=${args.projectId} folderId=${args.folderId}`);
-    assertProjectOwnership(ctx, args.projectId);
+    assertProjectAccess(ctx, args.projectId, 'owner');
     const project = ctx.db.projects.id.find(args.projectId);
     if (!project) throw new Error("moveProjectToFolder: project not found");
     ctx.db.projects.id.update({ ...project, folderId: args.folderId, updatedAt: nowMs(ctx) });
@@ -703,12 +816,12 @@ export const approveTimeline = stdb.reducer(
   { projectId: t.string() },
   (ctx: any, args: any) => {
     console.log(`[approveTimeline] projectId=${args.projectId}`);
-    assertProjectOwnership(ctx, args.projectId);
+    assertProjectAccess(ctx, args.projectId, 'editor');
     const projectId = args.projectId;
     const now = nowMs(ctx);
 
     let timelineBuildTask: any = null;
-    for (const task of ctx.db.tasks.byProjectId.filter(projectId)) {
+    for (const task of getTasksByProjectId(ctx, projectId)) {
       if (task.taskType === 'TIMELINE_BUILD' && task.status === 'completed') {
         timelineBuildTask = task;
         break;
@@ -716,7 +829,7 @@ export const approveTimeline = stdb.reducer(
     }
     if (!timelineBuildTask) throw new Error("approveTimeline: no completed TIMELINE_BUILD task");
 
-    for (const task of ctx.db.tasks.byProjectId.filter(projectId)) {
+    for (const task of getTasksByProjectId(ctx, projectId)) {
       if (task.taskType === 'RENDER' && (task.status === 'pending' || task.status === 'claimed')) {
         throw new Error("approveTimeline: RENDER task already in progress");
       }
@@ -744,7 +857,7 @@ export const upsertTimelineClip = stdb.reducer(
   "upsert_timeline_clip",
   { projectId: t.string(), clipId: t.string(), mediaFileId: t.string(), trackId: t.string(), startTime: t.f64(), duration: t.f64(), mediaOffset: t.f64(), label: t.string(), clipType: t.string(), transform: t.string(), effects: t.string(), aiReasoning: t.string(), sortOrder: t.i32() },
   (ctx: any, args: any) => {
-    assertProjectOwnership(ctx, args.projectId);
+    assertProjectAccess(ctx, args.projectId, 'editor');
     const callerUid = getCallerUid(ctx)!;
     const existing = ctx.db.timelineClips.id.find(args.clipId);
     const row = { id: args.clipId, projectId: args.projectId, mediaFileId: args.mediaFileId, trackId: args.trackId, startTime: args.startTime, duration: args.duration, mediaOffset: args.mediaOffset, label: args.label, clipType: args.clipType, transform: args.transform, effects: args.effects, aiReasoning: args.aiReasoning, sortOrder: args.sortOrder, updatedBy: callerUid };
@@ -762,7 +875,7 @@ export const removeTimelineClip = stdb.reducer(
   (ctx: any, args: any) => {
     const clip = ctx.db.timelineClips.id.find(args.clipId);
     if (!clip) throw new Error('Clip not found');
-    assertProjectOwnership(ctx, clip.projectId);
+    assertProjectAccess(ctx, clip.projectId, 'editor');
     ctx.db.timelineClips.id.delete(args.clipId);
   },
 );
@@ -771,7 +884,7 @@ export const batchUpsertTimelineClips = stdb.reducer(
   "batch_upsert_timeline_clips",
   { projectId: t.string(), clipsJson: t.string() },
   (ctx: any, args: any) => {
-    assertProjectOwnership(ctx, args.projectId);
+    assertProjectAccess(ctx, args.projectId, 'editor');
     const callerUid = getCallerUid(ctx)!;
     let clips: any[];
     try { clips = JSON.parse(args.clipsJson); } catch { throw new Error('Invalid clipsJson'); }
@@ -792,8 +905,11 @@ export const clearProjectTimeline = stdb.reducer(
   "clear_project_timeline",
   { projectId: t.string() },
   (ctx: any, args: any) => {
-    assertProjectOwnership(ctx, args.projectId);
-    for (const clip of ctx.db.timelineClips.byProjectId.filter(args.projectId)) {
+    assertProjectAccess(ctx, args.projectId, 'editor');
+    const clips = ctx.db.timelineClips.byProjectId
+      ? [...ctx.db.timelineClips.byProjectId.filter(args.projectId)]
+      : [...ctx.db.timelineClips.iter()].filter((c: any) => c.projectId === args.projectId);
+    for (const clip of clips) {
       ctx.db.timelineClips.id.delete(clip.id);
     }
   },
@@ -805,7 +921,7 @@ export const createMediaFile = stdb.reducer(
   "create_media_file",
   { id: t.string(), projectId: t.string(), name: t.string(), durationSeconds: t.f64(), fileType: t.string(), gcsPath: t.string(), gcsUrl: t.string(), sizeBytes: t.u64(), captionsJson: t.string() },
   (ctx: any, args: any) => {
-    assertProjectOwnership(ctx, args.projectId);
+    assertProjectAccess(ctx, args.projectId, 'editor');
     ctx.db.mediaFiles.insert({ id: args.id, projectId: args.projectId, name: args.name, durationSeconds: args.durationSeconds, fileType: args.fileType, gcsPath: args.gcsPath, gcsUrl: args.gcsUrl, sizeBytes: args.sizeBytes, captionsJson: args.captionsJson });
   },
 );
@@ -816,7 +932,7 @@ export const updateMediaFileCaptions = stdb.reducer(
   (ctx: any, args: any) => {
     const mf = ctx.db.mediaFiles.id.find(args.mediaFileId);
     if (!mf) throw new Error('Media file not found');
-    assertProjectOwnership(ctx, mf.projectId);
+    assertProjectAccess(ctx, mf.projectId, 'editor');
     ctx.db.mediaFiles.id.update({ ...mf, captionsJson: args.captionsJson });
   },
 );
@@ -827,7 +943,7 @@ export const removeMediaFile = stdb.reducer(
   (ctx: any, args: any) => {
     const mf = ctx.db.mediaFiles.id.find(args.mediaFileId);
     if (!mf) throw new Error('Media file not found');
-    assertProjectOwnership(ctx, mf.projectId);
+    assertProjectAccess(ctx, mf.projectId, 'editor');
     ctx.db.mediaFiles.id.delete(args.mediaFileId);
   },
 );
@@ -838,7 +954,7 @@ export const upsertEffectBlock = stdb.reducer(
   "upsert_effect_block",
   { id: t.string(), projectId: t.string(), effectType: t.string(), startTime: t.f64(), duration: t.f64(), config: t.string() },
   (ctx: any, args: any) => {
-    assertProjectOwnership(ctx, args.projectId);
+    assertProjectAccess(ctx, args.projectId, 'editor');
     const existing = ctx.db.effectBlocks.id.find(args.id);
     const row = { id: args.id, projectId: args.projectId, effectType: args.effectType, startTime: args.startTime, duration: args.duration, config: args.config };
     if (existing) {
@@ -855,7 +971,7 @@ export const removeEffectBlock = stdb.reducer(
   (ctx: any, args: any) => {
     const eb = ctx.db.effectBlocks.id.find(args.effectBlockId);
     if (!eb) throw new Error('Effect block not found');
-    assertProjectOwnership(ctx, eb.projectId);
+    assertProjectAccess(ctx, eb.projectId, 'editor');
     ctx.db.effectBlocks.id.delete(args.effectBlockId);
   },
 );
@@ -873,8 +989,8 @@ export const joinProject = stdb.reducer(
 
     // Assign a color based on existing presence count
     let colorIndex = 0;
-    for (const p of ctx.db.projectPresence.byProjectId.filter(args.projectId)) {
-      colorIndex++;
+    for (const p of ctx.db.projectPresence.iter()) {
+      if (p.projectId === args.projectId) colorIndex++;
     }
 
     const existing = ctx.db.projectPresence.id.find(senderHex);
@@ -918,7 +1034,7 @@ export const acquireLock = stdb.reducer(
   (ctx: any, args: any) => {
     const callerUid = getCallerUid(ctx);
     if (!callerUid) throw new Error('Identity not registered');
-    assertProjectOwnership(ctx, args.projectId);
+    assertProjectAccess(ctx, args.projectId, 'editor');
     const now = nowMs(ctx);
 
     const existing = ctx.db.projectLocks.projectId.find(args.projectId);
@@ -970,10 +1086,165 @@ export const forceReleaseLock = stdb.reducer(
   { projectId: t.string() },
   (ctx: any, args: any) => {
     // Only the project owner can force-release
-    assertProjectOwnership(ctx, args.projectId);
+    assertProjectAccess(ctx, args.projectId, 'owner');
     const lock = ctx.db.projectLocks.projectId.find(args.projectId);
     if (!lock) return;
     ctx.db.projectLocks.projectId.delete(args.projectId);
+  },
+);
+
+// ─── Collaboration Reducers ─────────────────────────────────────────
+
+export const addCollaborator = stdb.reducer(
+  "add_collaborator",
+  { projectId: t.string(), firebaseUid: t.string(), role: t.string(), displayName: t.string(), email: t.string() },
+  (ctx: any, args: any) => {
+    console.log(`[addCollaborator] projectId=${args.projectId} uid=${args.firebaseUid} role=${args.role}`);
+    assertProjectAccess(ctx, args.projectId, 'owner');
+    if (!['editor', 'viewer'].includes(args.role)) throw new Error('Invalid role');
+    // Check for duplicate
+    for (const collab of ctx.db.projectCollaborators.iter()) {
+      if (collab.projectId === args.projectId && collab.firebaseUid === args.firebaseUid) {
+        throw new Error('User is already a collaborator');
+      }
+    }
+    const callerUid = getCallerUid(ctx)!;
+    ctx.db.projectCollaborators.insert({
+      id: generateId(ctx),
+      projectId: args.projectId,
+      firebaseUid: args.firebaseUid,
+      role: args.role,
+      displayName: args.displayName,
+      email: args.email,
+      addedBy: callerUid,
+      addedAt: nowMs(ctx),
+    });
+  },
+);
+
+export const updateCollaboratorRole = stdb.reducer(
+  "update_collaborator_role",
+  { projectId: t.string(), firebaseUid: t.string(), role: t.string() },
+  (ctx: any, args: any) => {
+    console.log(`[updateCollaboratorRole] projectId=${args.projectId} uid=${args.firebaseUid} role=${args.role}`);
+    assertProjectAccess(ctx, args.projectId, 'owner');
+    if (!['editor', 'viewer'].includes(args.role)) throw new Error('Invalid role');
+    for (const collab of ctx.db.projectCollaborators.iter()) {
+      if (collab.projectId === args.projectId && collab.firebaseUid === args.firebaseUid) {
+        if (collab.role === 'owner') throw new Error('Cannot change owner role');
+        ctx.db.projectCollaborators.id.update({ ...collab, role: args.role });
+        return;
+      }
+    }
+    throw new Error('Collaborator not found');
+  },
+);
+
+export const removeCollaborator = stdb.reducer(
+  "remove_collaborator",
+  { projectId: t.string(), firebaseUid: t.string() },
+  (ctx: any, args: any) => {
+    console.log(`[removeCollaborator] projectId=${args.projectId} uid=${args.firebaseUid}`);
+    assertProjectAccess(ctx, args.projectId, 'owner');
+    for (const collab of ctx.db.projectCollaborators.iter()) {
+      if (collab.projectId === args.projectId && collab.firebaseUid === args.firebaseUid) {
+        if (collab.role === 'owner') throw new Error('Cannot remove project owner');
+        ctx.db.projectCollaborators.id.delete(collab.id);
+        return;
+      }
+    }
+    throw new Error('Collaborator not found');
+  },
+);
+
+export const leaveCollaboratorProject = stdb.reducer(
+  "leave_collaborator_project",
+  { projectId: t.string() },
+  (ctx: any, args: any) => {
+    const callerUid = getCallerUid(ctx);
+    if (!callerUid) throw new Error('Identity not registered');
+    console.log(`[leaveCollaboratorProject] projectId=${args.projectId} uid=${callerUid}`);
+    for (const collab of ctx.db.projectCollaborators.iter()) {
+      if (collab.projectId === args.projectId && collab.firebaseUid === callerUid) {
+        if (collab.role === 'owner') throw new Error('Owner cannot leave project');
+        ctx.db.projectCollaborators.id.delete(collab.id);
+        return;
+      }
+    }
+    throw new Error('Not a collaborator');
+  },
+);
+
+export const createShareLink = stdb.reducer(
+  "create_share_link",
+  { projectId: t.string(), role: t.string(), expiresAt: t.u64(), maxUses: t.i32() },
+  (ctx: any, args: any) => {
+    console.log(`[createShareLink] projectId=${args.projectId} role=${args.role}`);
+    assertProjectAccess(ctx, args.projectId, 'owner');
+    if (!['editor', 'viewer'].includes(args.role)) throw new Error('Invalid role');
+    const callerUid = getCallerUid(ctx)!;
+    const token = generateId(ctx) + '-' + ctx.random().toString(36).slice(2, 14);
+    ctx.db.shareLinks.insert({
+      id: generateId(ctx),
+      projectId: args.projectId,
+      token,
+      role: args.role,
+      createdBy: callerUid,
+      createdAt: nowMs(ctx),
+      expiresAt: args.expiresAt,
+      maxUses: args.maxUses,
+      useCount: 0,
+    });
+  },
+);
+
+export const deleteShareLink = stdb.reducer(
+  "delete_share_link",
+  { linkId: t.string() },
+  (ctx: any, args: any) => {
+    console.log(`[deleteShareLink] linkId=${args.linkId}`);
+    const link = ctx.db.shareLinks.id.find(args.linkId);
+    if (!link) throw new Error('Share link not found');
+    assertProjectAccess(ctx, link.projectId, 'owner');
+    ctx.db.shareLinks.id.delete(args.linkId);
+  },
+);
+
+export const redeemShareLink = stdb.reducer(
+  "redeem_share_link",
+  { token: t.string() },
+  (ctx: any, args: any) => {
+    const callerUid = getCallerUid(ctx);
+    if (!callerUid) throw new Error('Identity not registered');
+    console.log(`[redeemShareLink] uid=${callerUid}`);
+    // Find link by token (iterate — low volume)
+    let link: any = null;
+    for (const l of ctx.db.shareLinks.iter()) {
+      if (l.token === args.token) { link = l; break; }
+    }
+    if (!link) throw new Error('Invalid share link');
+    const now = nowMs(ctx);
+    if (link.expiresAt > 0n && now > link.expiresAt) throw new Error('Share link expired');
+    if (link.maxUses > 0 && link.useCount >= link.maxUses) throw new Error('Share link usage limit reached');
+    // Check if already a collaborator
+    for (const collab of ctx.db.projectCollaborators.iter()) {
+      if (collab.projectId === link.projectId && collab.firebaseUid === callerUid) {
+        throw new Error('Already a collaborator');
+      }
+    }
+    // Add as collaborator
+    ctx.db.projectCollaborators.insert({
+      id: generateId(ctx),
+      projectId: link.projectId,
+      firebaseUid: callerUid,
+      role: link.role,
+      displayName: '',
+      email: '',
+      addedBy: link.createdBy,
+      addedAt: now,
+    });
+    // Increment use count
+    ctx.db.shareLinks.id.update({ ...link, useCount: link.useCount + 1 });
   },
 );
 

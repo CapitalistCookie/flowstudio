@@ -43,7 +43,7 @@ export function createMockConfig(overrides: Partial<WorkerConfig> = {}): WorkerC
     googleAiApiKey: 'test-google-ai-key',
     vertexRegion: 'us-central1',
     vertexProjectId: 'test-project',
-    googleAiModel: 'gemini-1.5-flash',
+    googleAiModel: 'gemini-2.5-pro',
     anthropicModel: 'claude-sonnet-4-20250514',
     ...overrides,
   };

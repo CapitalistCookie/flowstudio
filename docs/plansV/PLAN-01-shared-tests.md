@@ -165,7 +165,7 @@ test('buildSecurePrompt wraps data in XML fences', () => {
 
 ```bash
 # Install vitest
-cd /Users/vishnu/Documents/FlowStudio && pnpm add -Dw vitest
+cd /home/user/projects/flowstudio && pnpm add -Dw vitest
 
 # Add vitest config to shared package
 # (created by the plan)

@@ -9,6 +9,7 @@ class Settings(BaseModel):
     vertex_region: str = Field(default_factory=lambda: os.getenv("VERTEX_REGION", "us-central1"))
     vertex_project_id: str = Field(default_factory=lambda: os.getenv("VERTEX_PROJECT_ID", ""))
     anthropic_api_key: str = Field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))
+    google_ai_model: str = Field(default_factory=lambda: os.getenv("GOOGLE_AI_MODEL", "gemini-2.5-pro"))
     stdb_host: str = Field(default_factory=lambda: os.getenv("STDB_INTERNAL_HOST", "localhost"))
     stdb_module: str = Field(default_factory=lambda: os.getenv("STDB_MODULE", "flowstudio"))
     allowed_origins: list[str] = Field(

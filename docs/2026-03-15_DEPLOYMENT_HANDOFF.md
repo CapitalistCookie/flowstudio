@@ -74,7 +74,7 @@ This was the actual reason Node 22/23 also failed — the `server` entrypoint pu
 gcloud config configurations activate flowstudio
 gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin us-east4-docker.pkg.dev
 
-# Rebuild all (from /home/user/FlowStudio)
+# Rebuild all (from /home/user/projects/flowstudio)
 ./infra/scripts/deploy-all.sh v10
 ```
 

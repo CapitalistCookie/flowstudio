@@ -1,6 +1,6 @@
 # FlowStudio Frontend NLE — Execution Prompt
 
-> **Paste this entire file as your first message in a new Claude Code session opened at `/home/user/FlowStudio`.**
+> **Paste this entire file as your first message in a new Claude Code session opened at `/home/user/projects/flowstudio`.**
 
 ---
 

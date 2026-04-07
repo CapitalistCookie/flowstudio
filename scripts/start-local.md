@@ -21,7 +21,7 @@ Ensure `.env` exists (copy from `.env.example`) and is filled for Clerk, GCP, ST
 
 ```bash
 # From repo root
-cd /Users/vishnu/Documents/FlowStudio
+cd /home/user/projects/flowstudio
 
 # Monorepo (shared, stdb-module, workers)
 pnpm install
